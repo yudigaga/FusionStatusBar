@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+artifacts/
+.tmp*/
+*.apk
+*.zip
+__pycache__/

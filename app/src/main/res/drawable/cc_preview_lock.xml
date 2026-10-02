@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original project preview glyph; not extracted system artwork. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+  <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M6 10H18Q20 10 20 12V20Q20 22 18 22H6Q4 22 4 20V12Q4 10 6 10ZM8 10V7A4 4 0 0 1 16 7V10M12 15V18" />
+</vector>
+

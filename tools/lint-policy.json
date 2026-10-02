@@ -1,0 +1,14 @@
+{
+  "checkedIds": ["StaticFieldLeak", "DrawAllocation", "ExportedContentProvider", "MissingPermission", "HandlerLeak", "WrongThread", "Recycle"],
+  "allowed": {
+    "StaticFieldLeak:app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java": 1,
+    "DrawAllocation:app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterActualEditor.java": 1,
+    "DrawAllocation:app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java": 1,
+    "ExportedContentProvider:app/src/main/AndroidManifest.xml": 1
+  },
+  "rationale": {
+    "StaticFieldLeak": "SystemUiHooks retains the process application context for observers and configuration reads.",
+    "DrawAllocation": "Existing preview matrix and lazily cached pair clip allocation remain bounded; require a measured regression before changing rendering.",
+    "ExportedContentProvider": "Cross-process access is intentional; the provider authenticates every call and file open. Caller policy and generation behavior have regression coverage."
+  }
+}

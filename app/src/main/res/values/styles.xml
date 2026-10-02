@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FFF5F5F7</item>
+        <item name="android:statusBarColor">#FFF5F5F7</item>
+        <item name="android:navigationBarColor">#FFF5F5F7</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#FF3482FF</item>
+        <item name="android:textColor">#FF202124</item>
+        <item name="android:textColorPrimary">#FF202124</item>
+        <item name="android:textColorSecondary">#FF77777D</item>
+    </style>
+
+    <style name="SettingsSheetWindowAnimation">
+        <item name="android:windowEnterAnimation">@anim/settings_sheet_enter</item>
+        <item name="android:windowExitAnimation">@anim/settings_sheet_exit</item>
+    </style>
+</resources>

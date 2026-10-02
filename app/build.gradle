@@ -1,0 +1,68 @@
+apply plugin: "com.android.application"
+
+android {
+    namespace "com.xtjm.fusionstatusbar"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.xtjm.fusionstatusbar"
+        minSdk 33
+        targetSdk 35
+        versionCode 163
+        versionName "0.3.149"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        encoding "UTF-8"
+    }
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/xposed"))
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "fusion-statusbar-v${variant.versionName}-${variant.name}.apk"
+        }
+    }
+}
+
+def generateXposedMetadata = tasks.register("generateXposedMetadata") {
+    def template = file("src/main/xposed/module.properties")
+    def output = layout.buildDirectory.file("generated/xposed/META-INF/xposed/module.prop")
+    inputs.file(template)
+    inputs.property("versionName", android.defaultConfig.versionName)
+    inputs.property("versionCode", android.defaultConfig.versionCode)
+    outputs.file(output)
+    doLast {
+        def target = output.get().asFile
+        target.parentFile.mkdirs()
+        target.setText(template.getText("UTF-8")
+                .replace("@VERSION_NAME@", android.defaultConfig.versionName)
+                .replace("@VERSION_CODE@", android.defaultConfig.versionCode.toString()), "UTF-8")
+    }
+}
+
+tasks.named("preBuild").configure { dependsOn(generateXposedMetadata) }
+tasks.withType(JavaCompile).configureEach { options.encoding = "UTF-8" }
+
+dependencies {
+    compileOnly "io.github.libxposed:api:102.0.0"
+    testImplementation "io.github.libxposed:api:102.0.0"
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.robolectric:robolectric:4.14.1"
+}

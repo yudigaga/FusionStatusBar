@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original project preview glyph; not extracted system artwork. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+  <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M19.21,9.02L21.82,10.09L21.82,13.91L19.21,14.98L19.21,14.98L20.29,17.59L17.59,20.29L14.98,19.21L14.98,19.21L13.91,21.82L10.09,21.82L9.02,19.21L9.02,19.21L6.41,20.29L3.71,17.59L4.79,14.98L4.79,14.98L2.18,13.91L2.18,10.09L4.79,9.02L4.79,9.02L3.71,6.41L6.41,3.71L9.02,4.79L9.02,4.79L10.09,2.18L13.91,2.18L14.98,4.79L14.98,4.79L17.59,3.71L20.29,6.41L19.21,9.02ZM15.5 12A3.5 3.5 0 1 0 8.5 12A3.5 3.5 0 1 0 15.5 12Z" />
+</vector>
+

@@ -1,0 +1,8 @@
+TRACE:
+# tracer: nop
+# entries-in-buffer/entries-written: 4/4   #P:1
+# TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION
+ main-123 ( 123) [000] .... 1.000000: tracing_mark_write: B|123|Choreographer#doFrame 1
+ main-123 ( 123) [000] .... 1.002000: tracing_mark_write: B|123|VRI[MainActivity]-relayoutWindow#first=true/resize=true
+ main-123 ( 123) [000] .... 1.008000: tracing_mark_write: E|123
+ main-123 ( 123) [000] .... 1.010000: tracing_mark_write: E|123
