@@ -13,7 +13,7 @@ final class FusionActivationStatus {
     private static final String PREFS = "fusion_activation";
     private static final String KEY_BOOT_START = "boot_start_ms";
     private static final String KEY_REPORT_TIME = "report_time_ms";
-    private static final String STATUS_URI = "content://com.xtjm.fusionstatusbar.config/activation";
+    private static final String STATUS_URI = "content://io.github.yudigaga.fusionstatusbar.config/activation";
     private static final long BOOT_TOLERANCE_MS = 120_000L;
     static final String KEY_READ_REVISION = "read_revision";
     static final String KEY_APPLIED_REVISION = "applied_revision";

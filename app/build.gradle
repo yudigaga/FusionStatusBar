@@ -5,11 +5,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.xtjm.fusionstatusbar"
+        applicationId "io.github.yudigaga.fusionstatusbar"
         minSdk 33
         targetSdk 35
-        versionCode 163
-        versionName "0.3.149"
+        versionCode 164
+        versionName "0.3.150"
     }
 
     compileOptions {

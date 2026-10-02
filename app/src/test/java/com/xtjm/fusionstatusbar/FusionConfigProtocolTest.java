@@ -174,7 +174,9 @@ public class FusionConfigProtocolTest {
     }
 
     @Test public void providerCallerPolicyRejectsUnknownAndRestrictsRequestsToApp() {
-        String own = "com.xtjm.fusionstatusbar";
+        String own = BuildConfig.APPLICATION_ID;
+        assertEquals(own + ".config", FusionConfig.contentUri().getAuthority());
+        assertEquals(own + ".config", FusionConfig.controlCenterPreviewUri().getAuthority());
         FusionConfigProvider.enforceCaller(own, own, true);
         FusionConfigProvider.enforceCaller("com.android.systemui", own, false);
         assertThrows(SecurityException.class, () -> FusionConfigProvider.enforceCaller(null, own, false));

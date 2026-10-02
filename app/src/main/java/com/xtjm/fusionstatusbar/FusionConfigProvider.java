@@ -89,7 +89,7 @@ public final class FusionConfigProvider extends ContentProvider {
 
     @Override public String getType(Uri uri) {
         return FusionConfig.controlCenterPreviewUri().getPath().equals(uri.getPath())
-                ? "image/png" : "vnd.android.cursor.item/vnd.xtjm.fusionstatusbar.config";
+                ? "image/png" : "vnd.android.cursor.item/vnd.io.github.yudigaga.fusionstatusbar.config";
     }
 
     @Override public Cursor query(Uri uri, String[] projection, String selection,

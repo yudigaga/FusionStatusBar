@@ -8,9 +8,9 @@ import android.util.Log;
 /** Shared display and status-bar layout settings. */
 public final class FusionConfig {
     public static final String CONTENT_URI_STRING =
-            "content://com.xtjm.fusionstatusbar.config/settings";
+            "content://io.github.yudigaga.fusionstatusbar.config/settings";
     static final String CONTROL_CENTER_PREVIEW_URI_STRING =
-            "content://com.xtjm.fusionstatusbar.config/control_center_preview";
+            "content://io.github.yudigaga.fusionstatusbar.config/control_center_preview";
     public static final String METHOD_GET = "get";
     static final String METHOD_REPORT_APPLIED = "report_applied";
     static final String KEY_REVISION = "config_revision";
@@ -260,7 +260,7 @@ public final class FusionConfig {
         if (providerConfig != null) return providerConfig;
         try {
             Context packageContext = context.createPackageContext(
-                    "com.xtjm.fusionstatusbar", Context.CONTEXT_IGNORE_SECURITY);
+                    "io.github.yudigaga.fusionstatusbar", Context.CONTEXT_IGNORE_SECURITY);
             return FusionConfigStore.read(packageContext);
         } catch (Throwable ignored) {
             return defaults();

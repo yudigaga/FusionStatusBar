@@ -22,8 +22,8 @@ from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 
-PACKAGE = "com.xtjm.fusionstatusbar"
-ACTIVITY = PACKAGE + "/.MainActivity"
+PACKAGE = "io.github.yudigaga.fusionstatusbar"
+ACTIVITY = PACKAGE + "/com.xtjm.fusionstatusbar.MainActivity"
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDS = re.compile(r"^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$")
 

@@ -7,6 +7,12 @@
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 设计参考：[Miuix](https://github.com/compose-miuix-ui/miuix)，感谢开源项目提供设计灵感。
 
+## 安装与迁移
+
+- 从 0.3.150 起，模块包名为 `io.github.yudigaga.fusionstatusbar`，Android 会将其视为独立应用，旧包 `com.xtjm.fusionstatusbar` 的配置不会自动迁移。
+- 如需保留配置，先在旧版设置中选择“导出配置备份”，安装新版后选择“导入配置备份”。确认新版配置后，再卸载旧版。
+- 在 LSPosed 中关闭旧包的模块，只启用新版；作用域选择 `com.android.systemui`，设备存在 `miui.systemui.plugin` 时也将其勾选，然后重启系统界面。不要同时启用新旧两个模块。
+
 ## 构建
 
 - JDK 17、Android SDK Platform 35 与 Build Tools 35 或更新版本。
@@ -18,13 +24,13 @@
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
 ```
 
-完整本地发布检查与归档：
+本地 debug 构建检查与归档：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\release.ps1 -JavaHome $env:JAVA_HOME -AndroidSdk $env:ANDROID_HOME -GitPath git
 ```
 
-脚本会核验测试、lint 检查兼容性、APK 签名、Manifest/Xposed/Hook 版本一致性，并把 APK、报告、源码指纹和 `release.json` 放在 `artifacts/releases/v<version>/`。已有发布目录不会覆盖。脚本不安装 APK、不连接设备、不重启 SystemUI。
+脚本会核验测试、lint 检查兼容性、APK 签名、Manifest/Xposed/Hook 版本一致性，并把 APK、报告、源码指纹和 `release.json` 放在 `artifacts/releases/v<version>/`。该脚本产出 debug APK；对外发布需另行构建 release 变体并使用专用密钥签名。已有发布目录不会覆盖。脚本不安装 APK、不连接设备、不重启 SystemUI。
 
 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
 

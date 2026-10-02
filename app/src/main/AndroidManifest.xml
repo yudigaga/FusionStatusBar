@@ -14,7 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
-            android:name=".MainActivity"
+            android:name="com.xtjm.fusionstatusbar.MainActivity"
             android:enableOnBackInvokedCallback="true"
             android:exported="true">
             <intent-filter>
@@ -23,8 +23,8 @@
             </intent-filter>
         </activity>
         <provider
-            android:name=".FusionConfigProvider"
-            android:authorities="com.xtjm.fusionstatusbar.config"
+            android:name="com.xtjm.fusionstatusbar.FusionConfigProvider"
+            android:authorities="${applicationId}.config"
             android:directBootAware="true"
             android:exported="true"
             android:grantUriPermissions="false" />

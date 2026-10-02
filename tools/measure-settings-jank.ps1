@@ -165,7 +165,7 @@ function Write-MeasurementText([string]$FileName, [string]$Content) {
         (New-Object System.Text.UTF8Encoding($false)))
 }
 
-[void](Invoke-TargetAdb @('shell', 'am', 'start', '-n', 'com.xtjm.fusionstatusbar/.MainActivity'))
+[void](Invoke-TargetAdb @('shell', 'am', 'start', '-n', 'io.github.yudigaga.fusionstatusbar/com.xtjm.fusionstatusbar.MainActivity'))
 Start-Sleep -Seconds 3
 $nodes = Get-UiNodes
 Tap-Node (Find-UiNode $nodes $PageTab -Description)
@@ -174,7 +174,7 @@ $nodes = Get-UiNodes
 $itemNode = Find-UiNode $nodes $ItemText
 $itemCenter = Get-NodeCenter $itemNode
 $activityWindow = Get-FocusedAppWindow
-$appMetadata = Get-PackageMetadata 'com.xtjm.fusionstatusbar'
+$appMetadata = Get-PackageMetadata 'io.github.yudigaga.fusionstatusbar'
 $systemUiMetadata = Get-PackageMetadata 'com.android.systemui'
 $getpropText = (Invoke-TargetAdb @('shell', 'getprop') | Out-String)
 $displayText = (Invoke-TargetAdb @('shell', 'dumpsys', 'display') | Out-String)
@@ -205,12 +205,12 @@ Write-MeasurementText "$OutputName.metadata.json" ($metadata | ConvertTo-Json -D
 Open-CloseDialog $itemCenter $activityWindow
 Open-CloseDialog $itemCenter $activityWindow
 Start-Sleep -Seconds 1
-[void](Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', 'com.xtjm.fusionstatusbar', 'reset'))
+[void](Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', 'io.github.yudigaga.fusionstatusbar', 'reset'))
 # Stop tracing even when a tap, focus check, or adb command fails.
 $measurementStartedUtc = [DateTime]::UtcNow.ToString('o')
 try {
     [void](Invoke-TargetAdb @('shell', 'atrace', '--async_start', '-b', "$TraceBufferKb", '-a',
-        'com.xtjm.fusionstatusbar', 'gfx', 'view', 'wm'))
+        'io.github.yudigaga.fusionstatusbar', 'gfx', 'view', 'wm'))
     for ($i = 0; $i -lt $Iterations; $i++) { Open-CloseDialog $itemCenter $activityWindow }
 } finally {
     [void](Invoke-TargetAdb @('shell', 'atrace', '--async_stop', '-o', $remoteTrace))
@@ -218,17 +218,17 @@ try {
 $measurementEndedUtc = [DateTime]::UtcNow.ToString('o')
 $traceFile = Join-Path $traceDirectory "$OutputName.trace"
 [void](Invoke-TargetAdb @('pull', $remoteTrace, $traceFile))
-$stats = Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', 'com.xtjm.fusionstatusbar')
+$stats = Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', 'io.github.yudigaga.fusionstatusbar')
 Write-MeasurementText "$OutputName.gfxinfo.txt" ($stats | Out-String)
 Write-MeasurementText "$OutputName.framestats.txt" (Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo',
-    'com.xtjm.fusionstatusbar', 'framestats') | Out-String)
+    'io.github.yudigaga.fusionstatusbar', 'framestats') | Out-String)
 # Post-measurement snapshots cannot explain CPU/PSS at a particular slow frame.
 # Keep these commands outside the traced open/close loop.
 $cpuCapturedUtc = [DateTime]::UtcNow.ToString('o')
 Write-MeasurementText "$OutputName.cpuinfo.txt" (Invoke-TargetAdb @('shell', 'dumpsys', 'cpuinfo') | Out-String)
 $memoryCapturedUtc = [DateTime]::UtcNow.ToString('o')
 Write-MeasurementText "$OutputName.meminfo.txt" (Invoke-TargetAdb @('shell', 'dumpsys', 'meminfo',
-    'com.xtjm.fusionstatusbar') | Out-String)
+    'io.github.yudigaga.fusionstatusbar') | Out-String)
 $summary = @($stats | Select-String 'Total frames rendered:|Janky frames:|50th percentile:|90th percentile:|95th percentile:|99th percentile:|Number Slow UI thread:|Number Frame deadline missed:')
 $frameLine = $summary | Where-Object { $_.Line -match '^Total frames rendered:' } | Select-Object -First 1
 $jankLine = $summary | Where-Object { $_.Line -match '^Janky frames:' } | Select-Object -First 1
