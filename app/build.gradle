@@ -8,8 +8,8 @@ android {
         applicationId "io.github.yudigaga.fusionstatusbar"
         minSdk 33
         targetSdk 35
-        versionCode 164
-        versionName "0.3.150"
+        versionCode 165
+        versionName "0.3.151"
     }
 
     compileOptions {
