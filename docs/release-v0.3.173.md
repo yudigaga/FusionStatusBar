@@ -78,4 +78,3 @@
 | 0.3.173 | 独立电源菜单侧边滑条及明确操作语义 | [侧边滑条](../app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuSideSlider.java)、[菜单扩展](../app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuExtension.java)、[执行动作](../app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuActions.java) |
 
 本地历史归档位于主工作区的 `artifacts/releases/v<version>/`。0.3.152-0.3.173 范围内现有 21 份归档，均为 debug APK；其源码指纹与版本说明用于追溯更新。各归档记录共同基础提交 `d0cac3a` 和 `sourceDirty=true`，无法仅凭 Git 历史还原每个中间版本。v0.3.172 与 v0.3.173 的新增实现由相邻归档的 `source-files.json` 比较及当前源码核对确认。
-

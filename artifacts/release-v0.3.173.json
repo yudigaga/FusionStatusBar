@@ -1,0 +1,43 @@
+{
+  "versionName": "0.3.173",
+  "versionCode": 187,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "buildVariant": "release",
+  "debuggable": false,
+  "apk": "fusion-statusbar-v0.3.173.apk",
+  "apkSha256": "e1a5c8564e3931e39e4c8a19d796370c05df672753d0a15ad9d80ca8e39ee882",
+  "apkSize": 1133742,
+  "signingCertificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+  "sourceCommit": "5dffb54b0852d0495c9e9e379eb19c2cebc249f2",
+  "sourceBaseCommit": "7223fe36fc2548bfda622d62031f23acb9cc5b4b",
+  "tests": {
+    "debug": {
+      "total": 863,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "release": {
+      "total": 863,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "lint": {
+    "highRiskPolicy": "passed",
+    "debug": {
+      "errors": 0,
+      "warnings": 65
+    },
+    "release": {
+      "errors": 0,
+      "warnings": 65
+    }
+  },
+  "zipAlignment": "passed",
+  "installation": "not_performed",
+  "systemUiInjection": "not_performed",
+  "romValidation": "not_performed",
+  "createdUtc": "2026-10-05T06:57:39.4796655Z"
+}
