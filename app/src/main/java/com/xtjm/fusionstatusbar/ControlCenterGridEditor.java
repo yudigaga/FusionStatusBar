@@ -106,6 +106,9 @@ final class ControlCenterGridEditor extends ViewGroup {
     private final ArrayList<EditorItemHost> hosts = new ArrayList<>();
     private int columns = 4, rows = 1, gap, rowHeight, radius, cellWidth;
     private int cardStrength = 100, tileStrength = 100;
+    private ControlCenterSurface surface = ControlCenterSurface.DEFAULT;
+    private boolean globalBorderEnabled;
+    private int globalBorderWidthDp = 1;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int touchSlop;
     private final DecelerateInterpolator settleInterpolator = new DecelerateInterpolator();
@@ -154,6 +157,17 @@ final class ControlCenterGridEditor extends ViewGroup {
     void setMaterialStrength(int card, int tile) {
         cardStrength = card; tileStrength = tile;
         for (EditorItemHost host : hosts) host.card.setMaterialStrength(card, tile);
+    }
+
+    void setSurface(ControlCenterSurface next) {
+        surface = next == null ? ControlCenterSurface.DEFAULT : next;
+        for (EditorItemHost host : hosts) host.card.setSurface(surface);
+    }
+
+    void setGlobalBorder(boolean enabled, int widthDp) {
+        globalBorderEnabled = enabled;
+        globalBorderWidthDp = Math.max(1, Math.min(4, widthDp));
+        for (EditorItemHost host : hosts) host.card.setGlobalBorder(globalBorderEnabled, globalBorderWidthDp);
     }
 
     void setCells(int columnCount, List<Cell> next) {
@@ -292,6 +306,8 @@ final class ControlCenterGridEditor extends ViewGroup {
                 card.bindGroup(next.groupItem, next.groupStyles, next.groupLabels,
                         Math.round(radius / getResources().getDisplayMetrics().density));
                 card.setMaterialStrength(cardStrength, tileStrength);
+                card.setSurface(surface);
+                card.setGlobalBorder(globalBorderEnabled, globalBorderWidthDp);
                 return;
             }
             card.bind(new ControlCenterCardView.Model(next.firstSpec, next.secondSpec,
@@ -301,6 +317,8 @@ final class ControlCenterGridEditor extends ViewGroup {
                     next.cornerRadius > 0 ? dp(next.cornerRadius) : radius, next.tileScale,
                     next.firstStyle, next.secondStyle));
             card.setMaterialStrength(cardStrength, tileStrength);
+            card.setSurface(surface);
+            card.setGlobalBorder(globalBorderEnabled, globalBorderWidthDp);
         }
     }
 

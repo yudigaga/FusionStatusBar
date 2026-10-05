@@ -35,8 +35,7 @@ final class ControlCenterGroupView extends ViewGroup {
         super(context);
         this.item = item;
         this.defaultRadius = defaultRadius;
-        surface.setColor(item.group.surface.color);
-        if (item.group.border) surface.setStroke(Math.max(1, dp(0.7f)), 0x70ffffff);
+        surface.setColor(ControlCenterSurface.defaultGroupColor());
         setBackground(surface);
         setClipChildren(true);
         for (ControlCenterGroupData.Member member : item.group.members) addView(factory.apply(member));

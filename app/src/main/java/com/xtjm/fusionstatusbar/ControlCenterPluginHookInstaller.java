@@ -76,6 +76,7 @@ final class ControlCenterPluginHookInstaller {
         COMPACT_CARD_DESTROYED,
         WINDOW_BLUR_RATIO,
         ICON_SIZE,
+        ICON_UPDATED,
         BACKGROUND,
         CORNER_RADIUS,
         CONTAINER_HEIGHT,
@@ -253,6 +254,8 @@ final class ControlCenterPluginHookInstaller {
                 "setBlurRatio", 1, float.class, void.class, Callback.WINDOW_BLUR_RATIO));
         specs.add(Spec.count(Group.VISUAL, TILE_ICON_VIEW_CLASS,
                 "updateIconSize", 0, null, void.class, Callback.ICON_SIZE));
+        specs.add(Spec.count(Group.VISUAL, TILE_ICON_VIEW_CLASS,
+                "updateIconInternal", 5, null, void.class, Callback.ICON_UPDATED));
         specs.add(Spec.count(Group.VISUAL, TILE_ICON_VIEW_CLASS,
                 "setDisabledBg", 1, android.graphics.drawable.Drawable.class, null,
                 Callback.BACKGROUND));

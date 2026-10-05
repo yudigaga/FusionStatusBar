@@ -2,7 +2,10 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.ColorFilter;
+import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -189,6 +192,11 @@ public final class SystemUiHooks {
         StatusBarHookInstaller.Targets statusBarTargets = statusBarInstaller.resolve(classLoader);
         hookPluginClassLoaderFactory();
         int controlCenterHooks = hookControlCenterTiles();
+        int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
+                SystemUiHooks::ensureConfigObserver);
+        int surfaceHooks = NotificationSurfaceHooks.install(classLoader, SystemUiHooks::hookMethod,
+                () -> currentConfig, SystemUiHooks::ensureConfigObserver);
+        log(Log.INFO, "system surface hooks menus=" + menuHooks + " notifications=" + surfaceHooks, null);
         if (statusBarTargets.battery == null) {
             log(Log.ERROR, "battery view missing; original icons kept", null);
         }
@@ -379,6 +387,9 @@ public final class SystemUiHooks {
         if (source == null || classLoader == null) return;
         if (module == null) module = source;
         int hooks = hookControlCenterPlugin(classLoader);
+        int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
+                SystemUiHooks::ensureConfigObserver);
+        log(Log.INFO, "plugin menu hooks=" + menuHooks, null);
         scheduleControlCenterPluginRetry();
         log(Log.INFO, "plugin control-center hooks=" + hooks
                 + " loader=" + classLoader.getClass().getName(), null);
@@ -533,6 +544,7 @@ public final class SystemUiHooks {
             case COMPACT_CARD_DESTROYED -> SystemUiHooks::controlCenterPluginCompactCardDestroyed;
             case WINDOW_BLUR_RATIO -> SystemUiHooks::controlCenterPluginWindowBlurRatio;
             case ICON_SIZE -> SystemUiHooks::controlCenterPluginIconSize;
+            case ICON_UPDATED -> SystemUiHooks::controlCenterPluginIconUpdated;
             case BACKGROUND -> SystemUiHooks::controlCenterPluginBackground;
             case CORNER_RADIUS -> SystemUiHooks::controlCenterPluginCornerRadius;
             case CONTAINER_HEIGHT -> SystemUiHooks::controlCenterPluginContainerHeight;
@@ -557,6 +569,16 @@ public final class SystemUiHooks {
     private static void installControlCenterMaterialHooks() {
         int before = HANDLES.size();
         int nativeCount = 0;
+        int effectCount = 0;
+        try {
+            hookMethod("system-surface-window-blur", android.view.Window.class.getDeclaredMethod(
+                    "setBackgroundBlurRadius", int.class), chain -> {
+                Object[] args = chain.getArgs().toArray();
+                args[0] = SystemSurfaceStyle.windowRadius((android.view.Window) chain.getThisObject(),
+                        (Integer) args[0]);
+                return chain.proceed(args);
+            });
+        } catch (NoSuchMethodException ignored) { }
         for (String name : new String[] {"setMiBackgroundBlurRadius", "setMiViewBlurMode", "setMiBackgroundBlurMode",
                 "setMiBackgroundBlurScaleRatio", "setMiBackgroundBlendColors"}) {
             Class<?> parameter = name.equals("setMiBackgroundBlendColors") ? ArrayList.class
@@ -567,11 +589,24 @@ public final class SystemUiHooks {
                     View view = (View) chain.getThisObject();
                     Object[] args = ControlCenterMaterials.nativeArguments(view, name, chain.getArgs().toArray(),
                             currentConfig.controlCenter, controlCenterNativeEditing(view));
+                    args = SystemSurfaceStyle.nativeArguments(view, name, args);
                     Object result = chain.proceed(args);
                     if (name.equals("setMiViewBlurMode") || name.equals("setMiBackgroundBlurMode")) ControlCenterMaterials.updateNativeSurface(view,
                             currentConfig.controlCenter, controlCenterNativeEditing(view));
                     return result;
                 })) nativeCount++;
+            } catch (NoSuchMethodException ignored) { }
+        }
+        for (ControlCenterNativeEffects.Api api : ControlCenterNativeEffects.Api.values()) {
+            try {
+                Method method = View.class.getDeclaredMethod(api.method, api.parameters);
+                if (hookMethod("control-material-effect-" + api.name(), method, chain -> {
+                    View view = (View) chain.getThisObject();
+                    Object[] args = ControlCenterMaterials.nativeArguments(view, api.method,
+                            chain.getArgs().toArray(), currentConfig.controlCenter, controlCenterNativeEditing(view));
+                    Object[] surfaceArgs = SystemSurfaceStyle.nativeArguments(view, api.method, args);
+                    return ControlCenterMaterials.applyHook(() -> chain.proceed(surfaceArgs));
+                })) effectCount++;
             } catch (NoSuchMethodException ignored) { }
         }
         for (Class<?> type : new Class<?>[] {android.graphics.drawable.GradientDrawable.class,
@@ -585,8 +620,112 @@ public final class SystemUiHooks {
                 });
             } catch (NoSuchMethodException ignored) { }
         }
-        if (HANDLES.size() != before)
+        for (Class<?> type : new Class<?>[] {GradientDrawable.class, android.graphics.drawable.ColorDrawable.class}) {
+            try {
+                hookMethod("control-surface-color-" + type.getSimpleName(), type.getDeclaredMethod("setColor", int.class), chain -> {
+                    Object[] args = chain.getArgs().toArray();
+                    args[0] = ControlCenterMaterials.drawableColor((Drawable) chain.getThisObject(), (Integer) args[0], currentConfig.controlCenter);
+                    Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                    ControlCenterMaterials.drawableUpdated((Drawable) chain.getThisObject(), currentConfig.controlCenter);
+                    return result;
+                });
+            } catch (NoSuchMethodException ignored) { }
+        }
+        try {
+            hookMethod("control-surface-color-list", GradientDrawable.class.getDeclaredMethod("setColor", android.content.res.ColorStateList.class), chain -> {
+                Object[] args = chain.getArgs().toArray();
+                args[0] = ControlCenterMaterials.drawableColor((Drawable) chain.getThisObject(),
+                        (android.content.res.ColorStateList) args[0], currentConfig.controlCenter);
+                Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                ControlCenterMaterials.drawableUpdated((Drawable) chain.getThisObject(), currentConfig.controlCenter);
+                return result;
+            });
+            hookMethod("control-surface-colors", GradientDrawable.class.getDeclaredMethod("setColors", int[].class), chain -> {
+                Object[] args = chain.getArgs().toArray();
+                args[0] = ControlCenterMaterials.drawableColors((GradientDrawable) chain.getThisObject(), (int[]) args[0], currentConfig.controlCenter);
+                Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                ControlCenterMaterials.drawableUpdated((Drawable) chain.getThisObject(), currentConfig.controlCenter);
+                return result;
+            });
+        } catch (NoSuchMethodException ignored) { }
+        try {
+            hookMethod("control-surface-tint", Drawable.class.getDeclaredMethod(
+                    "setTint", int.class), chain -> {
+                Drawable drawable = (Drawable) chain.getThisObject();
+                Object[] args = chain.getArgs().toArray();
+                args[0] = ControlCenterMaterials.drawableTint(drawable, (Integer) args[0],
+                        currentConfig.controlCenter);
+                Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                return result;
+            });
+            hookMethod("control-surface-tint-list", Drawable.class.getDeclaredMethod(
+                    "setTintList", ColorStateList.class), chain -> {
+                Drawable drawable = (Drawable) chain.getThisObject();
+                Object[] args = chain.getArgs().toArray();
+                args[0] = ControlCenterMaterials.drawableTint(drawable,
+                        (ColorStateList) args[0], currentConfig.controlCenter);
+                Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                return result;
+            });
+            hookMethod("control-surface-tint-mode", Drawable.class.getDeclaredMethod(
+                    "setTintMode", PorterDuff.Mode.class), chain -> {
+                Drawable drawable = (Drawable) chain.getThisObject();
+                Object[] args = chain.getArgs().toArray();
+                args[0] = ControlCenterMaterials.drawableTintMode(drawable,
+                        (PorterDuff.Mode) args[0], currentConfig.controlCenter);
+                Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                return result;
+            });
+        } catch (NoSuchMethodException ignored) { }
+        // GradientDrawable and ColorDrawable override some Drawable filter methods;
+        // hook those concrete implementations as well as the base methods above.
+        for (Class<?> type : new Class<?>[] {GradientDrawable.class, android.graphics.drawable.ColorDrawable.class,
+                android.graphics.drawable.BitmapDrawable.class, android.graphics.drawable.LayerDrawable.class}) {
+            try {
+                hookMethod("control-surface-color-filter-" + type.getSimpleName(), type.getDeclaredMethod(
+                        "setColorFilter", ColorFilter.class), chain -> {
+                    Drawable drawable = (Drawable) chain.getThisObject();
+                    Object[] args = chain.getArgs().toArray();
+                    args[0] = ControlCenterMaterials.drawableColorFilter(drawable,
+                            (ColorFilter) args[0], currentConfig.controlCenter);
+                    Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                    ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                    return result;
+                });
+            } catch (NoSuchMethodException ignored) { }
+            try {
+                hookMethod("control-surface-tint-list-" + type.getSimpleName(), type.getDeclaredMethod(
+                        "setTintList", ColorStateList.class), chain -> {
+                    Drawable drawable = (Drawable) chain.getThisObject();
+                    Object[] args = chain.getArgs().toArray();
+                    args[0] = ControlCenterMaterials.drawableTint(drawable,
+                            (ColorStateList) args[0], currentConfig.controlCenter);
+                    Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                    ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                    return result;
+                });
+            } catch (NoSuchMethodException ignored) { }
+        }
+        for (Class<?> colorType : new Class<?>[] {int.class, android.content.res.ColorStateList.class}) {
+            try {
+                hookMethod("control-surface-text-" + colorType.getSimpleName(), TextView.class.getDeclaredMethod("setTextColor", colorType), chain -> {
+                    Object[] args = chain.getArgs().toArray();
+                    TextView text = (TextView) chain.getThisObject();
+                    args[0] = args[0] instanceof Integer color
+                            ? ControlCenterMaterials.textColor(text, color, currentConfig.controlCenter)
+                            : ControlCenterMaterials.textColor(text, (android.content.res.ColorStateList) args[0], currentConfig.controlCenter);
+                    return ControlCenterMaterials.applyHook(() -> chain.proceed(args));
+                });
+            } catch (NoSuchMethodException ignored) { }
+        }
+        if (HANDLES.size() != before) {
             log(Log.INFO, "control-center native material APIs=" + nativeCount + "/5", null);
+            log(Log.INFO, "control-center native effect APIs=" + effectCount + "/"
+                    + ControlCenterNativeEffects.Api.values().length, null);
+        }
     }
 
     private static void scheduleControlCenterPluginRetry() {
@@ -775,6 +914,8 @@ public final class SystemUiHooks {
             throws Throwable {
         Object result = chain.proceed();
         if (controlCenterNativeEditing(chain.getThisObject())) return result;
+        if (ControlCenterRuntimeGrid.isHorizontal(chain.getThisObject())
+                && currentConfig.controlCenter.hasLayoutPlanOverride()) return result;
         ensureConfigForTarget(chain.getThisObject());
         ControlCenterConfig settings = currentConfig.controlCenter;
         if (!settings.enabled || !settings.hasShapeOverride()) return result;
@@ -795,6 +936,8 @@ public final class SystemUiHooks {
             throws Throwable {
         Object result = chain.proceed();
         if (controlCenterNativeEditing(chain.getThisObject())) return result;
+        if (ControlCenterRuntimeGrid.isHorizontal(chain.getThisObject())
+                && currentConfig.controlCenter.hasLayoutPlanOverride()) return result;
         ensureConfigForTarget(chain.getThisObject());
         String spec = ControlCenterComponentSpec.fromControllerName(
                 chain.getThisObject().getClass().getName());
@@ -999,6 +1142,8 @@ public final class SystemUiHooks {
             Object value = itemViewField.get(holder);
             if (!(value instanceof View itemView)) return;
             if (controlCenterNativeEditing(itemView)) return;
+            if (isLandscapeConfiguration(itemView)
+                    && currentConfig.controlCenter.hasLayoutPlanOverride()) return;
             applyPluginTileVisualShape(value, spec);
             itemView.post(() -> applyPluginTileHeightNow(itemView, spec));
             itemView.postDelayed(() -> applyPluginTileHeightNow(itemView, spec), 48L);
@@ -1011,6 +1156,8 @@ public final class SystemUiHooks {
     private static void applyPluginTileHeightNow(View itemView, String spec) {
         if (itemView == null || spec == null || spec.isEmpty()) return;
         if (controlCenterNativeEditing(itemView)) return;
+        if (isLandscapeConfiguration(itemView)
+                && currentConfig.controlCenter.hasLayoutPlanOverride()) return;
         ControlCenterConfig settings = currentConfig.controlCenter;
         boolean component = ControlCenterComponentSpec.isSpecial(spec);
         boolean hasShape = settings.enabled
@@ -1089,6 +1236,8 @@ public final class SystemUiHooks {
     private static void applyPluginTileVisualShape(Object itemView, String spec) {
         if (!(itemView instanceof ViewGroup tileView) || spec == null || spec.isEmpty()) return;
         if (controlCenterNativeEditing(tileView)) return;
+        if (isLandscapeConfiguration(tileView)
+                && currentConfig.controlCenter.hasLayoutPlanOverride()) return;
         ControlCenterConfig settings = currentConfig.controlCenter;
         int shapeWidth = settings.enabled && settings.hasShapeOverride()
                 && ControlCenterTileLayout.hasShape(settings.layout, spec)
@@ -1196,7 +1345,8 @@ public final class SystemUiHooks {
             throws Throwable {
         if (controlCenterNativeEditing(chain.getThisObject())) return chain.proceed();
         ControlCenterConfig settings = currentConfig.controlCenter;
-        if (settings.enabled && settings.hasLayoutPlanOverride()) {
+        if (settings.enabled && settings.hasLayoutPlanOverride()
+                && !controlCenterHorizontalStyle(chain.getThisObject())) {
             log(Log.INFO, "control-center custom plan forcing single panel", null);
             Object[] args = chain.getArgs().toArray();
             if (args.length == 1 && (args[0] == null || args[0] instanceof Boolean)) {
@@ -1475,6 +1625,17 @@ public final class SystemUiHooks {
         return result;
     }
 
+    private static Object controlCenterPluginIconUpdated(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        if (chain.getThisObject() instanceof View view) {
+            try { ControlCenterMaterials.nativeTileUpdated(view, currentConfig.controlCenter); }
+            catch (RuntimeException | LinkageError error) {
+                log(Log.WARN, "control-center native tile material refresh failed", error);
+            }
+        }
+        return result;
+    }
+
     private static void applyPluginIconSize(Object target) {
         if (!(target instanceof ViewGroup)) return;
         if (controlCenterNativeEditing(target)) return;
@@ -1548,7 +1709,7 @@ public final class SystemUiHooks {
         Object result = chain.proceed();
         if (controlCenterNativeEditing(chain.getThisObject())) return result;
         ControlCenterConfig settings = currentConfig.controlCenter;
-        if (settings.enabled && settings.cornerRadius > 0
+        if (settings.enabled && !settings.hasLayoutPlanOverride() && settings.cornerRadius > 0
                 && chain.getArg(0) instanceof GradientDrawable drawable) {
             drawable.setCornerRadius(dp((View) chain.getThisObject(), settings.cornerRadius));
         }
@@ -1560,7 +1721,7 @@ public final class SystemUiHooks {
         Object result = chain.proceed();
         if (controlCenterNativeEditing(chain.getThisObject())) return result;
         ControlCenterConfig settings = currentConfig.controlCenter;
-        if (!settings.enabled || settings.cornerRadius <= 0
+        if (!settings.enabled || settings.hasLayoutPlanOverride() || settings.cornerRadius <= 0
                 || !(chain.getThisObject() instanceof View view)) return result;
         return Float.valueOf(dp(view, settings.cornerRadius));
     }
@@ -1613,11 +1774,6 @@ public final class SystemUiHooks {
             Object result = chain.proceed();
             try {
                 ensureConfigForTarget(adapter);
-                if (isHiddenSecondaryAdapter(adapter)) {
-                    ControlCenterRuntimeGrid.clear(adapter, false);
-                    log(Log.INFO, "control-center runtime grid skipped hidden secondary adapter", null);
-                    return result;
-                }
                 boolean active = ControlCenterRuntimeGrid.apply(adapter,
                         currentConfig.controlCenter, adapter.getClass().getClassLoader());
                 if (active && CONTROL_CENTER_COMPONENTS_LOGGED.add("runtime-grid-active")) {
@@ -1633,19 +1789,6 @@ public final class SystemUiHooks {
         }
     }
 
-    private static boolean isHiddenSecondaryAdapter(Object adapter) {
-        if (adapter == null || !currentConfig.controlCenter.enabled
-                || !currentConfig.controlCenter.hasLayoutPlanOverride()) return false;
-        try {
-            Object provider = ControlCenterRuntimeGrid.readField(adapter, "mainPanelController");
-            Object controller = unwrapProvider(provider);
-            Method method = controller == null ? null
-                    : findMethod(controller.getClass(), "getStyle", new Class<?>[] {});
-            Object style = method == null ? null : method.invoke(controller);
-            return "HORIZONTAL".equals(String.valueOf(style));
-        } catch (Throwable ignored) { return false; }
-    }
-
     private static Object controlCenterPluginGridRefresh(XposedInterface.Chain chain)
             throws Throwable {
         Object result = chain.proceed();
@@ -1656,6 +1799,7 @@ public final class SystemUiHooks {
     private static void applyPluginAdapterSpan(Object target) {
         if (target == null) return;
         if (controlCenterNativeEditing(target)) return;
+        if (ControlCenterRuntimeGrid.isHorizontal(target) && currentConfig.controlCenter.hasLayoutPlanOverride()) return;
         ControlCenterConfig settings = currentConfig.controlCenter;
         if (!settings.enabled || (!settings.hasGridOverride() && !settings.hasShapeOverride()
                 && !settings.hasLayoutPlanOverride())) return;
@@ -1678,6 +1822,7 @@ public final class SystemUiHooks {
 
     private static int controlCenterColumnsForAdapter(Object adapter, int fallback) {
         ControlCenterConfig settings = currentConfig.controlCenter;
+        if (ControlCenterRuntimeGrid.isHorizontal(adapter) && settings.hasLayoutPlanOverride()) return fallback;
         ControlCenterLayoutPlan plan = ControlCenterLayoutPlan.decode(settings.layoutPlan);
         if (plan == null || adapter == null) return settings.columns;
         try {
@@ -1798,11 +1943,10 @@ public final class SystemUiHooks {
             if (!currentConfig.controlCenter.hasLayoutPlanOverride()) {
                 sortControlCenterComponents(distributor);
             }
-            boolean singlePanel = currentConfig.controlCenter.enabled
-                    && currentConfig.controlCenter.hasLayoutPlanOverride();
-            for (String name : singlePanel
-                    ? new String[] {"getLeftAdapter"}
-                    : new String[] {"getLeftAdapter", "getRightAdapter"}) {
+            // The OEM horizontal panel has two real adapters. A saved plan may still
+            // customize both regions, so refresh both sides instead of collapsing the
+            // panel to the portrait single-column path.
+            for (String name : new String[] {"getLeftAdapter", "getRightAdapter"}) {
                 Method getter = findMethod(distributor.getClass(), name, new Class<?>[] {});
                 Object adapter = getter == null ? null : getter.invoke(distributor);
                 if (adapter == null) continue;
@@ -1890,7 +2034,8 @@ public final class SystemUiHooks {
                     new Class<?>[] {});
             Method set = findMethod(controller.getClass(), "setUseSeparatedPanels",
                     new Class<?>[] {Boolean.class});
-            if (settings.enabled && settings.hasLayoutPlanOverride() && set != null) {
+            boolean horizontal = controlCenterHorizontalStyle(controller);
+            if (settings.enabled && settings.hasLayoutPlanOverride() && !horizontal && set != null) {
                 Method distribute = distributor == null ? null
                         : findMethod(distributor.getClass(), "distributePanels",
                                 new Class<?>[] {boolean.class});
@@ -1904,6 +2049,15 @@ public final class SystemUiHooks {
         } catch (Throwable error) {
             log(Log.WARN, "control-center panel separation update failed", error);
         }
+    }
+
+    private static boolean controlCenterHorizontalStyle(Object controller) {
+        return ControlCenterRuntimeGrid.isHorizontal(controller);
+    }
+
+    private static boolean isLandscapeConfiguration(View view) {
+        return view != null && view.getResources().getConfiguration().orientation
+                == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
     }
 
     private static void scheduleControlCenterAdapterRefresh() {
@@ -2748,6 +2902,8 @@ public final class SystemUiHooks {
         }
         currentConfig = loaded;
         currentPlan = StatusBarLayoutPlan.from(currentConfig);
+        SystemMenuHooks.updateConfig(loaded.controlCenter);
+        NotificationSurfaceHooks.refresh();
         reportFeature(FusionActivationStatus.FEATURE_STATUS_BAR, FusionActivationStatus.WAITING,
                 "status_bar_refresh_pending");
         reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
@@ -2764,7 +2920,11 @@ public final class SystemUiHooks {
                     + " compactItems=" + compactCount
                     + " regularColumns=" + (nextPlan == null ? loaded.controlCenter.columns
                     : nextPlan.regular.columns)
-                    + " compactColumns=" + (nextPlan == null ? 0 : nextPlan.compact.columns),
+                    + " compactColumns=" + (nextPlan == null ? 0 : nextPlan.compact.columns)
+                    + " surface=" + loaded.controlCenter.surface.name()
+                    + " blur=" + loaded.controlCenter.backgroundBlur + "/"
+                    + loaded.controlCenter.cardBlur + "/" + loaded.controlCenter.tileBlur
+                    + " border=" + loaded.controlCenter.borderEnabled,
                     null);
         }
         if (previousControlCenter.hasVisualOverride()
@@ -2889,6 +3049,9 @@ public final class SystemUiHooks {
                 || oldSettings.backgroundBlur != newSettings.backgroundBlur
                 || oldSettings.cardBlur != newSettings.cardBlur
                 || oldSettings.tileBlur != newSettings.tileBlur
+                || oldSettings.surface != newSettings.surface
+                || oldSettings.borderEnabled != newSettings.borderEnabled
+                || oldSettings.borderWidthDp != newSettings.borderWidthDp
                 || !oldSettings.layout.equals(newSettings.layout)
                 || !oldSettings.layoutPlan.equals(newSettings.layoutPlan)
                 || !oldSettings.componentOrder.equals(newSettings.componentOrder)

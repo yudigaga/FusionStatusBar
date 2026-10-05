@@ -19,6 +19,24 @@ import static org.junit.Assert.*;
 public class ControlCenterPluginHookInstallerTest {
     private static final XposedInterface.Hooker NO_OP = chain -> chain.proceed();
 
+    @Test public void nativeIconCompletionIsObservedAfterTheDeferredUpdate() throws Exception {
+        ClassLoader loader = getClass().getClassLoader();
+        Resolver resolver = new Resolver();
+        resolver.bindClass(loader, "miui.systemui.controlcenter.qs.tileview.QSTileItemIconView",
+                AsyncIconFixture.class);
+        Registrar registrar = new Registrar();
+        installer(resolver, registrar, new AtomicInteger()).install(loader);
+        assertTrue("Observe the method which actually installs the glyph, including posted updates",
+                registrar.contains("QSTileItemIconView#updateIconInternal/5",
+                        AsyncIconFixture.class.getDeclaredMethod("updateIconInternal", Object.class,
+                                boolean.class, boolean.class, boolean.class, boolean.class)));
+    }
+
+    static final class AsyncIconFixture {
+        private void updateIconInternal(Object state, boolean first, boolean second,
+                boolean third, boolean fourth) { }
+    }
+
     @Test public void requiredLayoutHooksAreIndependentPerClassLoaderAndRepeatSafely()
             throws Exception {
         ClassLoader loaderA = new ClassLoader(getClass().getClassLoader()) { };

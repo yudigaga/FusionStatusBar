@@ -14,6 +14,9 @@ import java.util.Objects;
 final class ControlCenterGroupData {
     static final int UNITS = 12;
     static final int MAX_MEMBERS = 7;
+    static final int DEFAULT_ICON_SCALE = 100;
+    static final int MIN_ICON_SCALE = 25;
+    static final int MAX_ICON_SCALE = 200;
     enum Arrangement {
         VERTICAL("纵向列表"), HORIZONTAL("横向排列"), GRID("均匀网格"), MIXED("大小混排"), CUSTOM("自由排列");
         final String label;
@@ -30,20 +33,27 @@ final class ControlCenterGroupData {
     static final class Member {
         final String spec;
         final int x, y, width, height;
+        final int iconScale;
         final boolean showLabel;
         Member(String spec, int x, int y, int width, int height, boolean showLabel) {
+            this(spec, x, y, width, height, showLabel, DEFAULT_ICON_SCALE);
+        }
+        Member(String spec, int x, int y, int width, int height, boolean showLabel, int iconScale) {
             this.spec = spec == null ? "" : spec.trim().toLowerCase(Locale.ROOT);
             if (this.spec.isEmpty() || this.spec.length() > 128 || ControlCenterComponentSpec.isSpecial(this.spec)
                     || this.spec.startsWith("group:") || x < 0 || y < 0 || width < 1 || height < 1
-                    || width > UNITS || height > UNITS || x > UNITS - width || y > UNITS - height)
+                    || width > UNITS || height > UNITS || x > UNITS - width || y > UNITS - height
+                    || iconScale < MIN_ICON_SCALE || iconScale > MAX_ICON_SCALE)
                 throw new IllegalArgumentException("Invalid group member");
             this.x = x; this.y = y; this.width = width; this.height = height; this.showLabel = showLabel;
+            this.iconScale = iconScale;
         }
         @Override public boolean equals(Object object) {
             if (!(object instanceof Member m)) return false;
-            return spec.equals(m.spec) && x == m.x && y == m.y && width == m.width && height == m.height && showLabel == m.showLabel;
+            return spec.equals(m.spec) && x == m.x && y == m.y && width == m.width && height == m.height
+                    && showLabel == m.showLabel && iconScale == m.iconScale;
         }
-        @Override public int hashCode() { return Objects.hash(spec, x, y, width, height, showLabel); }
+        @Override public int hashCode() { return Objects.hash(spec, x, y, width, height, showLabel, iconScale); }
     }
     final Arrangement arrangement;
     final Surface surface;
@@ -94,7 +104,8 @@ final class ControlCenterGroupData {
                 x = i % columns * UNITS / columns; y = i / columns * UNITS / rows;
                 w = UNITS / columns; h = (i / columns + 1) * UNITS / rows - y;
             }
-            arranged.add(new Member(members.get(i).spec, x, y, w, h, next == Arrangement.VERTICAL));
+            Member member = members.get(i);
+            arranged.add(new Member(member.spec, x, y, w, h, next == Arrangement.VERTICAL, member.iconScale));
         }
         return new ControlCenterGroupData(next, surface, border, arranged);
     }
@@ -132,35 +143,46 @@ final class ControlCenterGroupData {
         Collections.swap(next, from, to);
         if (arrangement != Arrangement.CUSTOM) return rearrangeSpecs(next, arrangement);
         Member a = members.get(from), b = members.get(to);
-        next.set(from, new Member(b.spec, a.x, a.y, a.width, a.height, b.showLabel));
-        next.set(to, new Member(a.spec, b.x, b.y, b.width, b.height, a.showLabel));
+        next.set(from, new Member(b.spec, a.x, a.y, a.width, a.height, b.showLabel, b.iconScale));
+        next.set(to, new Member(a.spec, b.x, b.y, b.width, b.height, a.showLabel, a.iconScale));
         return withMembers(next);
     }
     private ControlCenterGroupData rearrangeSpecs(List<Member> entries, Arrangement kind) {
         ArrayList<Member> temporary = new ArrayList<>();
-        for (int i = 0; i < entries.size(); i++) temporary.add(new Member(entries.get(i).spec, i, 0, 1, 1, false));
+        for (int i = 0; i < entries.size(); i++) {
+            Member member = entries.get(i);
+            temporary.add(new Member(member.spec, i, 0, 1, 1, member.showLabel, member.iconScale));
+        }
         return new ControlCenterGroupData(kind, surface, border, temporary).arrange(kind);
     }
     ControlCenterGroupData edit(Member changed) {
         ArrayList<Member> next = new ArrayList<>(members);
-        for (int i = 0; i < next.size(); i++) if (next.get(i).spec.equals(changed.spec)) next.set(i, changed);
-        return new ControlCenterGroupData(Arrangement.CUSTOM, surface, border, next);
+        for (int i = 0; i < next.size(); i++) if (next.get(i).spec.equals(changed.spec)) {
+            Member previous = next.get(i);
+            if (previous.equals(changed)) return this;
+            next.set(i, changed);
+            boolean positionChanged = previous.x != changed.x || previous.y != changed.y
+                    || previous.width != changed.width || previous.height != changed.height;
+            return new ControlCenterGroupData(positionChanged ? Arrangement.CUSTOM : arrangement, surface, border, next);
+        }
+        return this;
     }
     void write(DataOutputStream out) throws IOException {
         out.writeByte(arrangement.ordinal()); out.writeByte(surface.ordinal()); out.writeBoolean(border);
         out.writeByte(members.size());
         for (Member m : members) {
             out.writeUTF(m.spec); out.writeByte(m.x); out.writeByte(m.y);
-            out.writeByte(m.width); out.writeByte(m.height); out.writeBoolean(m.showLabel);
+            out.writeByte(m.width); out.writeByte(m.height); out.writeBoolean(m.showLabel); out.writeByte(m.iconScale);
         }
     }
-    static ControlCenterGroupData read(DataInputStream in) throws IOException {
+    static ControlCenterGroupData read(DataInputStream in, int version) throws IOException {
         int a = in.readUnsignedByte(), s = in.readUnsignedByte(); boolean border = in.readBoolean();
         int count = in.readUnsignedByte();
         if (a >= Arrangement.values().length || s >= Surface.values().length || count > MAX_MEMBERS) throw new IOException("Invalid group data");
         ArrayList<Member> members = new ArrayList<>();
         for (int i = 0; i < count; i++) members.add(new Member(in.readUTF(), in.readUnsignedByte(), in.readUnsignedByte(),
-                in.readUnsignedByte(), in.readUnsignedByte(), in.readBoolean()));
+                in.readUnsignedByte(), in.readUnsignedByte(), in.readBoolean(),
+                version >= 6 ? in.readUnsignedByte() : DEFAULT_ICON_SCALE));
         return new ControlCenterGroupData(Arrangement.values()[a], Surface.values()[s], border, members);
     }
     @Override public boolean equals(Object object) {

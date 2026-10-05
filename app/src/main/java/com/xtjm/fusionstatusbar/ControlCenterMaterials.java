@@ -1,8 +1,24 @@
 package com.xtjm.fusionstatusbar;
 
+import android.content.res.ColorStateList;
+import android.graphics.ColorFilter;
+import android.graphics.Canvas;
+import android.graphics.Outline;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PixelFormat;
+import android.graphics.RectF;
 import android.graphics.Point;
+import android.graphics.PorterDuff;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.DrawableWrapper;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.widget.TextView;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -13,8 +29,21 @@ import java.util.WeakHashMap;
 final class ControlCenterMaterials {
     enum Layer { NONE, CARD, TILE }
     private static final Map<Drawable, Surface> SURFACES = new WeakHashMap<>();
+    private static final Map<Drawable, TintState> PENDING_TINTS = new WeakHashMap<>();
     private static final Map<View, NativeSurface> NATIVE = new WeakHashMap<>();
+    private static final Map<TextView, ColorStateList> TEXT = new WeakHashMap<>();
     private static final Map<Object, Float> WINDOW_RATIOS = new WeakHashMap<>();
+    private static final Map<View, Boolean> BORDER_VIEWS = new WeakHashMap<>();
+    private static final Map<View, Layer> GLASS_VIEWS = new WeakHashMap<>();
+    private static final Map<View, WeakReference<View>> DECORATION_TARGETS = new WeakHashMap<>();
+    private static final Map<View, Boolean> GRID_CARRIERS = new WeakHashMap<>();
+    private static final Map<View, TileShape> TILE_SHAPES = new WeakHashMap<>();
+    private static final Map<View, TileSurfaceDrawable> ICON_BACKGROUNDS = new WeakHashMap<>();
+    private static final Map<View, TileSurfaceDrawable> COMPONENT_BACKGROUNDS = new WeakHashMap<>();
+    private static final Map<View, ClippedBackgroundDrawable> CARD_SHAPES = new WeakHashMap<>();
+    private static final Map<View, ShapeClip> SHAPE_CLIPS = new WeakHashMap<>();
+    private static final Map<View, Boolean> NATIVE_TILES = new WeakHashMap<>();
+    private static final Map<View, NativeTileBackground> NATIVE_TILE_BACKGROUNDS = new WeakHashMap<>();
     private static final ThreadLocal<Boolean> APPLYING = ThreadLocal.withInitial(() -> false);
     private ControlCenterMaterials() { }
 
@@ -22,9 +51,18 @@ final class ControlCenterMaterials {
         if (!config.enabled || editing || layer == Layer.NONE) return 100;
         return layer == Layer.CARD ? config.cardBlur : config.tileBlur;
     }
+    private static int opacityPercent(ControlCenterSurface surface, int blurPercent) {
+        return surface.hasSoftGlassReflection() ? 100 : blurPercent;
+    }
     static float scale(float value, int strength) { return value * Math.max(0, Math.min(100, strength)) / 100f; }
     static int color(int color, int strength) {
         return (color & 0x00ffffff) | (Math.round(scale(color >>> 24, strength)) << 24);
+    }
+    static ControlCenterSurface surface(ControlCenterConfig config, boolean editing) {
+        return config.enabled && !editing ? config.surface : ControlCenterSurface.DEFAULT;
+    }
+    private static ControlCenterSurface nativeSurface(View view, ControlCenterConfig config, boolean editing) {
+        return preservesNativeMaterial(view) ? ControlCenterSurface.DEFAULT : surface(config, editing);
     }
     static Layer layer(View source) {
         View current = source;
@@ -41,24 +79,234 @@ final class ControlCenterMaterials {
     }
     static void register(View owner, Drawable drawable, Layer layer, ControlCenterConfig config) {
         if (drawable == null || layer == Layer.NONE) return;
+        if (COMPONENT_BACKGROUNDS.get(owner) == drawable) return;
+        if (drawable instanceof ClippedBackgroundDrawable clipped) {
+            register(owner, clipped.nativeDrawable, layer, config);
+            return;
+        }
+        if (isSliderForeground(owner)) {
+            Surface existing = SURFACES.get(drawable);
+            if (existing != null) applyDrawable(drawable, existing, config);
+            return;
+        }
+        if (drawable instanceof LayerDrawable layers) {
+            Drawable background = layers.findDrawableByLayerId(android.R.id.background);
+            if (background != null) {
+                register(owner, background, layer, config);
+            } else if (isUnlabelledPanelBackground(owner)) {
+                // HyperOS QS cards use two full-size, unlabelled GradientDrawables.
+                // Restrict this fallback to known panel roots: slider and icon layers
+                // are deliberately left untouched when their OEM ids are absent.
+                for (int i = 0; i < layers.getNumberOfLayers(); i++) {
+                    int id = layers.getId(i);
+                    if (id == android.R.id.progress || id == android.R.id.secondaryProgress) continue;
+                    Drawable child = layers.getDrawable(i);
+                    if (child instanceof GradientDrawable || child instanceof ColorDrawable)
+                        register(owner, child, layer, config);
+                }
+            }
+            return;
+        }
         Surface state = SURFACES.get(drawable);
-        if (state == null) { state = new Surface(owner, layer, drawable.getAlpha()); SURFACES.put(drawable, state); }
+        if (state == null) { state = new Surface(owner, layer, drawable); SURFACES.put(drawable, state); }
         state.owner = new WeakReference<>(owner); state.layer = layer;
-        applyAlpha(drawable, state, config);
+        applyDrawable(drawable, state, config);
     }
     static int drawableAlpha(Drawable drawable, int requested, ControlCenterConfig config) {
         if (APPLYING.get()) return requested;
         Surface state = SURFACES.get(drawable);
         if (state == null) return requested;
         state.alpha = requested;
+        if (drawable instanceof ColorDrawable) state.colorAlphaFactor = requested / 255f;
         View owner = state.owner.get();
-        return owner == null ? requested : Math.round(scale(requested, percent(config, state.layer, ControlCenterNativeMode.isEditing(owner))));
+        return owner == null ? requested : alphaArgument(drawable, state, config);
+    }
+    static int drawableColor(Drawable drawable, int requested, ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null || !state.colorSupported) return requested;
+        state.colors = null;
+        state.color = ColorStateList.valueOf(requested);
+        if (drawable instanceof ColorDrawable) {
+            state.alpha = requested >>> 24;
+            state.colorAlphaFactor = 1f;
+        }
+        ControlCenterSurface style = drawableSurface(state, config);
+        return style == ControlCenterSurface.DEFAULT ? requested : containerColor(state.owner.get(), style);
+    }
+    static ColorStateList drawableColor(Drawable drawable, ColorStateList requested, ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null || !state.colorSupported) return requested;
+        state.colors = null;
+        state.color = requested;
+        ControlCenterSurface style = drawableSurface(state, config);
+        return style == ControlCenterSurface.DEFAULT ? requested : ColorStateList.valueOf(containerColor(state.owner.get(), style));
+    }
+    static int[] drawableColors(GradientDrawable drawable, int[] requested, ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null) return requested;
+        state.colors = requested == null ? null : requested.clone();
+        state.color = null;
+        ControlCenterSurface style = drawableSurface(state, config);
+        if (style == ControlCenterSurface.DEFAULT || requested == null) return requested;
+        int[] colors = new int[requested.length];
+        java.util.Arrays.fill(colors, containerColor(state.owner.get(), style));
+        return colors;
+    }
+    private static ControlCenterSurface drawableSurface(Surface state, ControlCenterConfig config) {
+        View owner = state.owner.get();
+        return owner == null ? ControlCenterSurface.DEFAULT
+                : nativeSurface(owner, config, ControlCenterNativeMode.isEditing(owner));
+    }
+    private static void applyDrawable(Drawable drawable, Surface state, ControlCenterConfig config) {
+        if (state.colorSupported) {
+            ControlCenterSurface style = drawableSurface(state, config);
+            guarded(() -> {
+                if (drawable instanceof GradientDrawable gradient) {
+                    if (style != ControlCenterSurface.DEFAULT && state.colors != null) {
+                        int[] tint = new int[state.colors.length];
+                        java.util.Arrays.fill(tint, containerColor(state.owner.get(), style));
+                        gradient.setColors(tint);
+                    } else if (style != ControlCenterSurface.DEFAULT) {
+                        gradient.setColors(null);
+                        gradient.setColor(containerColor(state.owner.get(), style));
+                    }
+                    else if (state.colors != null) gradient.setColors(state.colors.clone());
+                    else {
+                        gradient.setColors(null);
+                        gradient.setColor(state.color);
+                    }
+                } else if (drawable instanceof ColorDrawable color) {
+                    color.setColor(style == ControlCenterSurface.DEFAULT ? state.color.getDefaultColor()
+                            : containerColor(state.owner.get(), style));
+                }
+            });
+        }
+        applyFilters(drawable, state, config);
+        applyAlpha(drawable, state, config);
+    }
+
+    private static void applyFilters(Drawable drawable, Surface state, ControlCenterConfig config) {
+        if (!filterSurface(state)) return;
+        ControlCenterSurface style = drawableSurface(state, config);
+        if (style == ControlCenterSurface.DEFAULT) {
+            ColorFilter filter = state.colorFilter;
+            ColorStateList tint = state.tintList;
+            PorterDuff.Mode mode = state.tintMode;
+            guarded(() -> {
+                drawable.setColorFilter(filter);
+                if (state.tintCaptured) {
+                    drawable.setTintList(tint);
+                    drawable.setTintMode(mode);
+                }
+            });
+        } else {
+            // Color filters and tints are applied after GradientDrawable#setColor and can
+            // leave a panel visually light even when its stored color is dark. Clear them
+            // only on registered panel backgrounds; icon artwork is never registered here.
+            guarded(() -> {
+                drawable.setColorFilter(null);
+                if (state.tintCaptured) drawable.setTintList(null);
+            });
+        }
+    }
+
+    private static boolean filterSurface(Surface state) {
+        View owner = state.owner.get();
+        if (owner == null || preservesNativeMaterial(owner)) return false;
+        String name = owner.getClass().getSimpleName();
+        if (name.contains("Icon")) return false;
+        return panelContainer(owner, name) || name.contains("QSTileItemView");
     }
     private static void applyAlpha(Drawable drawable, Surface state, ControlCenterConfig config) {
+        int target = targetAlpha(drawable, state, config);
+        if (drawable.getAlpha() != target) guarded(() -> drawable.setAlpha(alphaArgument(drawable, state, config)));
+    }
+    private static int targetAlpha(Drawable drawable, Surface state, ControlCenterConfig config) {
         View owner = state.owner.get();
-        int amount = owner == null ? 100 : percent(config, state.layer, ControlCenterNativeMode.isEditing(owner));
-        int target = Math.round(scale(state.alpha, amount));
-        if (drawable.getAlpha() != target) guarded(() -> drawable.setAlpha(target));
+        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(drawableSurface(state, config),
+                percent(config, state.layer, ControlCenterNativeMode.isEditing(owner)));
+        float alpha = state.alpha;
+        ControlCenterSurface style = drawableSurface(state, config);
+        if (drawable instanceof ColorDrawable) {
+            int selected = style == ControlCenterSurface.DEFAULT ? state.color.getDefaultColor() : containerColor(owner, style);
+            alpha = (selected >>> 24) * state.colorAlphaFactor;
+        }
+        return Math.round(scale(alpha, amount));
+    }
+    private static int alphaArgument(Drawable drawable, Surface state, ControlCenterConfig config) {
+        if (!(drawable instanceof ColorDrawable)) return targetAlpha(drawable, state, config);
+        View owner = state.owner.get();
+        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(drawableSurface(state, config),
+                percent(config, state.layer, ControlCenterNativeMode.isEditing(owner)));
+        return Math.round(scale(255f * state.colorAlphaFactor, amount));
+    }
+    static void drawableUpdated(Drawable drawable, ControlCenterConfig config) {
+        Surface state = SURFACES.get(drawable);
+        if (state != null && !APPLYING.get()) applyDrawable(drawable, state, config);
+    }
+
+    /** Keep OEM filters out of registered panel surfaces while a global material is active. */
+    static ColorFilter drawableColorFilter(Drawable drawable, ColorFilter requested,
+            ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null) {
+            PENDING_TINTS.computeIfAbsent(drawable, ignored -> new TintState()).colorFilter = requested;
+            return requested;
+        }
+        if (!filterSurface(state)) return requested;
+        state.colorFilter = requested;
+        return drawableSurface(state, config) == ControlCenterSurface.DEFAULT ? requested : null;
+    }
+
+    static ColorStateList drawableTint(Drawable drawable, ColorStateList requested,
+            ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null) {
+            TintState pending = PENDING_TINTS.computeIfAbsent(drawable, ignored -> new TintState());
+            pending.tintList = requested;
+            pending.tintCaptured = true;
+            return requested;
+        }
+        if (!filterSurface(state)) return requested;
+        state.tintList = requested;
+        state.tintCaptured = true;
+        return requested;
+    }
+
+    static int drawableTint(Drawable drawable, int requested, ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null) {
+            TintState pending = PENDING_TINTS.computeIfAbsent(drawable, ignored -> new TintState());
+            pending.tintList = ColorStateList.valueOf(requested);
+            pending.tintCaptured = true;
+            return requested;
+        }
+        if (!filterSurface(state)) return requested;
+        state.tintList = ColorStateList.valueOf(requested);
+        state.tintCaptured = true;
+        return requested;
+    }
+
+    static PorterDuff.Mode drawableTintMode(Drawable drawable, PorterDuff.Mode requested,
+            ControlCenterConfig config) {
+        if (APPLYING.get()) return requested;
+        Surface state = SURFACES.get(drawable);
+        if (state == null) {
+            TintState pending = PENDING_TINTS.computeIfAbsent(drawable, ignored -> new TintState());
+            pending.tintMode = requested;
+            pending.tintCaptured = true;
+            return requested;
+        }
+        if (!filterSurface(state)) return requested;
+        state.tintMode = requested;
+        state.tintCaptured = true;
+        return requested;
     }
 
     static float windowRatio(Object owner, float nativeRatio, ControlCenterConfig config, boolean editing) {
@@ -69,16 +317,34 @@ final class ControlCenterMaterials {
 
     static Object[] nativeArguments(View view, String operation, Object[] arguments, ControlCenterConfig config, boolean editing) {
         if (APPLYING.get() || layer(view) == Layer.NONE) return arguments;
+        syncComponentSurfaceOwnership(view, config, editing);
         NativeSurface state = NATIVE.computeIfAbsent(view, ignored -> new NativeSurface());
+        if (operation.equals("clearMiBackgroundBlendColor")) {
+            state.requests.put("setMiBackgroundBlendColors", new Object[] {new ArrayList<Point>()});
+            state.blendAdjusted = false;
+            return arguments;
+        }
         state.requests.put(operation, copy(arguments));
+        if (operation.equals("setMiBackgroundBlendColors") && softwareSurface(view, config, editing))
+            clearNativeBlend(view);
+        if (preservesNativeMaterial(view)) {
+            if (operation.equals("setMiBackgroundBlendColors")) state.blendAdjusted = false;
+            return effectArguments(view, operation, arguments, config, editing);
+        }
         if (state.overridden && arguments.length == 1 && arguments[0] instanceof Integer requested) {
             if (operation.equals("setMiBackgroundBlurRadius")) state.radius = requested;
             if (operation.equals("setMiBackgroundBlurMode")) state.mode = requested;
         }
-        return transform(operation, arguments, percent(config, layer(view), editing));
+        Object[] transformed = transform(view, operation, arguments, percent(config, layer(view), editing),
+                nativeSurface(view, config, editing));
+        if (operation.equals("setMiBackgroundBlendColors")) state.blendAdjusted = transformed != arguments;
+        return effectArguments(view, operation, transformed, config, editing);
     }
     private static Object[] copy(Object[] args) {
         Object[] copy = args.clone();
+        for (int i = 0; i < copy.length; i++) {
+            if (copy[i] instanceof float[] values) copy[i] = values.clone();
+        }
         if (copy.length == 1 && copy[0] instanceof ArrayList<?> list) {
             ArrayList<Point> points = new ArrayList<>();
             for (Object value : list) if (value instanceof Point point) points.add(new Point(point));
@@ -86,12 +352,28 @@ final class ControlCenterMaterials {
         }
         return copy;
     }
-    private static Object[] transform(String operation, Object[] args, int amount) {
-        if (amount == 100 || args.length != 1) return args;
+
+    private static void clearNativeBlend(View view) {
+        try {
+            guardedThrowing(() -> invoke(view, "clearMiBackgroundBlendColor"));
+        } catch (ReflectiveOperationException | RuntimeException unavailable) {
+            try {
+                guardedThrowing(() -> invoke(view, "setMiBackgroundBlendColors", new ArrayList<Point>()));
+            } catch (ReflectiveOperationException | RuntimeException ignored) { }
+        }
+    }
+    private static Object[] transform(View view, String operation, Object[] args, int amount, ControlCenterSurface surface) {
+        if (surface == ControlCenterSurface.CLEAR) amount = 0;
+        if ((amount == 100 && surface == ControlCenterSurface.DEFAULT) || args.length != 1) return args;
         Object[] next = args.clone();
         if (operation.equals("setMiBackgroundBlendColors") && args[0] instanceof ArrayList<?> list) {
+            if (list.isEmpty()) return args;
             ArrayList<Point> colors = new ArrayList<>();
-            for (Object value : list) if (value instanceof Point point) colors.add(new Point(color(point.x, amount), point.y));
+            if (surface != ControlCenterSurface.DEFAULT) {
+                colors.add(new Point(color(containerColor(view, surface), opacityPercent(surface, amount)), 3));
+            } else for (Object value : list) if (value instanceof Point point) {
+                colors.add(new Point(color(point.x, amount), point.y));
+            }
             next[0] = colors;
         } else if (operation.equals("setMiBackgroundBlurRadius") && args[0] instanceof Integer radius) {
             next[0] = Math.round(scale(radius, amount));
@@ -105,20 +387,41 @@ final class ControlCenterMaterials {
      * their own background sampling radius where HyperOS exposes the reversible setters. */
     static void updateNativeSurface(View view, ControlCenterConfig config, boolean editing) {
         if (APPLYING.get() || layer(view) == Layer.NONE) return;
+        syncComponentSurfaceOwnership(view, config, editing);
         NativeSurface state = NATIVE.get(view);
         if (state == null) return;
+        syncNativeEffects(view, state, config, editing);
+        if (preservesNativeMaterial(view) && state.blendAdjusted) {
+            Object[] blend = state.requests.get("setMiBackgroundBlendColors");
+            if (blend != null) {
+                try {
+                    guardedThrowing(() -> invoke(view, "setMiBackgroundBlendColors", blend[0]));
+                    state.blendAdjusted = false;
+                } catch (ReflectiveOperationException | RuntimeException ignored) { }
+            }
+        }
         Object[] modeRequest = state.requests.get("setMiViewBlurMode");
         if (modeRequest == null || !(modeRequest[0] instanceof Integer mode)) return;
-        int amount = percent(config, layer(view), editing);
+        boolean software = softwareSurface(view, config, editing);
+        int amount = preservesNativeMaterial(view) ? 100 : percent(config, layer(view), editing);
+        ControlCenterSurface surface = nativeSurface(view, config, editing);
         try {
-            if (mode <= 0 || !config.enabled || editing || amount == 100 && !state.ownedContainer) {
+            if (!config.enabled || editing || mode <= 0 && !state.ownedContainer && !software
+                    || !software && surface == ControlCenterSurface.DEFAULT && amount == 100
+                    && !state.ownedContainer) {
                 if (state.overridden) {
                     guardedThrowing(() -> {
                         invoke(view, "setMiBackgroundBlurMode", state.mode);
                         invoke(view, "setMiBackgroundBlurRadius", state.radius);
-                        if (state.ownedContainer) invoke(view, "setMiViewBlurMode", 0);
+                        invoke(view, "setMiViewBlurMode", state.ownedContainer ? 0 : mode);
                     });
                     state.overridden = false;
+                }
+                if (state.syntheticTint) {
+                    Object[] blend = state.requests.get("setMiBackgroundBlendColors");
+                    guardedThrowing(() -> invoke(view, "setMiBackgroundBlendColors",
+                            blend == null ? new ArrayList<Point>() : blend[0]));
+                    state.syntheticTint = false;
                 }
                 return;
             }
@@ -131,10 +434,14 @@ final class ControlCenterMaterials {
                         ? value : ((Number) invoke(view, "getMiBackgroundBlurRadius")).intValue();
                 state.overridden = true;
             }
+            int blur = software || surface == ControlCenterSurface.CLEAR ? 0 : amount;
             guardedThrowing(() -> {
-                if (state.ownedContainer) invoke(view, "setMiViewBlurMode", amount == 0 ? 0 : 2);
-                invoke(view, "setMiBackgroundBlurMode", amount == 0 ? 0 : 1);
-                invoke(view, "setMiBackgroundBlurRadius", Math.round(275f * amount / 100));
+                // Mode 1 draws the native surface; mode 2 requires custom-drawn
+                // content. Blur-only cards have no Drawable to use as that mask.
+                invoke(view, "setMiViewBlurMode", blur == 0
+                        ? 0 : state.ownedContainer ? 2 : mode);
+                invoke(view, "setMiBackgroundBlurMode", blur == 0 ? 0 : 1);
+                invoke(view, "setMiBackgroundBlurRadius", Math.round(275f * blur / 100));
             });
         } catch (ReflectiveOperationException | RuntimeException error) {
             if (!state.failureLogged) {
@@ -142,19 +449,54 @@ final class ControlCenterMaterials {
                 android.util.Log.w("FusionStatusBar", "Native per-surface blur unsupported; keeping available material controls", error);
             }
         }
+        if (surface != ControlCenterSurface.DEFAULT && view.getBackground() == null
+                && !softwareSurface(view, config, editing)) {
+            try {
+                Object[] blend = state.requests.get("setMiBackgroundBlendColors");
+                Object[] tint = blend == null
+                        ? new Object[] {new ArrayList<>(java.util.List.of(new Point(surface.color, 3)))} : blend;
+                guardedThrowing(() -> invoke(view, "setMiBackgroundBlendColors",
+                        transform(view, "setMiBackgroundBlendColors", tint, amount, surface)));
+                state.syntheticTint = blend == null;
+            } catch (ReflectiveOperationException | RuntimeException ignored) { }
+        }
     }
 
     static void refresh(ControlCenterConfig config) {
-        for (Map.Entry<Drawable, Surface> entry : new ArrayList<>(SURFACES.entrySet())) applyAlpha(entry.getKey(), entry.getValue(), config);
+        for (Map.Entry<View, TileSurfaceDrawable> entry : new ArrayList<>(COMPONENT_BACKGROUNDS.entrySet())) {
+            View view = entry.getKey();
+            if (surface(config, ControlCenterNativeMode.isEditing(view)) == ControlCenterSurface.DEFAULT)
+                restoreComponentBackground(view);
+            else entry.getValue().configure(entry.getValue().shape, false, config, true, false, config.cardBlur);
+        }
+        for (View view : new ArrayList<>(NATIVE.keySet()))
+            syncComponentSurfaceOwnership(view, config, ControlCenterNativeMode.isEditing(view));
+        for (View tile : new ArrayList<>(NATIVE_TILES.keySet())) syncNativeTile(tile, config);
+        for (Map.Entry<Drawable, Surface> entry : new ArrayList<>(SURFACES.entrySet())) applyDrawable(entry.getKey(), entry.getValue(), config);
+        for (Map.Entry<View, Layer> entry : new ArrayList<>(GLASS_VIEWS.entrySet())) {
+            applySoftGlass(entry.getKey(), config, entry.getValue());
+        }
+        for (View view : new ArrayList<>(BORDER_VIEWS.keySet())) applyGlobalBorder(view, config);
         for (Map.Entry<View, NativeSurface> entry : new ArrayList<>(NATIVE.entrySet())) {
             View view = entry.getKey();
-            int amount = percent(config, layer(view), ControlCenterNativeMode.isEditing(view));
+            int amount = preservesNativeMaterial(view) ? 100
+                    : percent(config, layer(view), ControlCenterNativeMode.isEditing(view));
             for (Map.Entry<String, Object[]> request : new ArrayList<>(entry.getValue().requests.entrySet())) {
                 // Owned-container mode is synthetic, not an OEM value to replay on disable.
                 if (entry.getValue().ownedContainer && request.getKey().equals("setMiViewBlurMode")) continue;
-                try { guardedThrowing(() -> invoke(view, request.getKey(), transform(request.getKey(), request.getValue(), amount))); }
-                catch (ReflectiveOperationException | RuntimeException ignored) { }
+                try {
+                    Object[] replay = transform(view, request.getKey(), request.getValue(), amount,
+                            nativeSurface(view, config, ControlCenterNativeMode.isEditing(view)));
+                    replay = effectArguments(view, request.getKey(), replay, config, ControlCenterNativeMode.isEditing(view));
+                    Object[] effective = replay;
+                    guardedThrowing(() -> invoke(view, request.getKey(), effective));
+                    if (request.getKey().equals("setMiBackgroundBlendColors"))
+                        entry.getValue().blendAdjusted = replay != request.getValue();
+                } catch (ReflectiveOperationException | RuntimeException ignored) { }
             }
+            if (softwareSurface(view, config, ControlCenterNativeMode.isEditing(view))
+                    && entry.getValue().requests.containsKey("setMiBackgroundBlendColors"))
+                clearNativeBlend(view);
             updateNativeSurface(view, config, ControlCenterNativeMode.isEditing(view));
         }
         for (Map.Entry<Object, Float> entry : new ArrayList<>(WINDOW_RATIOS.entrySet())) {
@@ -162,23 +504,678 @@ final class ControlCenterMaterials {
                     config.enabled && !ControlCenterNativeMode.isEditing(entry.getKey()) ? config.backgroundBlur : 100))); }
             catch (ReflectiveOperationException | RuntimeException ignored) { }
         }
+        for (Map.Entry<TextView, ColorStateList> entry : new ArrayList<>(TEXT.entrySet()))
+            guarded(() -> entry.getKey().setTextColor(contrast(entry.getValue(), textSurface(entry.getKey(), config))));
     }
 
     static void registerRoot(View view, ControlCenterConfig config) {
-        Layer layer = layer(view);
-        register(view, view.getBackground(), layer, config);
-        if (view instanceof ControlCenterGroupView) registerOwnedContainer(view, config);
-        if (view instanceof android.view.ViewGroup group) {
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View child = group.getChildAt(i);
-                String id = "";
-                if (child.getId() != View.NO_ID) {
-                    try { id = child.getResources().getResourceEntryName(child.getId()); }
-                    catch (android.content.res.Resources.NotFoundException ignored) { }
-                }
-                if (id.equals("progress_bg")) register(child, child.getBackground(), Layer.CARD, config);
+        if (TILE_SHAPES.containsKey(view) && !isGridDecorationManaged(view))
+            releaseGridSurface(view, config);
+        registerTree(view, config, 0, new int[] {0});
+        if (view.getClass().getSimpleName().contains("QSTileItemView")) {
+            NATIVE_TILES.put(view, Boolean.TRUE);
+            syncNativeTile(view, config);
+        }
+    }
+
+    static void nativeTileUpdated(View iconContainer, ControlCenterConfig config) {
+        if (APPLYING.get()) return;
+        for (View current = iconContainer; current != null;
+                current = current.getParent() instanceof View parent ? parent : null) {
+            if (current.getClass().getSimpleName().contains("QSTileItemView")) {
+                registerRoot(current, config);
+                return;
             }
         }
+    }
+
+    private static void syncNativeTile(View tile, ControlCenterConfig config) {
+        if (isGridDecorationManaged(tile)) return;
+        View surfaceView = tileSurface(tile);
+        if (!(surfaceView instanceof android.widget.ImageView image)) return;
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile));
+        Drawable content = image.getDrawable();
+        if (content instanceof LayerDrawable layers && layers.getNumberOfLayers() > 1) {
+            int glyph = layers.getNumberOfLayers() - 1;
+            for (int i = 0; i < glyph; i++) register(tile, layers.getDrawable(i), Layer.TILE, config);
+            restoreNativeTileBackground(image);
+            return;
+        }
+        if (style == ControlCenterSurface.DEFAULT) {
+            restoreNativeTileBackground(image);
+            return;
+        }
+        NativeTileBackground current = NATIVE_TILE_BACKGROUNDS.get(image);
+        if (current == null || image.getBackground() != current) {
+            current = new NativeTileBackground(image, image.getBackground());
+            NATIVE_TILE_BACKGROUNDS.put(image, current);
+            image.setBackground(current);
+            if (current.getDrawable() != null) current.getDrawable().setCallback(current);
+        }
+        current.setSurfaceColor(color(containerColor(tile, style), opacityPercent(style, config.tileBlur)));
+    }
+
+    private static void restoreNativeTileBackground(View image) {
+        NativeTileBackground background = NATIVE_TILE_BACKGROUNDS.remove(image);
+        if (background != null && image.getBackground() == background)
+            image.setBackground(background.getDrawable());
+    }
+
+    /** Records the geometry owned by the custom grid for the OEM icon surface. */
+    static void registerGridTileShape(View tile, ControlCenterLayoutPlan.Item item) {
+        if (tile == null || item == null) return;
+        TILE_SHAPES.put(tile, new TileShape(item.shape, item.cornerRadius));
+    }
+
+    /** Reapplies the custom surface to the drawable that OEM rebinding just installed. */
+    static boolean syncTileView(View tile, ControlCenterConfig config) {
+        return syncTileView(tile, config, false);
+    }
+
+    static boolean syncTileView(View tile, ControlCenterConfig config, boolean externalSurface) {
+        if (tile == null) return false;
+        if (!config.enabled || ControlCenterNativeMode.isEditing(tile)) {
+            releaseGridSurface(tile, config);
+            return true;
+        }
+        View icon = findImage(tile, 0);
+        TileShape shape = TILE_SHAPES.get(tile);
+        if (shape == null) shape = new TileShape(ControlCenterLayoutPlan.Shape.CIRCLE, 0);
+        if (!(icon instanceof android.widget.ImageView image)) return false;
+        restoreNativeTileBackground(image);
+        if (!externalSurface) applyShapeClip(image, shape.shape, shape.radiusDp);
+        Object state = field(tile, "state");
+        if (state == null) state = field(tile, "customizeState");
+        if (state == null) state = field(tile, "tileState");
+        Object stateValue = state instanceof Number ? state : field(state, "state");
+        boolean active = config.enabled && !ControlCenterNativeMode.isEditing(tile)
+                && stateValue instanceof Number && ((Number) stateValue).intValue() == 2;
+        NativeSurface nativeState = NATIVE.computeIfAbsent(image, ignored -> new NativeSurface());
+        nativeState.softwareSurface = externalSurface || active || surface(config, ControlCenterNativeMode.isEditing(tile))
+                != ControlCenterSurface.DEFAULT;
+        updateNativeSurface(image, config, ControlCenterNativeMode.isEditing(tile));
+        if (!(image.getDrawable() instanceof LayerDrawable layers)) {
+            syncIconBackground(image, shape, active, config, externalSurface);
+            return true;
+        }
+        int glyph = -1;
+        for (int i = layers.getNumberOfLayers() - 1; i >= 0; i--) {
+            if (layers.getLayerWidth(i) > 0 && layers.getLayerHeight(i) > 0) {
+                glyph = i;
+                break;
+            }
+        }
+        // Some OEM revisions do not expose LayerDrawable child sizes. Their
+        // composition still keeps the last child as the glyph.
+        if (glyph < 0 && layers.getNumberOfLayers() > 1) glyph = layers.getNumberOfLayers() - 1;
+        if (glyph <= 0) {
+            // In native blur mode the LayerDrawable contains only the glyph.
+            // Its ImageView, not the padded holder, owns the visible surface.
+            syncIconBackground(image, shape, active, config, externalSurface);
+            return true;
+        }
+        restoreIconBackground(image);
+        boolean changed = false;
+        for (int i = 0; i < glyph; i++) {
+            Drawable current = layers.getDrawable(i);
+            TileSurfaceDrawable surface = current instanceof TileSurfaceDrawable wrapped
+                    ? wrapped : new TileSurfaceDrawable(current);
+            surface.configure(shape, active, config, i == 0 && !externalSurface, externalSurface);
+            if (surface != current) {
+                layers.setDrawable(i, surface);
+                // Replacing a drawable clears the outgoing child's callback.
+                current.setCallback(surface);
+            }
+            changed = true;
+        }
+        if (changed) image.invalidate();
+        return changed;
+    }
+
+    private static void syncIconBackground(View image, TileShape shape, boolean active,
+            ControlCenterConfig config, boolean externalSurface) {
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(image));
+        if (!externalSurface && !active && (style == ControlCenterSurface.DEFAULT || style == ControlCenterSurface.CLEAR)) {
+            restoreIconBackground(image);
+            return;
+        }
+        TileSurfaceDrawable current = ICON_BACKGROUNDS.get(image);
+        if (current == null || image.getBackground() != current) {
+            current = new TileSurfaceDrawable(image.getBackground());
+            ICON_BACKGROUNDS.put(image, current);
+            image.setBackground(current);
+            if (current.nativeDrawable != null) current.nativeDrawable.setCallback(current);
+        }
+        current.configure(shape, active, config, !externalSurface, externalSurface);
+    }
+
+    static void applyTileBacking(View backing, View tile, ControlCenterConfig config) {
+        if (!(backing.getBackground() instanceof GradientDrawable background)) return;
+        SURFACES.remove(background);
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile));
+        int fill = config.enabled && !ControlCenterNativeMode.isEditing(tile)
+                ? color(style.stateColor(activeTile(tile)), opacityPercent(style, config.tileBlur)) : 0;
+        if (background.getColor() == null || background.getColor().getDefaultColor() != fill)
+            guarded(() -> background.setColor(fill));
+    }
+
+    private static void restoreIconBackground(View image) {
+        TileSurfaceDrawable current = ICON_BACKGROUNDS.remove(image);
+        if (current != null && image.getBackground() == current)
+            image.setBackground(current.nativeDrawable);
+    }
+
+    static boolean syncComponentView(View view, ControlCenterLayoutPlan.Item item, ControlCenterConfig config) {
+        if (!inactiveComponentContainer(view)) return false;
+        if (!config.enabled || ControlCenterNativeMode.isEditing(view)) {
+            releaseGridSurface(view, config);
+            registerRoot(view, config);
+            return true;
+        }
+        applyShapeClip(view, item.shape, item.cornerRadius);
+        if (surface(config, ControlCenterNativeMode.isEditing(view)) == ControlCenterSurface.DEFAULT) {
+            restoreComponentBackground(view);
+            updateNativeSurface(view, config, ControlCenterNativeMode.isEditing(view));
+            return true;
+        }
+        TileSurfaceDrawable current = COMPONENT_BACKGROUNDS.get(view);
+        if (current == null || view.getBackground() != current) {
+            Drawable nativeBackground = view.getBackground();
+            Surface registered = SURFACES.remove(nativeBackground);
+            if (registered != null) applyDrawable(nativeBackground, registered, config.withEnabled(false));
+            current = new TileSurfaceDrawable(nativeBackground);
+            COMPONENT_BACKGROUNDS.put(view, current);
+            view.setBackground(current);
+            if (current.nativeDrawable != null) current.nativeDrawable.setCallback(current);
+        }
+        current.configure(new TileShape(item.shape, item.cornerRadius), false, config, true, false, config.cardBlur);
+        updateNativeSurface(view, config, ControlCenterNativeMode.isEditing(view));
+        return true;
+    }
+
+    private static void restoreComponentBackground(View view) {
+        TileSurfaceDrawable current = COMPONENT_BACKGROUNDS.remove(view);
+        if (current != null && view.getBackground() == current) view.setBackground(current.nativeDrawable);
+    }
+
+    static boolean syncCardView(View card, ControlCenterLayoutPlan.Item item) {
+        if (card == null || item == null) return false;
+        // QSCardItemView clears its background when native blur is enabled;
+        // clipping must still be installed for that hardware-rendered layer.
+        applyShapeClip(card, item.shape, item.cornerRadius);
+        if (card.getBackground() == null) return true;
+        ClippedBackgroundDrawable current = CARD_SHAPES.get(card);
+        Drawable nativeBackground = current != null && card.getBackground() == current
+                ? current.nativeDrawable : card.getBackground();
+        if (current == null || current.nativeDrawable != nativeBackground) {
+            current = new ClippedBackgroundDrawable(nativeBackground, item);
+            CARD_SHAPES.put(card, current);
+            card.setBackground(current);
+            nativeBackground.setCallback(current);
+        } else current.configure(item);
+        return true;
+    }
+
+    static void applyShapeClip(View view, ControlCenterLayoutPlan.Shape shape,
+            int radiusDp) {
+        ShapeClip saved = SHAPE_CLIPS.computeIfAbsent(view, ShapeClip::new);
+        view.setClipToOutline(true);
+        if (view.getOutlineProvider() == saved.applied && saved.shape == shape && saved.radiusDp == radiusDp) return;
+        saved.shape = shape;
+        saved.radiusDp = radiusDp;
+        saved.applied = new ViewOutlineProvider() {
+            @Override public void getOutline(View target, Outline outline) {
+                // This outline clips geometry; it does not promise opaque content to HWUI.
+                outline.setAlpha(0f);
+                int width = target.getWidth();
+                int height = target.getHeight();
+                if (width <= 0 || height <= 0) return;
+                if (shape == ControlCenterLayoutPlan.Shape.CIRCLE) {
+                    int size = Math.min(width, height);
+                    int left = (width - size) / 2;
+                    int top = (height - size) / 2;
+                    outline.setOval(left, top, left + size, top + size);
+                    return;
+                }
+                float density = target.getResources().getDisplayMetrics().density;
+                float radius = shape == ControlCenterLayoutPlan.Shape.CAPSULE
+                        ? Math.min(width, height) / 2f
+                        : radiusDp * density;
+                outline.setRoundRect(0, 0, width, height, Math.max(0f, radius));
+            }
+        };
+        view.setOutlineProvider(saved.applied);
+        view.invalidateOutline();
+    }
+
+    static void releaseGridSurface(View view, ControlCenterConfig config) {
+        TILE_SHAPES.remove(view);
+        if (view instanceof android.widget.ImageView image && image.getDrawable() instanceof LayerDrawable layers) {
+            for (int i = 0; i < layers.getNumberOfLayers(); i++) {
+                if (layers.getDrawable(i) instanceof TileSurfaceDrawable surface)
+                    layers.setDrawable(i, surface.nativeDrawable);
+            }
+        }
+        restoreIconBackground(view);
+        restoreComponentBackground(view);
+        ClippedBackgroundDrawable card = CARD_SHAPES.remove(view);
+        if (card != null && view.getBackground() == card) view.setBackground(card.nativeDrawable);
+        ShapeClip clip = SHAPE_CLIPS.remove(view);
+        if (clip != null && view.getOutlineProvider() == clip.applied) {
+            view.setOutlineProvider(clip.original);
+            view.setClipToOutline(clip.originalClipping);
+        }
+        NativeSurface nativeState = NATIVE.get(view);
+        if (nativeState != null && nativeState.softwareSurface) {
+            nativeState.softwareSurface = false;
+            updateNativeSurface(view, config, ControlCenterNativeMode.isEditing(view));
+        }
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) releaseGridSurface(group.getChildAt(i), config);
+        }
+    }
+
+    static View tileSurface(View tile) {
+        return findImage(tile, 0);
+    }
+
+    static String describeTileSurface(View tile) {
+        StringBuilder result = new StringBuilder();
+        appendSurfaceTree(result, tile, 0, new int[] {0});
+        return result.length() <= 4096 ? result.toString() : result.substring(0, 4096);
+    }
+
+    private static void appendSurfaceTree(StringBuilder out, View view, int depth, int[] count) {
+        if (depth > 8 || count[0]++ >= 20) return;
+        out.append('[').append(depth).append(':').append(view.getClass().getSimpleName())
+                .append('#').append(resourceName(view)).append(' ')
+                .append(view.getLeft()).append(',').append(view.getTop()).append('+')
+                .append(view.getWidth()).append('x').append(view.getHeight())
+                .append(" clip=").append(view.getClipToOutline()).append(" z=").append(view.getZ())
+                .append(" alpha=").append(view.getAlpha());
+        ViewOutlineProvider provider = view.getOutlineProvider();
+        if (provider != null) {
+            Outline outline = new Outline();
+            outline.setAlpha(1f);
+            try {
+                provider.getOutline(view, outline);
+                out.append(" outlineAlpha=").append(outline.getAlpha());
+            } catch (RuntimeException unavailable) { out.append(" outlineAlpha=unavailable"); }
+        }
+        out.append(" bg=");
+        appendSurfaceDrawable(out, view.getBackground(), 0);
+        out.append(" fg=");
+        appendSurfaceDrawable(out, view.getForeground(), 0);
+        if (view instanceof android.widget.ImageView image) {
+            out.append(" image=");
+            appendSurfaceDrawable(out, image.getDrawable(), 0);
+            out.append(" matrix=").append(image.getImageMatrix().toShortString());
+        }
+        NativeSurface state = NATIVE.get(view);
+        if (state != null) {
+            out.append(" software=").append(state.softwareSurface)
+                    .append(" effectPolicy=").append(state.effectPolicy).append(" requests=").append(state.requests.keySet());
+            try {
+                out.append(" nativeBgBlur=").append(invoke(view, "getMiBackgroundBlurMode"))
+                        .append('/').append(invoke(view, "getMiBackgroundBlurRadius"));
+            } catch (ReflectiveOperationException | RuntimeException unavailable) {
+                out.append(" nativeBgBlur=unavailable");
+            }
+        }
+        out.append(']');
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) appendSurfaceTree(out, group.getChildAt(i), depth + 1, count);
+        }
+    }
+
+    private static void appendSurfaceDrawable(StringBuilder out, Drawable drawable, int depth) {
+        if (drawable == null) { out.append("null"); return; }
+        out.append(drawable.getClass().getSimpleName()).append(drawable.getBounds().toShortString())
+                .append("/a").append(drawable.getAlpha());
+        if (drawable instanceof GradientDrawable gradient && gradient.getColor() != null)
+            out.append("/color=").append(Integer.toHexString(gradient.getColor().getDefaultColor()));
+        if (drawable instanceof TileSurfaceDrawable surface)
+            out.append("/fill=").append(surface.fillLayer).append("/replace=").append(surface.replaceSurface)
+                    .append("/color=").append(Integer.toHexString(surface.fillColor));
+        if (depth >= 3) return;
+        if (drawable instanceof DrawableWrapper wrapper) {
+            out.append('{'); appendSurfaceDrawable(out, wrapper.getDrawable(), depth + 1); out.append('}');
+        } else if (drawable instanceof LayerDrawable layers) {
+            out.append('{');
+            for (int i = 0; i < Math.min(6, layers.getNumberOfLayers()); i++) {
+                out.append(i).append(':').append(layers.getLayerWidth(i)).append('x').append(layers.getLayerHeight(i)).append('=');
+                appendSurfaceDrawable(out, layers.getDrawable(i), depth + 1);
+                out.append(';');
+            }
+            out.append('}');
+        }
+    }
+
+    private static View findImage(View view, int depth) {
+        if (view == null || depth > 10 || view.getVisibility() != View.VISIBLE) return null;
+        // Binding often precedes the asynchronous OEM icon update after restart.
+        // The surface owner exists even while its glyph is still empty.
+        if (view instanceof android.widget.ImageView image) return image;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findImage(group.getChildAt(i), depth + 1);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static Object field(Object object, String name) {
+        if (object == null) return null;
+        for (Class<?> type = object.getClass(); type != null; type = type.getSuperclass()) {
+            try {
+                java.lang.reflect.Field value = type.getDeclaredField(name);
+                value.setAccessible(true);
+                return value.get(object);
+            } catch (ReflectiveOperationException | RuntimeException ignored) { }
+        }
+        return null;
+    }
+    private static void registerTree(View view, ControlCenterConfig config, int depth, int[] visited) {
+        if (depth > 16 || visited[0]++ >= 512) return;
+        String id = resourceName(view), name = view.getClass().getSimpleName();
+        if (isSliderForeground(view)) {
+            for (Map.Entry<Drawable, Surface> entry : new ArrayList<>(SURFACES.entrySet())) {
+                if (entry.getValue().owner.get() == view)
+                    applyDrawable(entry.getKey(), entry.getValue(), config);
+            }
+            updateNativeSurface(view, config, ControlCenterNativeMode.isEditing(view));
+            return;
+        }
+        Layer layer = layer(view);
+        boolean ownSurface = name.contains("QSTileItem") || panelContainer(view, name);
+        if (((ownSurface || depth == 0) && !insidePanelSurface(view)) || id.equals("progress_bg"))
+            register(view, view.getBackground(), id.equals("progress_bg") ? Layer.CARD : layer, config);
+        if (isGridDecorationManaged(view)) {
+            removeDecorations(view);
+        } else if ((borderContainer(view, id, name) || depth == 0 && view.getBackground() != null)
+                && !insideBorderContainer(view)) {
+            applySoftGlass(view, config, id.equals("progress_bg") ? Layer.CARD : layer);
+            applyGlobalBorder(view, config);
+        }
+        if (view instanceof ControlCenterGroupView) registerOwnedContainer(view, config);
+        else updateNativeSurface(view, config, ControlCenterNativeMode.isEditing(view));
+        if (view instanceof TextView text && layer != Layer.NONE && !insidePreservedIcon(view)) {
+            ColorStateList original = TEXT.get(text);
+            if (original == null) { original = text.getTextColors(); TEXT.put(text, original); }
+            ColorStateList adjusted = contrast(original, textSurface(text, config));
+            guarded(() -> text.setTextColor(adjusted));
+        }
+        if (view instanceof android.view.ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                registerTree(group.getChildAt(i), config, depth + 1, visited);
+            }
+        }
+    }
+    private static String resourceName(View view) {
+        if (view.getId() != View.NO_ID) {
+            try { return view.getResources().getResourceEntryName(view.getId()); }
+            catch (android.content.res.Resources.NotFoundException ignored) { }
+        }
+        return "";
+    }
+    private static boolean isSliderForeground(View view) {
+        View current = view;
+        for (int depth = 0; current != null && depth < 8; depth++) {
+            String id = resourceName(current);
+            if (id.equals("progress") || id.equals("progress_fill")
+                    || id.equals("progress_foreground") || id.equals("slider_progress")) return true;
+            current = current.getParent() instanceof View parent ? parent : null;
+        }
+        return false;
+    }
+    private static boolean preservesNativeMaterial(View view) {
+        // MIUI also uses the blur API to color text and standalone glyphs. Those
+        // calls must not promote the content's rectangular bounds to a surface.
+        NativeSurface nativeState = NATIVE.get(view);
+        if (nativeState != null && nativeState.softwareSurface && inactiveComponentContainer(view)) return false;
+        Object[] mode = nativeState == null ? null : nativeState.requests.get("setMiViewBlurMode");
+        boolean foregroundBlend = mode != null && mode.length == 1 && Integer.valueOf(3).equals(mode[0]);
+        return foregroundBlend || view instanceof TextView || isSliderForeground(view) || insidePreservedIcon(view);
+    }
+
+    private static boolean inactiveComponentContainer(View view) {
+        String name = view.getClass().getSimpleName();
+        return name.equals("MediaPlayerPanel") || name.equals("DeviceCenterEntryFrameLayout");
+    }
+
+    private static void syncComponentSurfaceOwnership(View view, ControlCenterConfig config, boolean editing) {
+        if (!inactiveComponentContainer(view)) return;
+        Drawable background = view.getBackground();
+        NativeSurface state = NATIVE.computeIfAbsent(view, ignored -> new NativeSurface());
+        // These components already paint their inactive surface. Native composition
+        // would tint that same fill again, unlike the software-backed tile surface.
+        state.softwareSurface = surface(config, editing) != ControlCenterSurface.DEFAULT
+                && (background instanceof GradientDrawable || background instanceof ColorDrawable
+                || background != null && COMPONENT_BACKGROUNDS.get(view) == background);
+    }
+
+    private static boolean softwareSurface(View view, ControlCenterConfig config, boolean editing) {
+        NativeSurface state = NATIVE.get(view);
+        return state != null && state.softwareSurface && config.enabled && !editing;
+    }
+
+    private static Object[] effectArguments(View view, String operation, Object[] args,
+            ControlCenterConfig config, boolean editing) {
+        boolean software = softwareSurface(view, config, editing);
+        boolean decoration = config.enabled && !editing
+                && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
+        return ControlCenterNativeEffects.arguments(operation, args, decoration, software);
+    }
+
+    private static void syncNativeEffects(View view, NativeSurface state,
+            ControlCenterConfig config, boolean editing) {
+        boolean software = softwareSurface(view, config, editing);
+        boolean decoration = config.enabled && !editing
+                && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
+        int policy = (decoration ? 1 : 0) | (software ? 2 : 0);
+        if (state.effectPolicy == policy) return;
+        boolean wasSoftware = state.effectPolicy >= 0 && (state.effectPolicy & 2) != 0;
+        for (Map.Entry<String, Object[]> entry : state.requests.entrySet()) {
+            String operation = entry.getKey();
+            if (!ControlCenterNativeEffects.decoration(operation)
+                    && !((software || wasSoftware) && ControlCenterNativeEffects.composition(operation))) continue;
+            if (software && operation.equals("setMiBackgroundBlendColors")) {
+                clearNativeBlend(view);
+                continue;
+            }
+            Object[] effective = effectArguments(view, operation, entry.getValue(), config, editing);
+            try { guardedThrowing(() -> invoke(view, operation, effective)); }
+            catch (ReflectiveOperationException | RuntimeException error) {
+                if (!state.effectsFailureLogged) {
+                    state.effectsFailureLogged = true;
+                    android.util.Log.w("FusionStatusBar", "Native material effect update failed: " + operation, error);
+                }
+            }
+        }
+        state.effectPolicy = policy;
+    }
+    private static boolean borderContainer(View view, String id, String name) {
+        return panelContainer(view, name) || name.contains("QSTileItemView")
+                || id.equals("progress_bg");
+    }
+    private static boolean panelContainer(View view, String name) {
+        return view instanceof ControlCenterGroupView || name.contains("QSCardItemView")
+                || name.contains("MediaPlayerPanel") || name.contains("ToggleSliderView")
+                || name.contains("DeviceCenterEntry") || name.contains("DeviceControlsEntry")
+                || name.contains("CompactQsCard");
+    }
+    private static boolean isUnlabelledPanelBackground(View view) {
+        if (view == null || isSliderForeground(view)) return false;
+        String name = view.getClass().getSimpleName();
+        return name.contains("QSCardItemView") || name.contains("MediaPlayerPanel")
+                || name.contains("DeviceCenterEntry") || name.contains("DeviceControlsEntry")
+                || name.contains("CompactQsCard") || view instanceof ControlCenterGroupView;
+    }
+    private static boolean insideBorderContainer(View view) {
+        Object parent = view.getParent();
+        for (int depth = 0; parent instanceof View ancestor && depth < 16; depth++) {
+            if (borderContainer(ancestor, resourceName(ancestor), ancestor.getClass().getSimpleName()))
+                return true;
+            parent = ancestor.getParent();
+        }
+        return false;
+    }
+    private static boolean insidePanelSurface(View view) {
+        Object parent = view.getParent();
+        for (int depth = 0; parent instanceof View ancestor && depth < 16; depth++) {
+            if (panelContainer(ancestor, ancestor.getClass().getSimpleName())) return true;
+            parent = ancestor.getParent();
+        }
+        return false;
+    }
+    private static boolean insidePreservedIcon(View view) {
+        Object parent = view.getParent();
+        String ownName = view.getClass().getSimpleName();
+        if (ownName.contains("QSCardItemIconView")) return true;
+        boolean icon = ownName.contains("QSTileItemIconView");
+        for (int depth = 0; parent instanceof View ancestor && depth < 16; depth++) {
+            String name = ancestor.getClass().getSimpleName();
+            if (name.contains("QSCardItemIconView")) return true;
+            if (name.contains("QSTileItemIconView")) icon = true;
+            if (icon && panelContainer(ancestor, name)) return true;
+            parent = ancestor.getParent();
+        }
+        return false;
+    }
+    private static boolean isGridDecorationManaged(View view) {
+        if (GRID_CARRIERS.containsKey(view)) return true;
+        Object parent = view.getParent();
+        for (int depth = 0; parent instanceof View ancestor && depth < 16; depth++) {
+            if (ancestor instanceof ControlCenterRuntimeGrid.GridView grid)
+                return grid.managesDecoration(view);
+            parent = ancestor.getParent();
+        }
+        return false;
+    }
+    private static void removeDecorations(View view) {
+        BORDER_VIEWS.remove(view);
+        GLASS_VIEWS.remove(view);
+        WeakReference<View> previous = DECORATION_TARGETS.remove(view);
+        View target = previous == null ? null : previous.get();
+        if (target != null && target != view) {
+            ControlCenterGlobalBorder.apply(target, false, 1, false);
+            ControlCenterSoftGlass.apply(target, false, 0);
+        }
+        ControlCenterGlobalBorder.apply(view, false, 1, false);
+        ControlCenterSoftGlass.apply(view, false, 0);
+    }
+
+    private static View decorationTarget(View owner) {
+        View target = owner;
+        String name = owner.getClass().getSimpleName();
+        if (name.contains("QSTileItemView")) {
+            View image = findImage(owner, 0);
+            if (image != null) target = image;
+        } else if (name.contains("ToggleSliderView")) {
+            View track = findSliderTrack(owner, 0);
+            if (track != null) target = track;
+        }
+        WeakReference<View> previous = DECORATION_TARGETS.get(owner);
+        View old = previous == null ? owner : previous.get();
+        if (old != null && old != target) {
+            ControlCenterGlobalBorder.apply(old, false, 1, false);
+            ControlCenterSoftGlass.apply(old, false, 0);
+            restoreNativeTileBackground(old);
+        }
+        DECORATION_TARGETS.put(owner, new WeakReference<>(target));
+        return target;
+    }
+
+    private static View findSliderTrack(View view, int depth) {
+        if (depth > 10) return null;
+        if (resourceName(view).equals("progress_bg")) return view;
+        if (view instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View track = findSliderTrack(group.getChildAt(i), depth + 1);
+                if (track != null) return track;
+            }
+        }
+        return null;
+    }
+    static void setGridCarrier(View view, boolean active) {
+        if (active) {
+            GRID_CARRIERS.put(view, Boolean.TRUE);
+            removeDecorations(view);
+        } else GRID_CARRIERS.remove(view);
+    }
+    static void applyGlobalBorder(View view, ControlCenterConfig config) {
+        if (view == null) return;
+        if (isGridDecorationManaged(view)) {
+            removeDecorations(view);
+            return;
+        }
+        BORDER_VIEWS.put(view, Boolean.TRUE);
+        String name = view.getClass().getSimpleName();
+        boolean hasSurface = view.getBackground() != null
+                || view instanceof ControlCenterGroupView
+                || borderContainer(view, resourceName(view), name);
+        boolean active = hasSurface && !insideBorderContainer(view)
+                && config.enabled && config.borderEnabled
+                && !ControlCenterNativeMode.isEditing(view);
+        ControlCenterGlobalBorder.apply(decorationTarget(view), active, config.borderWidthDp,
+                config.surface.neutralForeground() == 0xff202124);
+    }
+
+    static void applySoftGlass(View view, ControlCenterConfig config, Layer layer) {
+        if (view == null || layer == Layer.NONE) return;
+        if (isGridDecorationManaged(view)) {
+            removeDecorations(view);
+            return;
+        }
+        GLASS_VIEWS.put(view, layer);
+        int strength = percent(config, layer, ControlCenterNativeMode.isEditing(view));
+        ControlCenterSoftGlass.apply(decorationTarget(view), config.enabled && config.surface.hasSoftGlassReflection()
+                && !ControlCenterNativeMode.isEditing(view) && !insideBorderContainer(view), strength);
+    }
+    static int textColor(TextView text, int requested, ControlCenterConfig config) {
+        if (APPLYING.get() || !TEXT.containsKey(text)) return requested;
+        TEXT.put(text, ColorStateList.valueOf(requested));
+        return contrast(ColorStateList.valueOf(requested),
+                textSurface(text, config)).getDefaultColor();
+    }
+    static ColorStateList textColor(TextView text, ColorStateList requested, ControlCenterConfig config) {
+        if (APPLYING.get() || !TEXT.containsKey(text) || requested == null) return requested;
+        TEXT.put(text, requested);
+        return contrast(requested, textSurface(text, config));
+    }
+
+    private static int containerColor(View view, ControlCenterSurface style) {
+        return style.stateColor(activeTile(view));
+    }
+
+    private static ControlCenterSurface textSurface(View view, ControlCenterConfig config) {
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(view));
+        return style != ControlCenterSurface.DEFAULT && style != ControlCenterSurface.CLEAR && activeTile(view)
+                ? ControlCenterSurface.LIGHT : style;
+    }
+
+    private static boolean activeTile(View view) {
+        for (View current = view; current != null && !(current instanceof ControlCenterRuntimeGrid.GridView);
+                current = current.getParent() instanceof View parent ? parent : null) {
+            String name = current.getClass().getSimpleName();
+            if (!name.contains("QSTileItem") && !name.contains("QSCardItemView")) continue;
+            Object state = field(current, "state");
+            if (state == null) state = field(current, "customizeState");
+            if (state == null) state = field(current, "tileState");
+            Object value = state instanceof Number ? state : field(state, "state");
+            if (value instanceof Number number) return number.intValue() == 2;
+        }
+        return false;
+    }
+    private static ColorStateList contrast(ColorStateList original, ControlCenterSurface surface) {
+        if (surface == ControlCenterSurface.DEFAULT) return original;
+        int color = original.getDefaultColor();
+        int r = android.graphics.Color.red(color), g = android.graphics.Color.green(color), b = android.graphics.Color.blue(color);
+        if (Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b)) > 32) return original;
+        if (surface.neutralForeground() == 0xff202124) return original.withLStar(13f);
+        if (r + g + b > 480) return original;
+        return original.withLStar(100f);
     }
 
     static void registerOwnedContainer(View view, ControlCenterConfig config) {
@@ -189,7 +1186,8 @@ final class ControlCenterMaterials {
     }
     static Object invoke(Object target, String name, Object... args) throws ReflectiveOperationException {
         Class<?>[] types = new Class<?>[args.length];
-        for (int i = 0; i < args.length; i++) types[i] = args[i] instanceof Integer ? int.class : args[i] instanceof Float ? float.class : args[i].getClass();
+        for (int i = 0; i < args.length; i++) types[i] = args[i] instanceof Integer ? int.class
+                : args[i] instanceof Float ? float.class : args[i] instanceof Boolean ? boolean.class : args[i].getClass();
         Method method = target.getClass().getMethod(name, types);
         method.setAccessible(true);
         return method.invoke(target, args);
@@ -203,14 +1201,257 @@ final class ControlCenterMaterials {
         boolean was = APPLYING.get(); APPLYING.set(true);
         try { action.run(); } finally { APPLYING.set(was); }
     }
-    static void clearForTest() { SURFACES.clear(); NATIVE.clear(); WINDOW_RATIOS.clear(); }
+    interface HookAction { Object run() throws Throwable; }
+    static Object applyHook(HookAction action) throws Throwable {
+        boolean was = APPLYING.get(); APPLYING.set(true);
+        try { return action.run(); } finally { APPLYING.set(was); }
+    }
+    static void clearForTest() {
+        for (View view : new ArrayList<>(GLASS_VIEWS.keySet())) {
+            removeDecorations(view);
+        }
+        for (View view : new ArrayList<>(BORDER_VIEWS.keySet())) {
+            removeDecorations(view);
+        }
+        GLASS_VIEWS.clear(); BORDER_VIEWS.clear(); DECORATION_TARGETS.clear();
+        for (View image : new ArrayList<>(ICON_BACKGROUNDS.keySet())) restoreIconBackground(image);
+        for (View view : new ArrayList<>(COMPONENT_BACKGROUNDS.keySet())) restoreComponentBackground(view);
+        for (View image : new ArrayList<>(NATIVE_TILE_BACKGROUNDS.keySet())) restoreNativeTileBackground(image);
+        NATIVE_TILES.clear();
+        GRID_CARRIERS.clear(); TILE_SHAPES.clear(); CARD_SHAPES.clear(); SHAPE_CLIPS.clear();
+        SURFACES.clear(); NATIVE.clear();
+        TEXT.clear(); WINDOW_RATIOS.clear(); PENDING_TINTS.clear();
+    }
+
+    private static final class TileShape {
+        final ControlCenterLayoutPlan.Shape shape;
+        final int radiusDp;
+
+        TileShape(ControlCenterLayoutPlan.Shape shape, int radiusDp) {
+            this.shape = shape;
+            this.radiusDp = radiusDp;
+        }
+    }
+
+    private static final class ShapeClip {
+        final ViewOutlineProvider original;
+        final boolean originalClipping;
+        ViewOutlineProvider applied;
+        ControlCenterLayoutPlan.Shape shape;
+        int radiusDp;
+        ShapeClip(View view) {
+            original = view.getOutlineProvider();
+            originalClipping = view.getClipToOutline();
+        }
+    }
+
+    /** Native blur tiles keep only a glyph in the image; retain their OEM outline. */
+    private static final class NativeTileBackground extends DrawableWrapper {
+        private final WeakReference<View> owner;
+        private final ControlCenterSurfaceShape shape = new ControlCenterSurfaceShape();
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        NativeTileBackground(View view, Drawable nativeBackground) {
+            super(nativeBackground);
+            owner = new WeakReference<>(view);
+        }
+
+        void setSurfaceColor(int color) {
+            if (paint.getColor() == color) return;
+            paint.setColor(color);
+            invalidateSelf();
+        }
+
+        @Override public void draw(Canvas canvas) {
+            View view = owner.get();
+            if (view != null && shape.resolve(view, 0f)) shape.draw(canvas, paint);
+        }
+
+        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+    /** Paints a stable custom shape over the OEM background, underneath its glyph. */
+    private static final class TileSurfaceDrawable extends DrawableWrapper {
+        private final Drawable nativeDrawable;
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private final RectF rect = new RectF();
+        private TileShape shape = new TileShape(ControlCenterLayoutPlan.Shape.CIRCLE, 0);
+        private boolean replaceSurface;
+        private boolean fillLayer;
+        private int fillColor = 0x00000000;
+
+        TileSurfaceDrawable(Drawable nativeDrawable) {
+            this(nativeDrawable, nativeDrawable == null ? new android.graphics.Rect()
+                    : new android.graphics.Rect(nativeDrawable.getBounds()));
+        }
+
+        private TileSurfaceDrawable(Drawable nativeDrawable, android.graphics.Rect bounds) {
+            super(nativeDrawable);
+            this.nativeDrawable = nativeDrawable;
+            // DrawableWrapper initially resets child bounds; preserve them before
+            // LayerDrawable.setDrawable reads the outgoing child's geometry.
+            setBounds(bounds);
+            fill.setStyle(Paint.Style.FILL);
+        }
+
+        void configure(TileShape shape, boolean active, ControlCenterConfig config, boolean fillLayer,
+                boolean externalSurface) {
+            configure(shape, active, config, fillLayer, externalSurface, config.tileBlur);
+        }
+
+        void configure(TileShape shape, boolean active, ControlCenterConfig config, boolean fillLayer,
+                boolean externalSurface, int blurPercent) {
+            ControlCenterSurface surface = config.enabled ? config.surface : ControlCenterSurface.DEFAULT;
+            boolean replace = externalSurface || active || surface != ControlCenterSurface.DEFAULT;
+            int selected = surface == ControlCenterSurface.DEFAULT && !active ? 0 : surface.stateColor(active);
+            int color = color(selected, opacityPercent(surface, blurPercent));
+            if (this.shape.shape == shape.shape && this.shape.radiusDp == shape.radiusDp
+                    && this.fillLayer == fillLayer && replaceSurface == replace && fillColor == color) return;
+            this.shape = shape;
+            this.fillLayer = fillLayer;
+            replaceSurface = replace;
+            fillColor = color;
+            invalidateSelf();
+        }
+
+        @Override protected void onBoundsChange(android.graphics.Rect bounds) {
+            if (nativeDrawable != null) nativeDrawable.setBounds(bounds);
+        }
+
+        @Override public void draw(Canvas canvas) {
+            android.graphics.Rect bounds = getBounds();
+            rect.set(bounds);
+            path.reset();
+            if (shape.shape == ControlCenterLayoutPlan.Shape.CIRCLE) {
+                float size = Math.min(rect.width(), rect.height());
+                float dx = (rect.width() - size) / 2f, dy = (rect.height() - size) / 2f;
+                rect.set(rect.left + dx, rect.top + dy, rect.left + dx + size, rect.top + dy + size);
+                path.addOval(rect, Path.Direction.CW);
+            } else {
+                float radius = shape.shape == ControlCenterLayoutPlan.Shape.CAPSULE
+                        ? Math.min(rect.width(), rect.height()) / 2f
+                        : shape.radiusDp > 0 ? shape.radiusDp *  getDensity() : Math.min(rect.width(), rect.height()) * .18f;
+                path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+            }
+            int save = canvas.save();
+            canvas.clipPath(path);
+            if (nativeDrawable != null && !replaceSurface) {
+                nativeDrawable.setBounds(bounds);
+                nativeDrawable.draw(canvas);
+            }
+            if (fillLayer && fillColor != 0) {
+                fill.setColor(fillColor);
+                canvas.drawPath(path, fill);
+            }
+            canvas.restoreToCount(save);
+        }
+
+        private float getDensity() {
+            return getCallback() instanceof View view
+                    ? view.getResources().getDisplayMetrics().density : 1f;
+        }
+
+        @Override public void setAlpha(int alpha) {
+            super.setAlpha(alpha);
+            invalidateSelf();
+        }
+        @Override public void setColorFilter(ColorFilter filter) {
+            fill.setColorFilter(filter);
+            super.setColorFilter(filter);
+            invalidateSelf();
+        }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+    private static final class ClippedBackgroundDrawable extends DrawableWrapper {
+        final Drawable nativeDrawable;
+        private ControlCenterLayoutPlan.Item item;
+        private final Path path = new Path();
+        private final RectF rect = new RectF();
+
+        ClippedBackgroundDrawable(Drawable nativeDrawable, ControlCenterLayoutPlan.Item item) {
+            super(nativeDrawable);
+            this.nativeDrawable = nativeDrawable;
+            this.item = item;
+        }
+
+        void configure(ControlCenterLayoutPlan.Item item) {
+            this.item = item;
+            invalidateSelf();
+        }
+
+        @Override protected void onBoundsChange(android.graphics.Rect bounds) {
+            if (nativeDrawable != null) nativeDrawable.setBounds(bounds);
+        }
+
+        @Override public void draw(Canvas canvas) {
+            android.graphics.Rect bounds = getBounds();
+            rect.set(bounds);
+            path.reset();
+            float density = getCallback() instanceof View view
+                    ? view.getResources().getDisplayMetrics().density : 1f;
+            float radius = item.shape == ControlCenterLayoutPlan.Shape.CAPSULE
+                    ? Math.min(rect.width(), rect.height()) / 2f
+                    : item.cornerRadius * density;
+            if (item.shape == ControlCenterLayoutPlan.Shape.CIRCLE) {
+                float size = Math.min(rect.width(), rect.height());
+                float dx = (rect.width() - size) / 2f, dy = (rect.height() - size) / 2f;
+                rect.set(rect.left + dx, rect.top + dy, rect.left + dx + size, rect.top + dy + size);
+                path.addOval(rect, Path.Direction.CW);
+            } else path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+            int save = canvas.save();
+            canvas.clipPath(path);
+            if (nativeDrawable != null) {
+                nativeDrawable.setBounds(bounds);
+                nativeDrawable.draw(canvas);
+            }
+            canvas.restoreToCount(save);
+        }
+
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
+    private static final class TintState {
+        ColorFilter colorFilter;
+        ColorStateList tintList;
+        PorterDuff.Mode tintMode;
+        boolean tintCaptured;
+    }
     private static final class Surface {
         WeakReference<View> owner; Layer layer; int alpha;
-        Surface(View owner, Layer layer, int alpha) { this.owner = new WeakReference<>(owner); this.layer = layer; this.alpha = alpha; }
+        final boolean colorSupported;
+        ColorStateList color;
+        int[] colors;
+        ColorFilter colorFilter;
+        ColorStateList tintList;
+        PorterDuff.Mode tintMode;
+        boolean tintCaptured;
+        float colorAlphaFactor = 1f;
+        Surface(View owner, Layer layer, Drawable drawable) {
+            this.owner = new WeakReference<>(owner); this.layer = layer; this.alpha = drawable.getAlpha();
+            colorFilter = drawable.getColorFilter();
+            TintState pending = PENDING_TINTS.remove(drawable);
+            if (pending != null) {
+                if (pending.colorFilter != null) colorFilter = pending.colorFilter;
+                tintList = pending.tintList;
+                tintMode = pending.tintMode;
+                tintCaptured = pending.tintCaptured;
+            }
+            colorSupported = drawable instanceof GradientDrawable || drawable instanceof ColorDrawable;
+            if (drawable instanceof GradientDrawable gradient) {
+                color = gradient.getColor();
+                int[] source = gradient.getColors();
+                colors = source == null ? null : source.clone();
+            } else if (drawable instanceof ColorDrawable background) color = ColorStateList.valueOf(background.getColor());
+        }
     }
     private static final class NativeSurface {
         final Map<String, Object[]> requests = new java.util.LinkedHashMap<>();
         int mode, radius;
-        boolean overridden, failureLogged, ownedContainer;
+        boolean overridden, failureLogged, ownedContainer, syntheticTint, blendAdjusted;
+        boolean softwareSurface, effectsFailureLogged;
+        int effectPolicy = -1;
     }
 }

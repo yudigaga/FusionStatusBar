@@ -129,4 +129,91 @@ public class ControlCenterGroupDataTest {
         var full = ControlCenterGroupData.empty().add("wifi").arrange(ControlCenterGroupData.Arrangement.CUSTOM);
         assertThrows(IllegalArgumentException.class, () -> full.add("bt"));
     }
+
+    @Test public void memberIconScaleRoundTripsAndChangesWithoutRearrangingSlots() {
+        var original = ControlCenterGroupData.empty().add("wifi").add("bt");
+        var before = original.members.get(0);
+        var changed = new ControlCenterGroupData.Member(before.spec, before.x, before.y, before.width,
+                before.height, false, 65);
+        var scaled = original.edit(changed);
+        assertEquals(original.arrangement, scaled.arrangement);
+        assertEquals(before.x, scaled.members.get(0).x);
+        assertEquals(before.y, scaled.members.get(0).y);
+        assertEquals(before.width, scaled.members.get(0).width);
+        assertEquals(before.height, scaled.members.get(0).height);
+        assertEquals(65, scaled.members.get(0).iconScale);
+        assertEquals(original.members.get(1), scaled.members.get(1));
+        var decoded = ControlCenterLayoutPlan.decode(plan(item(scaled)).encode());
+        assertNotNull(decoded);
+        assertEquals(scaled, decoded.regular.items.get(0).group);
+        assertNotEquals(before, changed);
+        assertNotEquals(before.hashCode(), changed.hashCode());
+    }
+
+    @Test public void everyArrangementAndMemberMutationKeepsIconScaleWithItsSpec() {
+        var data = ControlCenterGroupData.empty().add("wifi").add("bt");
+        var wifi = data.members.get(0);
+        data = data.edit(new ControlCenterGroupData.Member("wifi", wifi.x, wifi.y, wifi.width,
+                wifi.height, wifi.showLabel, 25));
+        var bt = data.members.get(1);
+        data = data.edit(new ControlCenterGroupData.Member("bt", bt.x, bt.y, bt.width,
+                bt.height, bt.showLabel, 200));
+        for (var arrangement : ControlCenterGroupData.Arrangement.values()) {
+            var arranged = data.arrange(arrangement);
+            var moved = arranged.move(0, 1);
+            assertEquals("bt", moved.members.get(0).spec);
+            assertEquals(200, moved.members.get(0).iconScale);
+            assertEquals(25, moved.members.get(1).iconScale);
+            assertEquals(200, moved.remove("wifi").members.get(0).iconScale);
+            var saved = ControlCenterLayoutPlan.decode(plan(item(moved)).encode());
+            assertNotNull(saved);
+            assertEquals(moved, saved.regular.items.get(0).group);
+        }
+        var added = data.add("cell");
+        assertEquals(25, added.members.get(0).iconScale);
+        assertEquals(200, added.members.get(1).iconScale);
+        assertEquals(100, added.members.get(2).iconScale);
+        var custom = data.edit(new ControlCenterGroupData.Member("wifi", 0, 0, 6, 6, false, 25));
+        assertEquals(25, custom.add("cell").members.get(0).iconScale);
+        assertEquals(200, plan(item(custom)).resolve(false, List.of("bt")).items.get(0).group.members.get(0).iconScale);
+    }
+
+    @Test public void versionFiveGroupsReadDefaultIconScaleAndUpgradeOnSave() throws Exception {
+        var decoded = ControlCenterLayoutPlan.decode(groupPacket(5, 0));
+        assertNotNull(decoded);
+        var member = decoded.regular.items.get(0).group.members.get(0);
+        assertEquals(100, member.iconScale);
+        assertEquals(12, member.width);
+        assertTrue(member.showLabel);
+        assertEquals(decoded.regular.items.get(0).group,
+                ControlCenterLayoutPlan.decode(decoded.encode()).regular.items.get(0).group);
+        byte[] packet = java.util.Base64.getUrlDecoder().decode(decoded.encode().substring(6));
+        assertEquals(6, packet[4]);
+    }
+
+    @Test public void invalidStoredAndDirectIconScalesAreRejected() throws Exception {
+        for (int scale : new int[] {0, 24, 201, 255}) {
+            assertNull(ControlCenterLayoutPlan.decode(groupPacket(6, scale)));
+            assertThrows(IllegalArgumentException.class,
+                    () -> new ControlCenterGroupData.Member("wifi", 0, 0, 12, 12, false, scale));
+        }
+        assertEquals(25, ControlCenterLayoutPlan.decode(groupPacket(6, 25)).regular.items.get(0).group.members.get(0).iconScale);
+        assertEquals(200, ControlCenterLayoutPlan.decode(groupPacket(6, 200)).regular.items.get(0).group.members.get(0).iconScale);
+    }
+
+    private String groupPacket(int version, int scale) throws Exception {
+        var bytes = new java.io.ByteArrayOutputStream();
+        var out = new java.io.DataOutputStream(bytes);
+        out.writeInt(0x43434c50); out.writeByte(version);
+        out.writeByte(4); out.writeShort(1);
+        out.writeByte(3); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+        out.writeByte(0); out.writeShort(0); out.writeShort(0); out.writeShort(0);
+        out.writeByte(2); out.writeByte(2); out.writeUTF("group:legacy"); out.writeUTF("");
+        out.writeByte(ControlCenterGroupData.Arrangement.VERTICAL.ordinal());
+        out.writeByte(ControlCenterGroupData.Surface.FROSTED.ordinal()); out.writeBoolean(true); out.writeByte(1);
+        out.writeUTF("wifi"); out.writeByte(0); out.writeByte(0); out.writeByte(12); out.writeByte(12); out.writeBoolean(true);
+        if (version >= 6) out.writeByte(scale);
+        out.writeByte(3); out.writeShort(0); out.writeByte(0);
+        return "CCLP2:" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.toByteArray());
+    }
 }

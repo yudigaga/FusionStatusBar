@@ -207,7 +207,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertTrue(dialog.isShowing());
         View dialogContent = dialog.getWindow().getDecorView();
         assertTrue(texts(dialogContent, "磁贴风格").isEmpty());
-        for (String label : new String[] {"画布列数", "内容缩放", "默认圆角", "项目间距", "背景模糊", "卡片模糊", "磁贴模糊"}) {
+        for (String label : new String[] {"画布列数", "全局容器背景", "全局描边", "描边粗细", "内容缩放", "默认圆角", "项目间距", "背景模糊", "卡片模糊", "磁贴模糊"}) {
             assertEquals(label, 1, texts(dialogContent, label).size());
         }
         assertEquals(0, texts(page, "控制中心设置").size());
@@ -233,6 +233,58 @@ public class ControlCenterSettingsUiFlowTest {
                 FusionConfigStore.read(activity).controlCenter.layoutPlan).compact.columns);
         assertTrue(((TextView) field("controlCenterSummary")).getText().toString().startsWith("4 列"));
         assertTrue(((Button) field("controlCenterPushButton")).isEnabled());
+    }
+
+    @Test public void globalSurfaceSelectionUsesUndoableDraftAndRequiresPush() throws Exception {
+        LinearLayout page = launch();
+        String plan = activity.editorSession().draft().layoutPlan;
+        findDescription(page, "布局与外观").performClick();
+        Dialog dialog = ShadowDialog.getLatestDialog();
+        View selector = findDescription(dialog.getWindow().getDecorView(), "全局容器背景");
+        assertNotNull(selector);
+        selector.performClick();
+        findDescription(selector, "深色").performClick();
+        assertEquals(ControlCenterSurface.DARK, activity.editorSession().draft().surface);
+        assertEquals(ControlCenterSurface.DEFAULT, FusionConfigStore.read(activity).controlCenter.surface);
+        assertEquals(plan, activity.editorSession().draft().layoutPlan);
+        assertTrue(activity.editorSession().isDirty());
+        assertTrue(activity.editorSession().canUndo());
+        assertTrue(activity.editorSession().undo());
+        assertEquals(ControlCenterSurface.DEFAULT, activity.editorSession().draft().surface);
+    }
+
+    @Test public void transparentStylePausesContainerBlurControlsAndGlobalBorderEditsTheDraft() throws Exception {
+        LinearLayout page = launch();
+        activity.updateControlCenterDraft(activity.editorSession().draft().withBlur(35, 60, 85));
+        findDescription(page, "布局与外观").performClick();
+        View root = ShadowDialog.getLatestDialog().getWindow().getDecorView();
+        SettingsChoiceSelector styles = (SettingsChoiceSelector) findDescription(root, "全局容器背景");
+        SeekBar background = findSeekBar((View) texts(root, "背景模糊").get(0).getParent().getParent());
+        SeekBar card = findSeekBar((View) texts(root, "卡片模糊").get(0).getParent().getParent());
+        SeekBar tile = findSeekBar((View) texts(root, "磁贴模糊").get(0).getParent().getParent());
+        assertTrue(background.isEnabled()); assertTrue(card.isEnabled()); assertTrue(tile.isEnabled());
+        styles.optionView(ControlCenterSurface.CLEAR.ordinal()).performClick();
+        assertEquals(ControlCenterSurface.CLEAR, activity.editorSession().draft().surface);
+        assertTrue(background.isEnabled()); assertFalse(card.isEnabled()); assertFalse(tile.isEnabled());
+        assertEquals(35, activity.editorSession().draft().backgroundBlur);
+        assertEquals(60, activity.editorSession().draft().cardBlur);
+        assertEquals(85, activity.editorSession().draft().tileBlur);
+        styles.optionView(ControlCenterSurface.ICE.ordinal()).performClick();
+        assertTrue(card.isEnabled()); assertTrue(tile.isEnabled());
+
+        ViewGroup borderRow = (ViewGroup) texts(root, "全局描边").get(0).getParent().getParent();
+        Switch border = (Switch) borderRow.getChildAt(1);
+        SeekBar width = findSeekBar((View) texts(root, "描边粗细").get(0).getParent().getParent());
+        assertFalse(border.isChecked()); assertFalse(width.isEnabled());
+        border.setChecked(true);
+        assertTrue(width.isEnabled());
+        width.setProgress(2);
+        Shadows.shadowOf(width).getOnSeekBarChangeListener().onProgressChanged(width, 2, true);
+        assertTrue(activity.editorSession().draft().borderEnabled);
+        assertEquals(3, activity.editorSession().draft().borderWidthDp);
+        assertEquals(ControlCenterSurface.ICE, activity.editorSession().draft().surface);
+        assertFalse(FusionConfigStore.read(activity).controlCenter.borderEnabled);
+        assertEquals(ControlCenterSurface.DEFAULT, FusionConfigStore.read(activity).controlCenter.surface);
     }
 
     @Test public void addAndMoreEntriesExposeDistinctActions() throws Exception {
@@ -1003,10 +1055,10 @@ public class ControlCenterSettingsUiFlowTest {
         ViewGroup content = (ViewGroup) row.getParent();
         content.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         content.layout(0, 0, 300, content.getMeasuredHeight());
-        assertEquals(3, texts(content, "透明").size());
-        assertEquals(3, texts(content, "模糊").size());
         for (String title : new String[] {"背景模糊", "卡片模糊", "磁贴模糊"}) {
             ViewGroup sliderRow = (ViewGroup) texts(content, title).get(0).getParent().getParent();
+            assertEquals(1, texts(sliderRow, "透明").size());
+            assertEquals(1, texts(sliderRow, "模糊").size());
             SeekBar slider = findSeekBar(sliderRow);
             assertTrue(slider.getWidth() > 100);
             assertTrue(sliderRow.getBottom() <= content.getHeight());

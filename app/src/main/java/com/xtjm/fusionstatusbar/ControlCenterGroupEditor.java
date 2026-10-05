@@ -4,12 +4,15 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Color;
 import android.text.InputType;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.List;
@@ -52,18 +55,6 @@ final class ControlCenterGroupEditor extends LinearLayout {
             if (latest != null) commit(latest.group.arrange(ControlCenterGroupData.Arrangement.values()[index]));
         });
         arrangement.setEnabled(!item.locked);
-        SettingsChoiceSelector background = options("容器背景", ControlCenterGroupData.Surface.values(), item.group.surface.ordinal(), index -> {
-            ControlCenterLayoutPlan.Item latest = current.get();
-            if (latest != null) commit(latest.group.withAppearance(ControlCenterGroupData.Surface.values()[index], latest.group.border));
-        });
-        background.setEnabled(!item.locked);
-        CheckBox border = new CheckBox(getContext());
-        border.setText("显示描边"); border.setTextColor(color); border.setChecked(item.group.border); border.setEnabled(!item.locked);
-        border.setOnCheckedChangeListener((button, checked) -> {
-            ControlCenterLayoutPlan.Item latest = current.get();
-            if (latest != null) commit(latest.group.withAppearance(latest.group.surface, checked));
-        });
-        addView(border);
         for (int i = 0; i < item.group.members.size(); i++) {
             int index = i;
             ControlCenterGroupData.Member member = item.group.members.get(i);
@@ -115,10 +106,10 @@ final class ControlCenterGroupEditor extends LinearLayout {
         LinearLayout fields = new LinearLayout(getContext());
         fields.setOrientation(VERTICAL); fields.setPadding(dp(20), dp(8), dp(20), dp(8));
         fields.setBackgroundColor(Color.red(color) > 128 ? 0xff242528 : Color.WHITE);
-        int[] values = {member.x, member.y, member.width, member.height};
-        String[] names = {"内部横坐标", "内部纵坐标", "内部宽度", "内部高度"};
-        EditText[] inputs = new EditText[4];
-        for (int i = 0; i < 4; i++) {
+        int[] values = {member.x, member.y, member.width, member.height, member.iconScale};
+        String[] names = {"内部横坐标", "内部纵坐标", "内部宽度", "内部高度", "图标大小 (%)"};
+        EditText[] inputs = new EditText[values.length];
+        for (int i = 0; i < values.length; i++) {
             LinearLayout row = new LinearLayout(getContext());
             TextView name = text(names[i]);
             row.addView(name, new LayoutParams(0, dp(48), 1));
@@ -129,6 +120,29 @@ final class ControlCenterGroupEditor extends LinearLayout {
             row.addView(input, new LayoutParams(dp(68), dp(48))); inputs[i] = input;
             fields.addView(row);
         }
+        SeekBar scale = new SeekBar(getContext());
+        scale.setMin(ControlCenterGroupData.MIN_ICON_SCALE); scale.setMax(ControlCenterGroupData.MAX_ICON_SCALE);
+        scale.setProgress(member.iconScale); scale.setContentDescription("图标大小滑杆");
+        scale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                String value = String.valueOf(progress);
+                if (!value.contentEquals(inputs[4].getText())) inputs[4].setText(value);
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        inputs[4].addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence text, int start, int before, int count) {
+                try {
+                    int value = Integer.parseInt(text.toString());
+                    if (value >= ControlCenterGroupData.MIN_ICON_SCALE && value <= ControlCenterGroupData.MAX_ICON_SCALE)
+                        scale.setProgress(value);
+                } catch (NumberFormatException ignored) { }
+            }
+            @Override public void afterTextChanged(Editable text) { }
+        });
+        fields.addView(scale, new LayoutParams(-1, dp(48)));
         CheckBox show = new CheckBox(getContext());
         show.setText("显示名称与状态"); show.setTextColor(color); show.setChecked(member.showLabel); fields.addView(show);
         AlertDialog dialog = new AlertDialog.Builder(getContext(), Color.red(color) > 128
@@ -139,9 +153,15 @@ final class ControlCenterGroupEditor extends LinearLayout {
             try {
                 ControlCenterLayoutPlan.Item latest = current.get();
                 if (latest == null || latest.locked) { dialog.dismiss(); return; }
+                int iconScale;
+                try { iconScale = Integer.parseInt(inputs[4].getText().toString()); }
+                catch (NumberFormatException error) { inputs[4].setError("请输入 25%-200% 的图标大小"); return; }
+                if (iconScale < ControlCenterGroupData.MIN_ICON_SCALE || iconScale > ControlCenterGroupData.MAX_ICON_SCALE) {
+                    inputs[4].setError("图标大小须在 25%-200% 之间"); return;
+                }
                 ControlCenterGroupData.Member changed = new ControlCenterGroupData.Member(spec,
                         Integer.parseInt(inputs[0].getText().toString()), Integer.parseInt(inputs[1].getText().toString()),
-                        Integer.parseInt(inputs[2].getText().toString()), Integer.parseInt(inputs[3].getText().toString()), show.isChecked());
+                        Integer.parseInt(inputs[2].getText().toString()), Integer.parseInt(inputs[3].getText().toString()), show.isChecked(), iconScale);
                 commit(latest.group.edit(changed)); dialog.dismiss();
             } catch (IllegalArgumentException error) {
                 inputs[0].setError("位置或尺寸超出 12×12 范围，或与其他成员重叠");

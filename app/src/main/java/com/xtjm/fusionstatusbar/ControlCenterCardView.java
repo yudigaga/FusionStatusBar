@@ -67,31 +67,93 @@ final class ControlCenterCardView extends FrameLayout {
     private final CardSurface surface;
     private final GradientDrawable material = new GradientDrawable();
     private Model model;
+    private ControlCenterSurface containerSurface = ControlCenterSurface.DEFAULT;
+    private int cardStrength = 100, tileStrength = 100;
+    private boolean borderEnabled;
+    private int borderWidthDp = 1;
+    private final java.util.Map<GradientDrawable, Integer> nativeColors = new java.util.IdentityHashMap<>();
+
+    void setSurface(ControlCenterSurface next) {
+        containerSurface = next == null ? ControlCenterSurface.DEFAULT : next;
+        setMaterialStrength(cardStrength, tileStrength);
+        applyGlobalBorder();
+        invalidate();
+    }
+
+    void setGlobalBorder(boolean enabled, int widthDp) {
+        borderEnabled = enabled;
+        borderWidthDp = Math.max(1, Math.min(4, widthDp));
+        applyGlobalBorder();
+    }
+
+    private void applyGlobalBorder() {
+        View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
+        boolean group = content instanceof ControlCenterGroupView;
+        boolean light = containerSurface.neutralForeground() == 0xff202124;
+        ControlCenterGlobalBorder.apply(surface, borderEnabled && !group, borderWidthDp, light);
+        if (group) ControlCenterGlobalBorder.apply(content, borderEnabled, borderWidthDp, light);
+    }
 
     void setMaterialStrength(int card, int tile) {
+        cardStrength = card; tileStrength = tile;
         if (model == null) return;
+        tintPreviewSurface(surface);
         boolean cardSurface = model.large || model.paired || ControlCenterComponentSpec.isSpecial(model.spec)
                 || model.spec.startsWith("group:");
         int strength = cardSurface ? card : tile;
-        material.setAlpha(Math.round(255f * strength / 100));
-        int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), strength, 0xff080808);
+        boolean glass = containerSurface.hasSoftGlassReflection();
+        int opacityStrength = glass ? 100 : strength;
+        material.setAlpha(Math.round(255f * opacityStrength / 100));
+        View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
+        boolean groupSurface = content instanceof ControlCenterGroupView;
+        ControlCenterSoftGlass.apply(surface, glass && !groupSurface, strength);
+        if (groupSurface) ControlCenterSoftGlass.apply(content, glass, card);
+        int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), opacityStrength, 0xff080808);
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterPreviewTile preview) {
             preview.setBackdropColor(backdrop);
         }
+        if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof MediaPreview media) {
+            media.applySurface(containerSurface);
+        }
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterGroupView group) {
-            group.getBackground().setAlpha(Math.round(255f * card / 100));
-            int groupBackdrop = ControlCenterIcons.composite(group.item().group.surface.color, card, backdrop);
+            tintPreviewSurface(group);
+            group.getBackground().setAlpha(Math.round(255f * (glass ? 100 : card) / 100));
+            int groupColor = containerSurface == ControlCenterSurface.DEFAULT
+                    ? ControlCenterSurface.defaultGroupColor() : containerSurface.color;
+            int groupBackdrop = ControlCenterIcons.composite(groupColor, glass ? 100 : card, backdrop);
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (group.getChildAt(i) instanceof ControlCenterGroupEntry entry) {
+                    entry.applySurface(containerSurface);
+                }
+            }
             group.visitMemberViews((spec, view) -> {
-                if (view.getBackground() != null) view.getBackground().setAlpha(Math.round(255f * tile / 100));
-                updatePreviewBackdrop(view, tile, groupBackdrop);
+                tintPreviewSurface(view);
+                if (view.getBackground() != null) view.getBackground().setAlpha(Math.round(255f * (glass ? 100 : tile) / 100));
+                updatePreviewBackdrop(view, glass ? 100 : tile, groupBackdrop);
             });
         }
         if (model.paired && surface.getChildCount() > 0 && surface.getChildAt(0) instanceof LinearLayout pair) {
             for (int i = 0; i < pair.getChildCount(); i++) {
-                if (pair.getChildAt(i).getBackground() != null) pair.getChildAt(i).getBackground().setAlpha(Math.round(255f * tile / 100));
-                updatePreviewBackdrop(pair.getChildAt(i), tile, backdrop);
+                tintPreviewSurface(pair.getChildAt(i));
+                if (pair.getChildAt(i).getBackground() != null) pair.getChildAt(i).getBackground().setAlpha(Math.round(255f * (glass ? 100 : tile) / 100));
+                updatePreviewBackdrop(pair.getChildAt(i), glass ? 100 : tile, backdrop);
             }
         }
+    }
+
+    private void tintPreviewSurface(View view) {
+        if (!(view.getBackground() instanceof GradientDrawable background)) return;
+        if (!nativeColors.containsKey(background)) {
+            nativeColors.put(background, background.getColor() == null ? Color.TRANSPARENT
+                    : background.getColor().getDefaultColor());
+        }
+        // The group paints its own container; its outer clipping surface stays clear.
+        int tint = view == surface && model.spec.startsWith("group:") ? Color.TRANSPARENT
+                : containerSurface == ControlCenterSurface.DEFAULT ? nativeColors.get(background)
+                : containerSurface.stateColor(view == surface
+                        ? model.active && !model.paired && !ControlCenterComponentSpec.isSpecial(model.spec)
+                        : nativeColors.get(background) == ACTIVE_SURFACE);
+        background.setColor(tint);
     }
 
     private void updatePreviewBackdrop(View view, int strength, int backdrop) {
@@ -132,6 +194,7 @@ final class ControlCenterCardView extends FrameLayout {
     void bind(Model next) {
         if (next.sameVisual(model)) return;
         model = next;
+        nativeColors.clear();
         surface.removeAllViews();
         material.setColor(!next.paired && next.active ? ACTIVE_SURFACE : INACTIVE_SURFACE);
         material.setShape(next.shape == ControlCenterLayoutPlan.Shape.CIRCLE
@@ -154,6 +217,7 @@ final class ControlCenterCardView extends FrameLayout {
                     new FrameLayout.LayoutParams(-1, -1));
         }
         requestLayout();
+        applyGlobalBorder();
         invalidate();
     }
 
@@ -264,6 +328,7 @@ final class ControlCenterCardView extends FrameLayout {
             java.util.Map<String, String> labels, int defaultRadius) {
         model = new Model(item.id, "", "组合卡片", null, false, false, false, true,
                 item.shape, dp(item.cornerRadius > 0 ? item.cornerRadius : defaultRadius), 100);
+        nativeColors.clear();
         surface.removeAllViews();
         material.setColor(Color.TRANSPARENT);
         material.setShape(item.shape == ControlCenterLayoutPlan.Shape.CIRCLE ? GradientDrawable.OVAL : GradientDrawable.RECTANGLE);
@@ -273,10 +338,11 @@ final class ControlCenterCardView extends FrameLayout {
                     : member.spec.equals("wifi") || member.spec.equals("bt") || member.spec.equals("cell");
             View icon = new ControlCenterPreviewTile(getContext(), member.spec, "", "",
                     ControlCenterPreviewTile.MODE_CIRCLE, active, 32, 100, true, style == null ? null : style.icon);
-            return new ControlCenterGroupEntry(getContext(), icon, member.showLabel, false, () -> new String[] {
+            return new ControlCenterGroupEntry(getContext(), icon, member.showLabel, false, member.iconScale, () -> new String[] {
                     style != null && !style.label.isEmpty() ? style.label : labels.getOrDefault(member.spec, member.spec),
                     style != null && !style.subtitle.isEmpty() ? style.subtitle : active ? "已开启" : "已关闭"});
         }), new FrameLayout.LayoutParams(-1, -1));
+        applyGlobalBorder();
         requestLayout();
     }
 
@@ -293,6 +359,16 @@ final class ControlCenterCardView extends FrameLayout {
             paint.setColor(Color.rgb(153, 155, 158));
             paint.setTypeface(MEDIUM_TYPEFACE);
             paint.setTextAlign(Paint.Align.CENTER);
+        }
+
+        void applySurface(ControlCenterSurface style) {
+            boolean light = style.neutralForeground() == 0xff202124;
+            play.setTint(light ? 0xff202124 : ACTIVE_SURFACE);
+            previous.setTint(light ? 0xff777a80 : 0xff888b8f);
+            next.setTint(light ? 0xff777a80 : 0xff888b8f);
+            cast.setTint(light ? 0xff73777d : 0xff74777b);
+            paint.setColor(light ? 0xff555b62 : 0xffd3d6da);
+            invalidate();
         }
 
         @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {

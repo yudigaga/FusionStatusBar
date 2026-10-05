@@ -12,6 +12,7 @@ ICONS = {
     "link": "content", "search": "action", "more_horiz": "navigation",
     "wb_sunny": "image", "volume_up": "av", "play_arrow": "av",
     "skip_previous": "av", "skip_next": "av", "gps_fixed": "device", "nfc": "device",
+    "usb": "device", "settings_backup_restore": "action",
 }
 
 SOURCE_COMMIT = "bd8cb85bd4bad964fe6918f79665bb40c3a8efef"

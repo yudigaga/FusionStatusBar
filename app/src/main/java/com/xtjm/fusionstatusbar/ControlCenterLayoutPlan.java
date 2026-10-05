@@ -18,11 +18,11 @@ import java.util.Set;
 /** Versioned, device-independent control-center grid positions. */
 final class ControlCenterLayoutPlan {
     /**
-     * Version 5 adds a bounded group payload to GROUP items; versions 1-4 remain readable.
+     * Version 6 adds independent member icon scaling; versions 1-5 remain readable.
      * The CCLP2 prefix is kept because it identifies the plan family;
      * the byte version remains the compatibility boundary.
      */
-    static final int VERSION = 5;
+    static final int VERSION = 6;
     static final int MIN_COLUMNS = 3;
     static final int MAX_COLUMNS = 6;
     static final int MAX_HEIGHT = 6;
@@ -678,7 +678,7 @@ final class ControlCenterLayoutPlan {
             int height = input.readUnsignedByte();
             String first = input.readUTF();
             String second = input.readUTF();
-            ControlCenterGroupData group = typeCode == Type.GROUP.ordinal() ? ControlCenterGroupData.read(input) : null;
+            ControlCenterGroupData group = typeCode == Type.GROUP.ordinal() ? ControlCenterGroupData.read(input, version) : null;
             items.add(new Item(Type.values()[typeCode], first, second,
                     Direction.values()[directionCode], x, y, width, height,
                     Shape.values()[shapeCode], cornerRadius,

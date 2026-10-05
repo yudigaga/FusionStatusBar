@@ -34,6 +34,46 @@ public class ConfigurationBackupTest {
         assertEquals(FusionConfig.CONFIG_SCHEMA_VERSION, restored.toBundle().getInt(FusionConfig.KEY_SCHEMA_VERSION));
     }
 
+    @Test public void previousCompleteBackupsAndPresetsDefaultTheNewGlobalSurface() throws Exception {
+        JSONObject full = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()), StandardCharsets.UTF_8));
+        full.getJSONObject("config").remove(ControlCenterConfig.KEY_SURFACE);
+        full.getJSONObject("config").remove(ControlCenterConfig.KEY_BORDER_ENABLED);
+        full.getJSONObject("config").remove(ControlCenterConfig.KEY_BORDER_WIDTH);
+        assertEquals(ControlCenterSurface.DEFAULT, decode(full.toString()).controlCenter.surface);
+        assertFalse(decode(full.toString()).controlCenter.borderEnabled);
+        assertEquals(1, decode(full.toString()).controlCenter.borderWidthDp);
+        JSONObject preset = ConfigurationBackupCodec.configJson(ControlCenterConfig.defaults().withTileScale(115));
+        preset.remove(ControlCenterConfig.KEY_SURFACE);
+        preset.remove(ControlCenterConfig.KEY_BORDER_ENABLED);
+        preset.remove(ControlCenterConfig.KEY_BORDER_WIDTH);
+        var restored = ConfigurationBackupCodec.controlCenterFromJson(preset);
+        assertEquals(115, restored.tileScale);
+        assertEquals(ControlCenterSurface.DEFAULT, restored.surface);
+        assertFalse(restored.borderEnabled);
+        preset.remove(ControlCenterConfig.KEY_COLUMNS);
+        assertThrows(IOException.class, () -> ConfigurationBackupCodec.controlCenterFromJson(preset));
+    }
+
+    @Test public void globalSurfaceAndMemberSizeSurviveFullBackupAndPreset() throws Exception {
+        var member = new ControlCenterGroupData.Member("bt", 0, 0, 12, 12, false, 155);
+        var group = ControlCenterGroupData.empty().withMembers(java.util.List.of(member));
+        var plan = ControlCenterLayoutPlan.blank(4).withItem(false,
+                ControlCenterLayoutPlan.Item.group("group:tools", group, 0, 0, 1, 3));
+        var center = ControlCenterConfig.defaults().withEnabled(true)
+                .withSurface(ControlCenterSurface.FROSTED).withGlobalBorder(true, 2)
+                .withLayoutPlan(plan.encode());
+        var restored = ConfigurationBackupCodec.read(new ByteArrayInputStream(
+                ConfigurationBackupCodec.encode(FusionConfig.defaults().withControlCenter(center))));
+        assertEquals(ControlCenterSurface.FROSTED, restored.controlCenter.surface);
+        assertTrue(restored.controlCenter.borderEnabled);
+        assertEquals(2, restored.controlCenter.borderWidthDp);
+        assertEquals(155, ControlCenterLayoutPlan.decode(restored.controlCenter.layoutPlan)
+                .regular.items.get(0).group.members.get(0).iconScale);
+        var preset = ConfigurationBackupCodec.controlCenterFromJson(ConfigurationBackupCodec.configJson(center));
+        assertEquals(center.layoutPlan, preset.layoutPlan);
+        assertEquals(center.surface, preset.surface);
+    }
+
     @Test public void malformedUnknownAndFutureValuesAreRejectedBeforeRestore() throws Exception {
         String[] invalid = {"{}", "[]", "{\"icon_scale\":\"125\"}", "{\"icon_scale\":null}",
                 "{\"icon_scale\":100,\"icon_scale\":120}", "{icon_scale:100}", "{\"icon_scale\":100} trailing",

@@ -46,6 +46,7 @@ final class NotificationCenterClockController {
     private static boolean headerLogged;
     private static boolean timeAppliedLogged;
     private static boolean dateAppliedLogged;
+    private static boolean landscapeHeader;
 
     private static final class ClockState {
         WeakReference<TextView> view = new WeakReference<>(null);
@@ -173,6 +174,7 @@ final class NotificationCenterClockController {
             return;
         }
         config = next == null ? FusionConfig.defaults() : next;
+        landscapeHeader = isLandscape(header);
         TextView time = findHeaderClock(header, "mBigTime", "big_time");
         TextView date = findHeaderClock(header, "mDateView", "date_time");
         TextView horizontalTime = findHeaderClock(
@@ -201,6 +203,7 @@ final class NotificationCenterClockController {
         bind(state, clock);
         ViewGroup header = currentHeader();
         if (header != null) {
+            landscapeHeader = isLandscape(header);
             applySettingsShortcut(header, config.notificationClock.hideSettings);
             applyIndependentRows(header, TIME.view.get(), DATE.view.get());
         }
@@ -219,10 +222,11 @@ final class NotificationCenterClockController {
             return;
         }
         config = next == null ? FusionConfig.defaults() : next;
+        ViewGroup header = currentHeader();
+        if (header != null) landscapeHeader = isLandscape(header);
         render(TIME);
         render(DATE);
         render(HORIZONTAL_TIME);
-        ViewGroup header = currentHeader();
         if (header != null) {
             applyIndependentRows(header, TIME.view.get(), DATE.view.get());
         }
@@ -321,9 +325,17 @@ final class NotificationCenterClockController {
     }
 
     private static void applyIndependentRows(ViewGroup header, TextView time, TextView date) {
-        if (header == null || time == null || date == null || !time.isAttachedToWindow()) return;
+        if (header == null || time == null || date == null) return;
         NotificationClockConfig settings = config.notificationClock;
         applySettingsShortcut(header, settings.hideSettings);
+        if (isLandscape(header)) {
+            // The OEM horizontal row owns its bounds in landscape. Restore any portrait
+            // stack first, then leave all three clock views in their native single-row
+            // presentation so a portrait-sized custom clock cannot clip at the top edge.
+            applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, false);
+            restoreNativeClockRows(header, time, date);
+            return;
+        }
         if (!settings.enabled) {
             applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, false);
             restoreNativeClockRows(header, time, date);
@@ -424,6 +436,17 @@ final class NotificationCenterClockController {
             view.setMaxLines(state.nativeMaxLines);
             view.setHorizontallyScrolling(state.nativeHorizontallyScrolling);
             state.textModeApplied = false;
+        }
+    }
+
+    private static boolean isLandscape(View view) {
+        if (view == null) return false;
+        try {
+            return view.getContext().getResources().getConfiguration().orientation
+                    == Configuration.ORIENTATION_LANDSCAPE;
+        } catch (Throwable ignored) {
+            return view.getResources().getConfiguration().orientation
+                    == Configuration.ORIENTATION_LANDSCAPE;
         }
     }
 
@@ -587,8 +610,20 @@ final class NotificationCenterClockController {
         TextView clock = state.view.get();
         if (clock == null) return;
         NotificationClockConfig settings = config.notificationClock;
+        // The header is the authoritative orientation during a configuration callback;
+        // child Resources can retain the previous orientation until the callback settles.
+        boolean landscape = state == HORIZONTAL_TIME
+                ? (landscapeHeader || isLandscape(clock)) : landscapeHeader;
+        boolean compactHorizontal = state == HORIZONTAL_TIME && landscape;
+        if (landscape && !compactHorizontal) {
+            restoreNativeRendering(state, clock);
+            return;
+        }
+        // horizontal_time remains configurable in landscape, but it is an OEM single row.
+        // Keep the configured fields inline and the native text size so the header bounds
+        // remain compact instead of applying the portrait two-line size to this view.
         boolean systemOwnsGeometry = !Float.isNaN(lastExpansionProgress)
-                && lastExpansionProgress < 0.999f;
+                && lastExpansionProgress < 0.999f && !compactHorizontal;
         if (!enabled(state)) {
             if (state.nativeText != null && !state.nativeText.contentEquals(clock.getText())) {
                 clock.setText(state.nativeText);
@@ -608,7 +643,7 @@ final class NotificationCenterClockController {
             state.renderedDateCentered = false;
             return;
         }
-        int sizeSp = settings.sizeSp;
+        int sizeSp = compactHorizontal ? 0 : settings.sizeSp;
         if (!systemOwnsGeometry && sizeSp > 0) {
             float targetSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
                     sizeSp, clock.getResources().getDisplayMetrics());
@@ -628,6 +663,7 @@ final class NotificationCenterClockController {
         state.lastExpansionTranslation = translation;
         state.lastExpansionOffsetPx = offsetYDp * clock.getResources().getDisplayMetrics().density;
         String pattern = settings.combinedPattern();
+        if (compactHorizontal) pattern = pattern.replace('\n', ' ');
         ClockTextFormatter.LunarFields lunar = ClockTextFormatter.needsLunar(pattern)
                 ? ChineseClockFields.forDate(new Date()) : ClockTextFormatter.LunarFields.EMPTY;
         String weather = config.showWeather
@@ -658,6 +694,28 @@ final class NotificationCenterClockController {
                         + (desired == null ? 0 : desired.length()));
             }
         }
+    }
+
+    private static void restoreNativeRendering(ClockState state, TextView clock) {
+        if (state.nativeText != null && !state.nativeText.contentEquals(clock.getText())) {
+            clock.setText(state.nativeText);
+        }
+        if (state.nativeSizePx > 0 && clock.getTextSize() != state.nativeSizePx) {
+            clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.nativeSizePx);
+        }
+        if (clock.getTranslationX() != state.nativeTranslationX) {
+            clock.setTranslationX(state.nativeTranslationX);
+        }
+        if (clock.getTranslationY() != state.nativeTranslationY) {
+            clock.setTranslationY(state.nativeTranslationY);
+        }
+        applyMultilineMode(state, clock, false);
+        state.lastExpansionTranslation = Float.NaN;
+        state.lastExpansionOffsetPx = 0f;
+        state.renderedText = state.nativeText;
+        state.renderedDateSizeSp = -1;
+        state.renderedTimeCentered = false;
+        state.renderedDateCentered = false;
     }
 
     private static void scheduleSeconds() {

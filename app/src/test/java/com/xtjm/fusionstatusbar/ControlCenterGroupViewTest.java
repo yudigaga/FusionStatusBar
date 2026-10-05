@@ -7,6 +7,8 @@ import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.view.Gravity;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.HashMap;
@@ -95,6 +97,133 @@ public class ControlCenterGroupViewTest {
         assertTrue(entry.getChildAt(1).getLeft() >= tile.getLeft() + tile.getWidth() * tile.getScaleX());
     }
 
+    @Test public void changingMemberIconScaleResizesOnlyVisualContentAndReservesLabels() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        for (boolean nativeTile : new boolean[] {false, true}) for (boolean labels : new boolean[] {false, true}) {
+            float previousSize = 0;
+            for (int scale : new int[] {25, 100, 200}) {
+                View icon = new View(activity);
+                var entry = new ControlCenterGroupEntry(activity, icon, labels, nativeTile, scale,
+                        () -> new String[] {"无线局域网络", "已连接"});
+                layout(entry, 180, 80);
+                assertEquals(180, entry.getWidth()); assertEquals(80, entry.getHeight());
+                float size = icon.getWidth() * icon.getScaleX();
+                assertTrue(size >= previousSize);
+                assertTrue(size <= 80);
+                assertTrue(icon.getLeft() >= 0 && icon.getTop() >= 0);
+                assertTrue(icon.getLeft() + size <= entry.getWidth());
+                assertTrue(icon.getTop() + size <= entry.getHeight());
+                if (labels) {
+                    View title = entry.getChildAt(1), subtitle = entry.getChildAt(2);
+                    assertTrue(title.getLeft() >= icon.getLeft() + size);
+                    assertTrue(title.getWidth() >= 90);
+                    assertEquals(entry.getWidth(), title.getRight());
+                    assertTrue(subtitle.getBottom() <= entry.getHeight());
+                    if (scale == 100) assertEquals(42, size, 0f);
+                } else if (scale == 100 || scale == 200) assertEquals(80, size, 0f);
+                previousSize = size;
+            }
+        }
+    }
+
+    @Test public void smallMemberIconsRemainCenteredInsideUnchangedTouchTargets() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        View tile = new View(activity);
+        int[] clicks = {0}; tile.setOnClickListener(v -> clicks[0]++);
+        var entry = new ControlCenterGroupEntry(activity, tile, false, true, 25, () -> new String[] {"蓝牙", "已开启"});
+        layout(entry, 100, 140);
+        float size = tile.getWidth() * tile.getScaleX();
+        assertEquals(25, size, 0f);
+        assertEquals((100 - 25) / 2, tile.getLeft());
+        assertEquals((140 - 25) / 2, tile.getTop());
+        assertEquals(100, entry.getWidth()); assertEquals(140, entry.getHeight());
+        entry.performClick(); assertEquals(1, clicks[0]);
+    }
+
+    @Test public void tallGroupEnlargesNativeAndPreviewGlyphsAboveDefaultWithoutMovingSlots() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        for (boolean nativeTile : new boolean[] {false, true}) {
+            int[] defaultPixels = new int[3];
+            android.graphics.Rect[] originalSlots = new android.graphics.Rect[3];
+            for (int scale : new int[] {100, 150}) {
+                var members = List.of(
+                        new ControlCenterGroupData.Member("wifi", 0, 0, 12, 4, false, scale),
+                        new ControlCenterGroupData.Member("bt", 0, 4, 12, 4, false, 100),
+                        new ControlCenterGroupData.Member("cell", 0, 8, 12, 4, false, 100));
+                var data = new ControlCenterGroupData(ControlCenterGroupData.Arrangement.VERTICAL,
+                        ControlCenterGroupData.Surface.CLEAR, false, members);
+                var item = ControlCenterLayoutPlan.Item.group("group:tall", data, 0, 0, 1, 3);
+                var group = new ControlCenterGroupView(activity, item, member -> {
+                    View tile = nativeTile ? new NativeGroupTile(activity)
+                            : new ControlCenterPreviewTile(activity, member.spec, "", "", ControlCenterPreviewTile.MODE_CIRCLE,
+                                    false, 32, 100, false);
+                    return new ControlCenterGroupEntry(activity, tile, false, nativeTile, member.iconScale,
+                            () -> new String[] {member.spec, ""});
+                });
+                group.setBackground(null);
+                layout(group, 120, 360);
+                for (int i = 0; i < group.getChildCount(); i++) {
+                    View slot = group.getChildAt(i);
+                    var bounds = new android.graphics.Rect(slot.getLeft(), slot.getTop(), slot.getRight(), slot.getBottom());
+                    if (scale == 100) originalSlots[i] = bounds;
+                    else assertEquals(originalSlots[i], bounds);
+                }
+                Bitmap bitmap = Bitmap.createBitmap(120, 360, Bitmap.Config.ARGB_8888);
+                group.draw(new Canvas(bitmap));
+                for (int i = 0; i < originalSlots.length; i++) {
+                    int pixels = 0;
+                    var slot = originalSlots[i];
+                    for (int y = slot.top; y < slot.bottom; y++) for (int x = slot.left; x < slot.right; x++)
+                        if (Color.alpha(bitmap.getPixel(x, y)) > 0) pixels++;
+                    assertTrue(pixels > 100);
+                    if (scale == 100) defaultPixels[i] = pixels;
+                    else if (i == 0) assertTrue("150% must enlarge painted glyph pixels", pixels > defaultPixels[i] * 1.5f);
+                    else assertEquals("Other selected icons keep their size", defaultPixels[i], pixels);
+                }
+                for (int y = 0; y < bitmap.getHeight(); y++) for (int x = 0; x < bitmap.getWidth(); x++) {
+                    if (Color.alpha(bitmap.getPixel(x, y)) == 0) continue;
+                    boolean inside = false;
+                    for (var slot : originalSlots) if (slot.contains(x, y)) { inside = true; break; }
+                    assertTrue("Painted glyphs must stay inside their member slots", inside);
+                }
+                bitmap.recycle();
+            }
+        }
+    }
+
+    @Test public void scaledNativeGlyphsReserveLabelSpaceAtMaximumScale() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        var tile = new NativeGroupTile(activity);
+        var entry = new ControlCenterGroupEntry(activity, tile, true, true, 200, () -> new String[] {"无线局域网络", "已连接"});
+        layout(entry, 180, 80);
+        var glyph = tile.icon.icon;
+        assertEquals(42f, tile.getWidth() * tile.getScaleX(), 0f);
+        assertEquals(2f, glyph.getScaleX(), 0f);
+        float glyphCenter = (tile.icon.getLeft() + glyph.getLeft() + glyph.getWidth() / 2f) * tile.getScaleX();
+        float glyphRight = glyphCenter + glyph.getWidth() * glyph.getScaleX() * tile.getScaleX() / 2f;
+        assertTrue(glyphRight <= entry.getChildAt(1).getLeft());
+        assertTrue(entry.getChildAt(1).getWidth() >= 90);
+    }
+
+    private static final class NativeGroupTile extends FrameLayout {
+        final NativeGroupIcon icon;
+        NativeGroupTile(Activity activity) {
+            super(activity);
+            icon = new NativeGroupIcon(activity);
+            addView(icon, new LayoutParams(-1, -1));
+        }
+    }
+
+    private static final class NativeGroupIcon extends FrameLayout {
+        final ImageView icon;
+        NativeGroupIcon(Activity activity) {
+            super(activity);
+            icon = new ImageView(activity);
+            icon.setImageDrawable(new android.graphics.drawable.ColorDrawable(Color.BLUE));
+            addView(icon, new LayoutParams(32, 32, Gravity.CENTER));
+        }
+    }
+
     @Test public void emptyGroupIsRenderedWithOneBackgroundAndNoNativePlaceholderTile() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         var item = ControlCenterLayoutPlan.Item.group("group:empty", ControlCenterGroupData.empty(), 0, 0, 2, 2);
@@ -105,6 +234,48 @@ public class ControlCenterGroupViewTest {
         assertEquals(1, grid.getChildCount());
         assertEquals(0, group.getChildCount());
         assertNotNull(group.getBackground());
+    }
+
+    @Test public void legacyGroupSurfaceAndBorderDoNotOverrideGlobalDefaults() throws Exception {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        Bitmap baseline = null;
+        for (int version : new int[] {5, 6}) for (var oldSurface : ControlCenterGroupData.Surface.values())
+                for (boolean oldBorder : new boolean[] {false, true}) {
+            var plan = ControlCenterLayoutPlan.decode(legacyGroupPacket(version, oldSurface, oldBorder));
+            assertNotNull(plan);
+            var item = plan.regular.items.get(0);
+            assertEquals(oldSurface, item.group.surface);
+            assertEquals(oldBorder, item.group.border);
+            assertEquals(item.group, ControlCenterLayoutPlan.decode(plan.encode()).regular.items.get(0).group);
+            var group = new ControlCenterGroupView(activity, item, member -> new View(activity));
+            layout(group, 120, 180);
+            var drawable = (android.graphics.drawable.GradientDrawable) group.getBackground();
+            assertEquals(ControlCenterSurface.defaultGroupColor(), drawable.getColor().getDefaultColor());
+            Bitmap bitmap = Bitmap.createBitmap(120, 180, Bitmap.Config.ARGB_8888);
+            group.draw(new Canvas(bitmap));
+            if (baseline == null) baseline = bitmap;
+            else {
+                assertTrue("Legacy surface and outline must not change rendering", baseline.sameAs(bitmap));
+                bitmap.recycle();
+            }
+        }
+        baseline.recycle();
+    }
+
+    private String legacyGroupPacket(int version, ControlCenterGroupData.Surface surface, boolean border) throws Exception {
+        var bytes = new java.io.ByteArrayOutputStream();
+        var out = new java.io.DataOutputStream(bytes);
+        out.writeInt(0x43434c50); out.writeByte(version);
+        out.writeByte(4); out.writeShort(1);
+        out.writeByte(3); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+        out.writeByte(0); out.writeShort(0); out.writeShort(0); out.writeShort(0);
+        out.writeByte(1); out.writeByte(3); out.writeUTF("group:legacy"); out.writeUTF("");
+        out.writeByte(ControlCenterGroupData.Arrangement.VERTICAL.ordinal());
+        out.writeByte(surface.ordinal()); out.writeBoolean(border); out.writeByte(1);
+        out.writeUTF("wifi"); out.writeByte(0); out.writeByte(0); out.writeByte(12); out.writeByte(12); out.writeBoolean(true);
+        if (version >= 6) out.writeByte(100);
+        out.writeByte(3); out.writeShort(0); out.writeByte(0);
+        return "CCLP2:" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.toByteArray());
     }
 
     private void layout(View view, int width, int height) {

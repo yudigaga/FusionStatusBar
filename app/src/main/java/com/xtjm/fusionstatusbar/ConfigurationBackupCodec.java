@@ -92,7 +92,18 @@ final class ConfigurationBackupCodec {
             if (schema < 0 || schema > FusionConfig.CONFIG_SCHEMA_VERSION) throw new IOException("unsupported_config_schema");
         }
         boolean current = controlCenterOnly || schema == FusionConfig.CONFIG_SCHEMA_VERSION;
-        if (current && object.length() != expected.size()) throw new IOException("incomplete_configuration");
+        // Earlier complete snapshots predate these optional global appearance settings.
+        int expectedFields = expected.size()
+                - (object.has(ControlCenterConfig.KEY_SURFACE) ? 0 : 1)
+                - (object.has(ControlCenterConfig.KEY_BORDER_ENABLED) ? 0 : 1)
+                - (object.has(ControlCenterConfig.KEY_BORDER_WIDTH) ? 0 : 1);
+        for (String key : new String[] {SystemSurfaceConfig.KEY_POWER_MENU,
+                SystemSurfaceConfig.KEY_VOLUME_DIALOG, SystemSurfaceConfig.KEY_NOTIFICATIONS,
+                SystemSurfaceConfig.KEY_HEADS_UP, SystemSurfaceConfig.KEY_EXTENDED_POWER_MENU,
+                SystemSurfaceConfig.KEY_COMPACT_VOLUME}) {
+            if (!object.has(key)) expectedFields--;
+        }
+        if (current && object.length() != expectedFields) throw new IOException("incomplete_configuration");
         if (!current) {
             expected.putInt(FusionConfig.KEY_LEGACY_BATTERY_SCALE, 100);
             for (int i = 0; i < 5; i++) {

@@ -80,6 +80,33 @@ public class ControlCenterRuntimeAvailabilityTest {
         assertEquals(1, installed().size());
     }
 
+    @Test public void horizontalRetainsWideBluetoothAndAtomicCustomGroup() {
+        adapter.qsListController.addedTiles.add(new QSListController.QSRecord("bt"));
+        adapter.qsListController.addedTiles.add(new QSListController.QSRecord("screenshot"));
+        adapter.qsListController.addedTiles.add(new QSListController.QSRecord("rotation"));
+        adapter.redistribute(false);
+        adapter.mainPanelController.controller.style = "HORIZONTAL";
+        var bluetooth = ControlCenterLayoutPlan.Item.tile("bt", 0, 4, 2, 1)
+                .withShape(ControlCenterLayoutPlan.Shape.CAPSULE, 18);
+        var group = ControlCenterLayoutPlan.Item.group("group:tools",
+                ControlCenterGroupData.empty().add("screenshot").add("rotation"), 3, 4, 1, 3);
+        var settings = config(List.of(tile(), bluetooth, group));
+        String saved = settings.layoutPlan;
+        assertTrue("Horizontal must install the saved custom tiles", apply(settings));
+        var items = installed();
+        var actualBluetooth = items.stream().filter(i -> i.id.equals("bt")).findFirst().orElseThrow();
+        var actualGroup = items.stream().filter(i -> i.id.equals(group.id)).findFirst().orElseThrow();
+        assertEquals(2, actualBluetooth.width);
+        assertEquals(bluetooth.shape, actualBluetooth.shape);
+        assertEquals(group.group, actualGroup.group);
+        assertEquals(1, actualGroup.width);
+        assertEquals(3, actualGroup.height);
+        assertEquals(0, actualBluetooth.y);
+        assertEquals(0, actualGroup.y);
+        assertFalse(items.stream().anyMatch(i -> i.id.equals("screenshot") || i.id.equals("rotation")));
+        assertEquals(saved, settings.layoutPlan);
+    }
+
     @Test public void anExistingGridAndGroupSurviveAddingUnsupportedComponent() {
         var group = ControlCenterLayoutPlan.Item.group("group:test", ControlCenterGroupData.empty().add("wifi"), 1, 2, 2, 2);
         assertTrue(apply(config(List.of(group))));
@@ -100,6 +127,12 @@ public class ControlCenterRuntimeAvailabilityTest {
         assertEquals(2, installed().size());
         assertEquals(6, installed().get(1).y);
         adapter.mainPanelController.controller.style = "HORIZONTAL";
+        adapter.redistribute(false);
+        assertTrue(apply(settings));
+        // Wi-Fi belongs to the other panel and the optional left component is absent.
+        // This side stays deliberately empty instead of redisplaying native tiles.
+        assertTrue(installed().isEmpty());
+        adapter.mainPanelController.controller.style = "VERTICAL";
         adapter.redistribute(false);
         assertTrue(apply(settings));
         assertEquals(1, installed().size());

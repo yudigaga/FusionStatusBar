@@ -38,7 +38,11 @@ final class ControlCenterPreviewTile extends FrameLayout {
         if (drawSurface) {
             GradientDrawable background = new GradientDrawable();
             background.setColor(on ? ControlCenterCardView.ACTIVE_SURFACE : ControlCenterCardView.INACTIVE_SURFACE);
-            background.setCornerRadius(mode == MODE_CIRCLE ? dp(100) : dp(Math.max(10, cornerRadius)));
+            if (mode == MODE_CIRCLE) {
+                background.setShape(GradientDrawable.OVAL);
+            } else {
+                background.setCornerRadius(dp(Math.max(10, cornerRadius)));
+            }
             setBackground(background);
         }
         glyph = new GlyphView(context, spec, on, contentScale, nativeIcon);

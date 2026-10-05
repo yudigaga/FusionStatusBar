@@ -1,10 +1,14 @@
 package com.xtjm.fusionstatusbar;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.EditText;
+import android.widget.SeekBar;
+import android.widget.CheckBox;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -50,6 +54,79 @@ public class ControlCenterGroupEditorTest {
         assertTrue(current[0].group.members.isEmpty());
     }
 
+    @Test public void groupEditorUsesGlobalAppearanceAndPreservesLegacyFieldsDuringEdits() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        for (var surface : ControlCenterGroupData.Surface.values()) for (boolean border : new boolean[] {false, true}) {
+            var data = ControlCenterGroupData.empty().add("wifi").withAppearance(surface, border);
+            ControlCenterLayoutPlan.Item[] current = {emptyGroup().withGroup(data)};
+            ControlCenterGroupEditor editor = editor(activity, current, List.of("bt"), new Picker());
+            assertNull(text(editor, "容器背景"));
+            assertNull(description(editor, "容器背景"));
+            assertNull(text(editor, "显示描边"));
+            var arrangement = (SettingsChoiceSelector) description(editor, "内部排列");
+            assertNotNull(arrangement);
+            assertNotNull(description(editor, "编辑 wifi"));
+            arrangement.optionView(ControlCenterGroupData.Arrangement.HORIZONTAL.ordinal()).performClick();
+            assertEquals(ControlCenterGroupData.Arrangement.HORIZONTAL, current[0].group.arrangement);
+            assertEquals(surface, current[0].group.surface);
+            assertEquals(border, current[0].group.border);
+            assertEquals(100, current[0].group.members.get(0).iconScale);
+        }
+    }
+
+    @Test public void memberIconSizeSliderAndNumericFieldStayInSyncAndPreserveArrangement() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        var data = ControlCenterGroupData.empty().add("wifi").add("bt");
+        var before = data.members.get(0);
+        ControlCenterLayoutPlan.Item[] current = {emptyGroup().withGroup(data)};
+        ControlCenterGroupEditor editor = editor(activity, current, List.of(), new Picker());
+        description(editor, "编辑 wifi").performClick();
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
+        AlertDialog dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();
+        View decor = dialog.getWindow().getDecorView();
+        EditText input = (EditText) description(decor, "图标大小 (%)");
+        SeekBar slider = (SeekBar) description(decor, "图标大小滑杆");
+        assertEquals(25, slider.getMin());
+        assertEquals(200, slider.getMax());
+        assertEquals("100", input.getText().toString());
+        input.setText("65");
+        assertEquals(65, slider.getProgress());
+        slider.setProgress(135);
+        assertEquals("135", input.getText().toString());
+        ((CheckBox) text(decor, "显示名称与状态")).setChecked(false);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        assertFalse(dialog.isShowing());
+        assertEquals(data.arrangement, current[0].group.arrangement);
+        var after = current[0].group.members.get(0);
+        assertEquals(135, after.iconScale);
+        assertFalse(after.showLabel);
+        assertEquals(before.x, after.x); assertEquals(before.y, after.y);
+        assertEquals(before.width, after.width); assertEquals(before.height, after.height);
+        assertEquals(data.members.get(1), current[0].group.members.get(1));
+    }
+
+    @Test public void invalidMemberIconSizeKeepsDialogOpenWithoutCommitting() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        var data = ControlCenterGroupData.empty().add("wifi");
+        ControlCenterLayoutPlan.Item[] current = {emptyGroup().withGroup(data)};
+        ControlCenterGroupEditor editor = editor(activity, current, List.of(), new Picker());
+        description(editor, "编辑 wifi").performClick();
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
+        AlertDialog dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();
+        EditText input = (EditText) description(dialog.getWindow().getDecorView(), "图标大小 (%)");
+        for (String value : List.of("24", "201", "")) {
+            input.setText(value);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+            assertTrue(dialog.isShowing());
+            assertNotNull(input.getError());
+            assertEquals(data, current[0].group);
+        }
+        input.setText("25");
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        assertFalse(dialog.isShowing());
+        assertEquals(25, current[0].group.members.get(0).iconScale);
+    }
+
     private static ControlCenterGroupEditor editor(Activity activity, ControlCenterLayoutPlan.Item[] current,
             List<String> candidates, Picker picker) {
         return new ControlCenterGroupEditor(activity, () -> current[0], () -> new ArrayList<>(candidates),
@@ -66,6 +143,24 @@ public class ControlCenterGroupEditorTest {
             if (child instanceof TextView label && text.contentEquals(label.getText())) return child;
         }
         throw new AssertionError("Missing button: " + text);
+    }
+
+    private static View description(View view, String value) {
+        if (value.contentEquals(view.getContentDescription() == null ? "" : view.getContentDescription())) return view;
+        if (view instanceof ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) {
+            View found = description(group.getChildAt(i), value);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static View text(View view, String value) {
+        if (view instanceof TextView label && value.contentEquals(label.getText())) return view;
+        if (view instanceof ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) {
+            View found = text(group.getChildAt(i), value);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private static final class Picker implements ControlCenterGroupEditor.ChoicePicker {

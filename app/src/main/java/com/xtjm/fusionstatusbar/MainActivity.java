@@ -51,6 +51,8 @@ public final class MainActivity extends android.app.Activity {
     private boolean controlCenterSaving;
     private boolean configWriteInFlight;
     private boolean configRestoring;
+    private android.widget.Button restartingSystemUiButton;
+    private Runnable pendingSystemUiRestart;
     private boolean controlCenterSaveFailed;
     private long controlCenterSavedRevision;
     private boolean suppressEditorSelection;
@@ -126,7 +128,7 @@ public final class MainActivity extends android.app.Activity {
     }
 
     public void lambda$new$0() {
-        if (controlCenterSaving || configRestoring) return;
+        if (controlCenterSaving || configRestoring || configWriteInFlight) return;
         this.pendingSettingsSave = false;
         if (configSession == null || config == null) return;
         FusionConfig submitted = config;
@@ -135,6 +137,7 @@ public final class MainActivity extends android.app.Activity {
             configWriteInFlight = false;
             if (!result.success) {
                 pendingSettingsSave = true;
+                cancelPendingSystemUiRestart();
                 Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
             } else if (config == submitted) {
                 config = result.config;
@@ -142,6 +145,8 @@ public final class MainActivity extends android.app.Activity {
                 editorPage.published(result.revision);
                 updateSettingsSummaries();
             }
+            if (result.success && pendingSettingsSave) flushSettingsSave();
+            continuePendingSystemUiRestart();
         });
     }
 
@@ -1012,12 +1017,14 @@ public final class MainActivity extends android.app.Activity {
                 editorSession.saved(submittedDraft, result.config.controlCenter);
                 Toast.makeText(this, R.string.editor_saved_waiting, Toast.LENGTH_SHORT).show();
             } else {
+                cancelPendingSystemUiRestart();
                 Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
             }
             syncEditorState();
             persistEditorSession();
             updateSettingsSummaries();
             if (pendingSettingsSave) flushSettingsSave();
+            continuePendingSystemUiRestart();
         });
     }
 
@@ -1040,7 +1047,8 @@ public final class MainActivity extends android.app.Activity {
                 new ConfigurationBackupController.Host() {
                     @Override public boolean hasDraft() { return hasPendingControlCenterDraft(); }
                     @Override public boolean beginRestore() {
-                        if (!settingsLoaded || controlCenterSaving || configRestoring || configWriteInFlight || pendingSettingsSave) {
+                        if (!settingsLoaded || controlCenterSaving || configRestoring || configWriteInFlight
+                                || pendingSettingsSave || restartingSystemUiButton != null) {
                             flushSettingsSave();
                             Toast.makeText(MainActivity.this, R.string.editor_backup_busy, Toast.LENGTH_SHORT).show();
                             return false;
@@ -1067,7 +1075,11 @@ public final class MainActivity extends android.app.Activity {
                                     R.string.editor_backup_draft_kept, Toast.LENGTH_LONG).show();
                             preview.setPreviewConfig(config);
                             applyControls();
-                        } else updateSettingsSummaries();
+                        } else {
+                            cancelPendingSystemUiRestart();
+                            updateSettingsSummaries();
+                        }
+                        continuePendingSystemUiRestart();
                     }
                 });
         return backupController;
@@ -1223,7 +1235,70 @@ public final class MainActivity extends android.app.Activity {
                                 plan.mode(controlCenterCompactMode).withColumns(value)));
                     }
                 });
+                addSectionLabel(content, "统一外观范围");
+                SystemSurfaceConfig systemSurfaces = settings.systemSurfaces;
+                addSwitch(content, "接管电源菜单", "", systemSurfaces.powerMenu, value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withSystemSurfaces(
+                            current.systemSurfaces.withPowerMenu(value)));
+                });
+                addSwitch(content, "接管音量菜单", "", systemSurfaces.volumeDialog, value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withSystemSurfaces(
+                            current.systemSurfaces.withVolumeDialog(value)));
+                });
+                addSwitch(content, "接管通知中心通知", "", systemSurfaces.notifications, value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withSystemSurfaces(
+                            current.systemSurfaces.withNotifications(value)));
+                });
+                addSwitch(content, "接管悬浮通知", "", systemSurfaces.headsUp, value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withSystemSurfaces(
+                            current.systemSurfaces.withHeadsUp(value)));
+                });
+                addSectionLabel(content, "系统菜单");
+                addSwitch(content, "三条电源菜单", "", systemSurfaces.extendedPowerMenu, value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withSystemSurfaces(
+                            current.systemSurfaces.withExtendedPowerMenu(value)));
+                });
+                SettingsChoiceSelector volumeLength = new SettingsChoiceSelector(MainActivity.this,
+                        "音量条长度", new String[] {"标准", "短款"},
+                        systemSurfaces.compactVolume ? 1 : 0, inputColor(), textPrimaryColor(),
+                        textSecondaryColor(), accentColor(), index -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withSystemSurfaces(
+                            current.systemSurfaces.withCompactVolume(index == 1)));
+                });
+                content.addView(volumeLength, matchWrap());
                 addSectionLabel(content, "全局外观");
+                ControlCenterSurface[] surfaces = ControlCenterSurface.values();
+                String[] surfaceLabels = new String[surfaces.length];
+                for (int i = 0; i < surfaces.length; i++) surfaceLabels[i] = surfaces[i].label;
+                LinearLayout[] containerBlurRows = new LinearLayout[2];
+                SettingsChoiceSelector surface = new SettingsChoiceSelector(MainActivity.this,
+                        "全局容器背景", surfaceLabels, settings.surface.ordinal(), inputColor(),
+                        textPrimaryColor(), textSecondaryColor(), accentColor(), index -> {
+                    ControlCenterSurface selected = surfaces[index];
+                    updateControlCenterDraft(controlCenterSettings().withSurface(selected));
+                    for (LinearLayout row : containerBlurRows) {
+                        if (row != null) setControlCenterSliderEnabled(row, selected.allowsContainerBlur());
+                    }
+                });
+                content.addView(surface, matchWrap());
+                LinearLayout[] borderWidthRow = new LinearLayout[1];
+                addSwitch(content, "全局描边", "", settings.borderEnabled, value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withGlobalBorder(value, current.borderWidthDp));
+                    if (borderWidthRow[0] != null) setControlCenterSliderEnabled(borderWidthRow[0], value);
+                });
+                borderWidthRow[0] = (LinearLayout) addSlider(content, "描边粗细", "", 1, 4,
+                        settings.borderWidthDp, " dp", value -> {
+                    ControlCenterConfig current = controlCenterSettings();
+                    updateControlCenterDraft(current.withGlobalBorder(current.borderEnabled, value));
+                });
+                setControlCenterSliderEnabled(borderWidthRow[0], settings.borderEnabled);
                 addHint(content, "以下设置同时应用于标准布局和紧凑布局。项目尺寸、形状和独立圆角请在画布中点击项目调整。");
                 com.xtjm.fusionstatusbar.MainActivity.this.addSlider(content, "内容缩放", "缩放项目内部图标和内容；项目宽高由画布网格决定", 70, 130, settings.tileScale, "%", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity.33.3
                     @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
@@ -1247,14 +1322,17 @@ public final class MainActivity extends android.app.Activity {
                     ControlCenterConfig current = controlCenterSettings();
                     updateControlCenterDraft(current.withBlur(value, current.cardBlur, current.tileBlur));
                 });
-                addBlurSlider(content, "卡片模糊", settings.cardBlur, value -> {
+                containerBlurRows[0] = addBlurSlider(content, "卡片模糊", settings.cardBlur, value -> {
                     ControlCenterConfig current = controlCenterSettings();
                     updateControlCenterDraft(current.withBlur(current.backgroundBlur, value, current.tileBlur));
                 });
-                addBlurSlider(content, "磁贴模糊", settings.tileBlur, value -> {
+                containerBlurRows[1] = addBlurSlider(content, "磁贴模糊", settings.tileBlur, value -> {
                     ControlCenterConfig current = controlCenterSettings();
                     updateControlCenterDraft(current.withBlur(current.backgroundBlur, current.cardBlur, value));
                 });
+                for (LinearLayout row : containerBlurRows) {
+                    setControlCenterSliderEnabled(row, settings.surface.allowsContainerBlur());
+                }
             }
         });
     }
@@ -1363,7 +1441,7 @@ public final class MainActivity extends android.app.Activity {
         }, "fusion-app-tiles").start();
     }
 
-    private void addBlurSlider(LinearLayout content, String title, int value, IntegerUpdate update) {
+    private LinearLayout addBlurSlider(LinearLayout content, String title, int value, IntegerUpdate update) {
         LinearLayout row = (LinearLayout) addSlider(content, title, "", 0, 100, value, "%", update);
         row.getChildAt(1).setVisibility(View.GONE);
         LinearLayout endpoints = new LinearLayout(this);
@@ -1374,6 +1452,12 @@ public final class MainActivity extends android.app.Activity {
         endpoints.addView(transparent, new LinearLayout.LayoutParams(0, -2, 1));
         endpoints.addView(blurred, new LinearLayout.LayoutParams(0, -2, 1));
         row.addView(endpoints, new LinearLayout.LayoutParams(-1, -2));
+        return row;
+    }
+
+    private void setControlCenterSliderEnabled(LinearLayout row, boolean enabled) {
+        row.setAlpha(enabled ? 1f : 0.45f);
+        if (row.getChildAt(2) instanceof android.widget.SeekBar seek) seek.setEnabled(enabled);
     }
 
     private ControlCenterCapturedStyle controlTileStyle(String spec) {
@@ -1473,6 +1557,8 @@ public final class MainActivity extends android.app.Activity {
         com.xtjm.fusionstatusbar.ControlCenterConfig settings = controlCenterSettings();
         this.controlCenterGridEditor.setGeometry(settings.spacing, settings.cornerRadius);
         this.controlCenterGridEditor.setMaterialStrength(settings.cardBlur, settings.tileBlur);
+        this.controlCenterGridEditor.setSurface(settings.surface);
+        this.controlCenterGridEditor.setGlobalBorder(settings.borderEnabled, settings.borderWidthDp);
         if (controlCenterWallpaperWorkspace != null) controlCenterWallpaperWorkspace.setBackgroundStrength(settings.backgroundBlur);
         com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Resolved resolved = currentControlGridPlan().resolve(this.controlCenterCompactMode, availableControlGridSpecs());
         java.util.ArrayList<com.xtjm.fusionstatusbar.ControlCenterGridEditor.Cell> cells = new java.util.ArrayList<>();
@@ -2984,6 +3070,7 @@ public final class MainActivity extends android.app.Activity {
         texts.addView(hint, matchWrap());
         row.addView(texts, new android.widget.LinearLayout.LayoutParams(0, dp(58), 1.0f));
         android.widget.Switch toggle = new android.widget.Switch(this);
+        toggle.setContentDescription(title);
         toggle.setChecked(checked);
         row.addView(toggle, new android.widget.LinearLayout.LayoutParams(-2, -2));
         linearLayout.addView(row, matchWrap());
@@ -3539,6 +3626,7 @@ public final class MainActivity extends android.app.Activity {
     }
 
     @Override protected void onDestroy() {
+        cancelPendingSystemUiRestart();
         suppressEditorSelection = true;
         if (settingsDialogs != null) settingsDialogs.close();
         if (backupController != null) backupController.close();
@@ -4194,14 +4282,43 @@ public final class MainActivity extends android.app.Activity {
     }
 
     private void restartSystemUi(final android.widget.Button button) {
+        restartSystemUi(button, () -> new java.lang.Thread(
+                () -> lambda$restartSystemUi$91(button), "fusion-restart-systemui").start());
+    }
+
+    void restartSystemUi(android.widget.Button button, Runnable restart) {
+        if (restartingSystemUiButton != null || !settingsLoaded) return;
+        if (controlCenterSaveFailed && !controlCenterSaving) {
+            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
+            return;
+        }
+        restartingSystemUiButton = button;
+        pendingSystemUiRestart = restart;
         button.setEnabled(false);
         button.setText(com.xtjm.fusionstatusbar.R.string.restarting_systemui);
-        new java.lang.Thread(new java.lang.Runnable() { // from class: com.xtjm.fusionstatusbar.MainActivity.120
-            @Override // java.lang.Runnable
-            public final void run() {
-                com.xtjm.fusionstatusbar.MainActivity.this.lambda$restartSystemUi$91(button);
-            }
-        }, "fusion-restart-systemui").start();
+        continuePendingSystemUiRestart();
+    }
+
+    private void continuePendingSystemUiRestart() {
+        if (pendingSystemUiRestart == null || controlCenterSaving || configRestoring
+                || configWriteInFlight || isDestroyed() || isFinishing()) return;
+        if (pendingSettingsSave) {
+            flushSettingsSave();
+            return;
+        }
+        Runnable restart = pendingSystemUiRestart;
+        pendingSystemUiRestart = null;
+        restart.run();
+    }
+
+    private void cancelPendingSystemUiRestart() {
+        if (pendingSystemUiRestart == null) return;
+        pendingSystemUiRestart = null;
+        if (restartingSystemUiButton != null) {
+            restartingSystemUiButton.setEnabled(true);
+            restartingSystemUiButton.setText(R.string.restart_systemui);
+            restartingSystemUiButton = null;
+        }
     }
 
     public void lambda$restartSystemUi$91(final android.widget.Button button) {
@@ -4219,6 +4336,7 @@ public final class MainActivity extends android.app.Activity {
     }
 
     public void lambda$restartSystemUi$90(android.widget.Button button, boolean result) {
+        restartingSystemUiButton = null;
         button.setEnabled(true);
         button.setText(com.xtjm.fusionstatusbar.R.string.restart_systemui);
         android.widget.Toast.makeText(this, result ? com.xtjm.fusionstatusbar.R.string.restart_systemui_success : com.xtjm.fusionstatusbar.R.string.restart_systemui_failed, Toast.LENGTH_LONG).show();
