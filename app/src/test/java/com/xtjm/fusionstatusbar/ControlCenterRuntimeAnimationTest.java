@@ -44,8 +44,13 @@ public class ControlCenterRuntimeAnimationTest {
         Class<?> type = Class.forName(ControlCenterRuntimeGrid.class.getName() + "$GridState");
         Constructor<?> constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
+        ControlCenterHostAdapter.Panel panel = new ControlCenterHostAdapter.Panel(
+                new ControlCenterHostAdapter.State(adapter, null, "NORMAL", "VERTICAL"),
+                new java.util.LinkedHashMap<>(), new java.util.LinkedHashMap<>(),
+                new Object(), new Object(), Item.class, false, false,
+                new java.util.LinkedHashMap<>());
         // Empty native sources isolate the actual mount/lifecycle path from OEM record creation.
-        state = constructor.newInstance(adapter, new Object(), new Object(), Item.class,
+        state = constructor.newInstance(adapter, panel, Item.class,
                 ControlCenterConfig.defaults(), false, 4, Collections.emptyList(),
                 Collections.emptyMap(), Collections.emptyMap(), 0, 4);
         Field outerHolder = type.getDeclaredField("outerHolder");

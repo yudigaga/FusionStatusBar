@@ -107,7 +107,7 @@ final class ControlCenterGroupEditor extends LinearLayout {
         fields.setOrientation(VERTICAL); fields.setPadding(dp(20), dp(8), dp(20), dp(8));
         fields.setBackgroundColor(Color.red(color) > 128 ? 0xff242528 : Color.WHITE);
         int[] values = {member.x, member.y, member.width, member.height, member.iconScale};
-        String[] names = {"内部横坐标", "内部纵坐标", "内部宽度", "内部高度", "图标大小 (%)"};
+        String[] names = {"内部横坐标", "内部纵坐标", "内部宽度", "内部高度", "图标与圆圈大小 (%)"};
         EditText[] inputs = new EditText[values.length];
         for (int i = 0; i < values.length; i++) {
             LinearLayout row = new LinearLayout(getContext());
@@ -122,7 +122,7 @@ final class ControlCenterGroupEditor extends LinearLayout {
         }
         SeekBar scale = new SeekBar(getContext());
         scale.setMin(ControlCenterGroupData.MIN_ICON_SCALE); scale.setMax(ControlCenterGroupData.MAX_ICON_SCALE);
-        scale.setProgress(member.iconScale); scale.setContentDescription("图标大小滑杆");
+        scale.setProgress(member.iconScale); scale.setContentDescription("图标与圆圈大小滑杆");
         scale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 String value = String.valueOf(progress);
@@ -155,9 +155,9 @@ final class ControlCenterGroupEditor extends LinearLayout {
                 if (latest == null || latest.locked) { dialog.dismiss(); return; }
                 int iconScale;
                 try { iconScale = Integer.parseInt(inputs[4].getText().toString()); }
-                catch (NumberFormatException error) { inputs[4].setError("请输入 25%-200% 的图标大小"); return; }
+                catch (NumberFormatException error) { inputs[4].setError("请输入 25%-200% 的图标与圆圈大小"); return; }
                 if (iconScale < ControlCenterGroupData.MIN_ICON_SCALE || iconScale > ControlCenterGroupData.MAX_ICON_SCALE) {
-                    inputs[4].setError("图标大小须在 25%-200% 之间"); return;
+                    inputs[4].setError("图标与圆圈大小须在 25%-200% 之间"); return;
                 }
                 ControlCenterGroupData.Member changed = new ControlCenterGroupData.Member(spec,
                         Integer.parseInt(inputs[0].getText().toString()), Integer.parseInt(inputs[1].getText().toString()),

@@ -85,6 +85,20 @@ public class FusionConfigProtocolTest {
         assertEquals(result.revision, FusionConfigStore.read(app).revision);
     }
 
+    @Test public void statusClockSizeSurvivesProviderBundleAndAtomicStoreRoundTrips() {
+        FusionConfig source = FusionConfig.defaults().withStatusClockSizeSp(23).withRevision(8);
+        FusionConfig fromBundle = FusionConfig.fromBundle(source.toBundle());
+        assertEquals(23, fromBundle.statusClockSizeSp);
+        assertEquals(8L, fromBundle.revision);
+        assertEquals(0, FusionConfig.fromBundle(new Bundle()).statusClockSizeSp);
+
+        MemoryFile file = new MemoryFile();
+        FusionConfigStore.WriteResult written = FusionConfigStore.write(file, source,
+                FusionConfig.defaults());
+        assertTrue(written.success);
+        assertEquals(23, FusionConfigStore.read(file, FusionConfig.defaults()).statusClockSizeSp);
+    }
+
     @Test public void malformedLegacyPreferencesAreReadWithoutClassCastCrash() {
         Context app = RuntimeEnvironment.getApplication();
         app.createDeviceProtectedStorageContext().getSharedPreferences("fusion_statusbar", 0)

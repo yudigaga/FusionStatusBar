@@ -34,6 +34,15 @@ final class ControlCenterPluginHookInstaller {
             "miui.systemui.controlcenter.panel.main.devicecenter.entry.DeviceCenterEntryController";
     private static final String DEVICE_CONTROLS_ENTRY_CONTROLLER_CLASS =
             "miui.systemui.controlcenter.panel.main.devicecontrol.DeviceControlsEntryController";
+    private static final String CONTROL_CENTER_HEADER_CONTROLLER_CLASS =
+            "miui.systemui.controlcenter.panel.main.header.ControlCenterHeaderController";
+    private static final String[] CONTROL_CENTER_HEADER_CONTROLLER_CANDIDATES = {
+            CONTROL_CENTER_HEADER_CONTROLLER_CLASS,
+            "miui.systemui.controlcenter.panel.main.ControlCenterHeaderController",
+            "miui.systemui.controlcenter.phone.ControlCenterHeaderController",
+            "com.android.systemui.controlcenter.phone.ControlCenterHeaderController",
+            "com.android.systemui.controlcenter.shade.ControlCenterHeaderController"
+    };
     static final String COMPACT_QS_CARD_CONTROLLER_CLASS =
             "miui.systemui.controlcenter.panel.main.qs.CompactQSCardController";
     private static final String WINDOW_VIEW_CONTROLLER_CLASS =
@@ -59,7 +68,9 @@ final class ControlCenterPluginHookInstaller {
         ADAPTER_NOTIFY,
         COMPONENT_BIND,
         COMPONENT_SHAPE,
-        COMPONENT_LAYOUT
+        COMPONENT_LAYOUT,
+        HEADER_DATE,
+        HEADER_CARRIER
     }
 
     enum Callback {
@@ -86,7 +97,9 @@ final class ControlCenterPluginHookInstaller {
         ADAPTER_NOTIFY,
         COMPONENT_BIND,
         COMPONENT_SPAN,
-        COMPONENT_LAYOUT_BIND
+        COMPONENT_LAYOUT_BIND,
+        HEADER_DATE,
+        HEADER_CARRIER_PRIVACY
     }
 
     interface ClassResolver {
@@ -102,7 +115,7 @@ final class ControlCenterPluginHookInstaller {
         XposedInterface.Hooker get(Callback callback);
     }
 
-    private enum Selector { PARAMETER_COUNT, EXACT_PARAMETERS }
+    private enum Selector { PARAMETER_COUNT, EXACT_PARAMETERS, NAME_ONLY }
 
     private static final class Spec {
         final Group group;
@@ -141,12 +154,19 @@ final class ControlCenterPluginHookInstaller {
                     parameterTypes.length, null, returnType, parameterTypes.clone(), callback);
         }
 
-        String hookId() {
+        static Spec named(Group group, String className, String methodName, Callback callback) {
+            return new Spec(group, className, methodName, Selector.NAME_ONLY, 0, null,
+                    null, null, callback);
+        }
+
+        String hookId(Method method) {
             return className.substring(className.lastIndexOf('.') + 1) + "#" + methodName
-                    + "/" + parameterCount;
+                    + "/" + (selector == Selector.NAME_ONLY
+                            ? method.getParameterCount() : parameterCount);
         }
 
         boolean matches(Method method) {
+            if (selector == Selector.NAME_ONLY) return method.getName().equals(methodName);
             return selector == Selector.PARAMETER_COUNT
                     ? ControlCenterHookPolicy.matchesMethod(method, methodName, parameterCount,
                             parameterType, returnType)
@@ -159,19 +179,42 @@ final class ControlCenterPluginHookInstaller {
         final boolean layoutAvailable;
         final List<String> missingClasses;
         final List<String> missingMethods;
+        final List<String> failedHooks;
         private final Map<Group, Integer> counts;
 
         Result(Map<Group, Integer> counts, List<String> missingClasses,
                 List<String> missingMethods) {
+            this(counts, missingClasses, missingMethods, List.of());
+        }
+
+        Result(Map<Group, Integer> counts, List<String> missingClasses,
+                List<String> missingMethods, List<String> failedHooks) {
             this.counts = Collections.unmodifiableMap(new EnumMap<>(counts));
             this.layoutAvailable = count(Group.GRID_CONTENT) > 0
                     && count(Group.COMPONENT_BIND) > 0
                     && count(Group.LIST) > 0 && count(Group.BIND) > 0;
             this.missingClasses = Collections.unmodifiableList(new ArrayList<>(missingClasses));
             this.missingMethods = Collections.unmodifiableList(new ArrayList<>(missingMethods));
+            this.failedHooks = Collections.unmodifiableList(new ArrayList<>(failedHooks));
         }
 
         int count(Group group) { return counts.getOrDefault(group, 0); }
+
+        boolean needsRetry() {
+            return !missingClasses.isEmpty() || !missingMethods.isEmpty() || !failedHooks.isEmpty();
+        }
+
+        String missingRequiredCapability(ControlCenterConfig settings) {
+            if (!layoutAvailable) return "control_center_layout_hooks_unavailable";
+            if (settings.hasVisualOverride() && (count(Group.VISUAL) == 0
+                    || count(Group.SHAPE) == 0 || count(Group.COMPONENT_SHAPE) == 0))
+                return "control_center_visual_hooks_unavailable";
+            if (settings.hideDate && count(Group.HEADER_DATE) == 0)
+                return "control_center_date_visibility_hook_unavailable";
+            if (settings.hideCarrier && count(Group.HEADER_CARRIER) == 0)
+                return "control_center_carrier_visibility_hook_unavailable";
+            return "";
+        }
     }
 
     private final ClassResolver classResolver;
@@ -195,13 +238,14 @@ final class ControlCenterPluginHookInstaller {
         Map<Group, Integer> counts = new EnumMap<>(Group.class);
         List<String> missingClasses = new ArrayList<>();
         List<String> missingMethods = new ArrayList<>();
+        List<String> failedHooks = new ArrayList<>();
         boolean visualBoundaryPassed = false;
         for (Spec spec : specs()) {
             if (!visualBoundaryPassed && spec.group == Group.VISUAL) {
                 beforeVisualHooks.run();
                 visualBoundaryPassed = true;
             }
-            Class<?> type = classResolver.resolve(spec.className, targetLoader);
+            Class<?> type = resolveClass(spec, targetLoader);
             if (type == null) {
                 missingClasses.add(spec.className);
                 continue;
@@ -211,13 +255,24 @@ final class ControlCenterPluginHookInstaller {
                 if (!spec.matches(method)) continue;
                 matched = true;
                 method.setAccessible(true);
-                if (registrar.install(spec.hookId(), method, hookers.get(spec.callback))) {
+                if (registrar.install(spec.hookId(method), method, hookers.get(spec.callback))) {
                     counts.merge(spec.group, 1, Integer::sum);
-                }
+                } else failedHooks.add(spec.hookId(method));
             }
             if (!matched) missingMethods.add(spec.className + "#" + spec.methodName);
         }
-        return new Result(counts, missingClasses, missingMethods);
+        return new Result(counts, missingClasses, missingMethods, failedHooks);
+    }
+
+    private Class<?> resolveClass(Spec spec, ClassLoader targetLoader) {
+        if (spec.group != Group.HEADER_DATE && spec.group != Group.HEADER_CARRIER) {
+            return classResolver.resolve(spec.className, targetLoader);
+        }
+        for (String candidate : CONTROL_CENTER_HEADER_CONTROLLER_CANDIDATES) {
+            Class<?> resolved = classResolver.resolve(candidate, targetLoader);
+            if (resolved != null) return resolved;
+        }
+        return null;
     }
 
     private static Result emptyResult() {
@@ -297,6 +352,10 @@ final class ControlCenterPluginHookInstaller {
             specs.add(Spec.count(Group.COMPONENT_LAYOUT, componentClass,
                     "onBindViewHolder", 0, null, null, Callback.COMPONENT_LAYOUT_BIND));
         }
+        specs.add(Spec.count(Group.HEADER_DATE, CONTROL_CENTER_HEADER_CONTROLLER_CLASS,
+                "updateDateVisibility", 0, null, null, Callback.HEADER_DATE));
+        specs.add(Spec.named(Group.HEADER_CARRIER, CONTROL_CENTER_HEADER_CONTROLLER_CLASS,
+                "updateCarrierAndPrivacyVisible", Callback.HEADER_CARRIER_PRIVACY));
         return specs;
     }
 

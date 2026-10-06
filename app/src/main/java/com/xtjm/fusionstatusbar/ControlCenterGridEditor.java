@@ -324,6 +324,7 @@ final class ControlCenterGridEditor extends ViewGroup {
 
     private static boolean sampleActive(String spec) {
         return "cell".equalsIgnoreCase(spec) || "bt".equalsIgnoreCase(spec)
+                || ControlCenterComponentSpec.FIVE_G.equals(spec)
                 || "rotation".equalsIgnoreCase(spec) || "mute".equalsIgnoreCase(spec)
                 || "quietmode".equalsIgnoreCase(spec);
     }

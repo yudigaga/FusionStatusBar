@@ -8,9 +8,9 @@ import android.util.Log;
 /** Shared display and status-bar layout settings. */
 public final class FusionConfig {
     public static final String CONTENT_URI_STRING =
-            "content://io.github.yudigaga.fusionstatusbar.config/settings";
+            "content://" + BuildConfig.APPLICATION_ID + ".config/settings";
     static final String CONTROL_CENTER_PREVIEW_URI_STRING =
-            "content://io.github.yudigaga.fusionstatusbar.config/control_center_preview";
+            "content://" + BuildConfig.APPLICATION_ID + ".config/control_center_preview";
     public static final String METHOD_GET = "get";
     static final String METHOD_REPORT_APPLIED = "report_applied";
     static final String KEY_REVISION = "config_revision";
@@ -25,7 +25,7 @@ public final class FusionConfig {
     static final String KEY_PREVIEW_CATALOG = "preview_tile_catalog";
     static final String KEY_PREVIEW_URI = "preview_uri";
     static final String KEY_SCHEMA_VERSION = "config_schema_version";
-    static final int CONFIG_SCHEMA_VERSION = 4;
+    static final int CONFIG_SCHEMA_VERSION = 5;
 
     public static final int SIDE_LEFT = 0;
     public static final int SIDE_RIGHT = 1;
@@ -44,6 +44,7 @@ public final class FusionConfig {
     static final String KEY_SHOW_WEATHER = "show_weather";
     static final String KEY_WIFI_ICON = "wifi_icon";
     static final String KEY_STATUSBAR_HEIGHT = "statusbar_height";
+    static final String KEY_STATUS_CLOCK_SIZE = "status_clock_size_sp";
     static final String KEY_CLOCK_SIDE = "clock_side";
     static final String KEY_CLOCK_ROW = "clock_row";
     static final String KEY_NOTIFICATION_SIDE = "notification_side";
@@ -71,6 +72,7 @@ public final class FusionConfig {
     final ControlCenterConfig controlCenter;
     public final boolean wifiIcon;
     public final int statusBarHeight;
+    public final int statusClockSizeSp;
     public final int clockSide;
     public final int clockRow;
     public final int notificationSide;
@@ -114,7 +116,22 @@ public final class FusionConfig {
             int spanOffsetX, int spanOffsetY, boolean customClock, String clockPattern,
             boolean showWeather, TelemetryConfig telemetry,
             NotificationClockConfig notificationClock, ControlCenterConfig controlCenter) {
-        this.revision = 0L;
+        this(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows, wifiIcon,
+                statusBarHeight, clockSide, clockRow, notificationSide, notificationRow,
+                systemSide, systemRow, fusionSide, fusionRow, systemIconScale,
+                notificationIconScale, spanOffsetX, spanOffsetY, customClock, clockPattern,
+                showWeather, telemetry, notificationClock, controlCenter, 0, 0L);
+    }
+
+    private FusionConfig(int iconScale, int strokeScale, boolean doubleRow, int doubleRowSide,
+            boolean spanRows, boolean wifiIcon, int statusBarHeight, int clockSide, int clockRow,
+            int notificationSide, int notificationRow, int systemSide, int systemRow,
+            int fusionSide, int fusionRow, int systemIconScale, int notificationIconScale,
+            int spanOffsetX, int spanOffsetY, boolean customClock, String clockPattern,
+            boolean showWeather, TelemetryConfig telemetry,
+            NotificationClockConfig notificationClock, ControlCenterConfig controlCenter,
+            int statusClockSizeSp, long revision) {
+        this.revision = Math.max(0L, revision);
         this.iconScale = clampScale(iconScale);
         this.strokeScale = clampScale(strokeScale);
         this.doubleRow = doubleRow;
@@ -134,6 +151,7 @@ public final class FusionConfig {
                 ? ControlCenterConfig.defaults() : controlCenter;
         this.wifiIcon = wifiIcon;
         this.statusBarHeight = clampStatusBarHeight(statusBarHeight);
+        this.statusClockSizeSp = clampStatusClockSize(statusClockSizeSp);
         this.clockSide = normalizeSide(clockSide);
         this.clockRow = normalizeRow(clockRow);
         this.notificationSide = normalizeSide(notificationSide);
@@ -260,7 +278,7 @@ public final class FusionConfig {
         if (providerConfig != null) return providerConfig;
         try {
             Context packageContext = context.createPackageContext(
-                    "io.github.yudigaga.fusionstatusbar", Context.CONTEXT_IGNORE_SECURITY);
+                    BuildConfig.APPLICATION_ID, Context.CONTEXT_IGNORE_SECURITY);
             return FusionConfigStore.read(packageContext);
         } catch (Throwable ignored) {
             return defaults();
@@ -319,7 +337,9 @@ public final class FusionConfig {
                 values.getString(KEY_CLOCK_PATTERN, fallback.clockPattern),
                 values.getBoolean(KEY_SHOW_WEATHER, fallback.showWeather),
                 TelemetryConfig.fromBundle(values), NotificationClockConfig.fromBundle(values),
-                ControlCenterConfig.fromBundle(values)).withRevision(
+                ControlCenterConfig.fromBundle(values))
+                .withStatusClockSizeSp(values.getInt(KEY_STATUS_CLOCK_SIZE,
+                        fallback.statusClockSizeSp)).withRevision(
                         values.getLong(KEY_REVISION, 0L));
     }
 
@@ -342,6 +362,7 @@ public final class FusionConfig {
         controlCenter.writeTo(values);
         values.putBoolean(KEY_WIFI_ICON, wifiIcon);
         values.putInt(KEY_STATUSBAR_HEIGHT, statusBarHeight);
+        values.putInt(KEY_STATUS_CLOCK_SIZE, statusClockSizeSp);
         values.putInt(KEY_CLOCK_SIDE, clockSide);
         values.putInt(KEY_CLOCK_ROW, clockRow);
         values.putInt(KEY_NOTIFICATION_SIDE, notificationSide);
@@ -356,32 +377,30 @@ public final class FusionConfig {
     }
 
     private FusionConfig(FusionConfig source, long revision) {
-        this.revision = Math.max(0L, revision);
-        iconScale = source.iconScale;
-        strokeScale = source.strokeScale;
-        doubleRow = source.doubleRow;
-        doubleRowSide = source.doubleRowSide;
-        spanRows = source.spanRows;
-        spanOffsetX = source.spanOffsetX;
-        spanOffsetY = source.spanOffsetY;
-        customClock = source.customClock;
-        clockPattern = source.clockPattern;
-        showWeather = source.showWeather;
-        telemetry = source.telemetry;
-        notificationClock = source.notificationClock;
-        controlCenter = source.controlCenter;
-        wifiIcon = source.wifiIcon;
-        statusBarHeight = source.statusBarHeight;
-        clockSide = source.clockSide;
-        clockRow = source.clockRow;
-        notificationSide = source.notificationSide;
-        notificationRow = source.notificationRow;
-        systemSide = source.systemSide;
-        systemRow = source.systemRow;
-        fusionSide = source.fusionSide;
-        fusionRow = source.fusionRow;
-        systemIconScale = source.systemIconScale;
-        notificationIconScale = source.notificationIconScale;
+        this(source.iconScale, source.strokeScale, source.doubleRow, source.doubleRowSide,
+                source.spanRows, source.wifiIcon, source.statusBarHeight, source.clockSide,
+                source.clockRow, source.notificationSide, source.notificationRow,
+                source.systemSide, source.systemRow, source.fusionSide, source.fusionRow,
+                source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
+                source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
+                source.telemetry, source.notificationClock, source.controlCenter,
+                source.statusClockSizeSp, revision);
+    }
+
+    private FusionConfig(FusionConfig source, int statusClockSizeSp) {
+        this(source.iconScale, source.strokeScale, source.doubleRow, source.doubleRowSide,
+                source.spanRows, source.wifiIcon, source.statusBarHeight, source.clockSide,
+                source.clockRow, source.notificationSide, source.notificationRow,
+                source.systemSide, source.systemRow, source.fusionSide, source.fusionRow,
+                source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
+                source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
+                source.telemetry, source.notificationClock, source.controlCenter,
+                statusClockSizeSp, source.revision);
+    }
+
+    private FusionConfig preserveStatusClockSize(FusionConfig changed) {
+        return changed.statusClockSizeSp == statusClockSizeSp
+                ? changed : new FusionConfig(changed, statusClockSizeSp);
     }
 
     FusionConfig withRevision(long revision) {
@@ -389,172 +408,172 @@ public final class FusionConfig {
     }
 
     public FusionConfig withIconScale(int value) {
-        return new FusionConfig(value, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(value, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withStrokeScale(int value) {
-        return new FusionConfig(iconScale, value, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, value, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withDoubleRow(boolean value) {
-        return new FusionConfig(iconScale, strokeScale, value, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, value, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withDoubleRowSide(int value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, value, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, value, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withSpanRows(boolean value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, value,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, value,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withSpanOffsetX(int value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, value, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withSpanOffsetY(int value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, value,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withCustomClock(boolean value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 value, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withClockPattern(String value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, value, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withShowWeather(boolean value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, value, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     FusionConfig withTelemetry(TelemetryConfig value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, value, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     FusionConfig withNotificationClock(NotificationClockConfig value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
-                customClock, clockPattern, showWeather, telemetry, value, controlCenter);
+                customClock, clockPattern, showWeather, telemetry, value, controlCenter));
     }
 
     FusionConfig withControlCenter(ControlCenterConfig value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
-                customClock, clockPattern, showWeather, telemetry, notificationClock, value);
+                customClock, clockPattern, showWeather, telemetry, notificationClock, value));
     }
 
     public FusionConfig withWifiIcon(boolean value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 value, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withStatusBarHeight(int value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, value, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withSystemPosition(int side, int row) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, side, row, fusionSide, fusionRow,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withFusionPosition(int side, int row) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, side, row,
                 systemIconScale, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withSystemIconScale(int value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 value, notificationIconScale, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withNotificationIconScale(int value) {
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows,
                 wifiIcon, statusBarHeight, clockSide, clockRow, notificationSide,
                 notificationRow, systemSide, systemRow, fusionSide, fusionRow,
                 systemIconScale, value, spanOffsetX, spanOffsetY,
                 customClock, clockPattern, showWeather, telemetry, notificationClock,
-                controlCenter);
+                controlCenter));
     }
 
     public FusionConfig withElementPosition(int element, int side, int row) {
@@ -574,12 +593,20 @@ public final class FusionConfig {
             nextSystemSide = side;
             nextSystemRow = row;
         }
-        return new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide,
+        return preserveStatusClockSize(new FusionConfig(iconScale, strokeScale, doubleRow, doubleRowSide,
                 spanRows, wifiIcon, statusBarHeight, nextClockSide, nextClockRow,
                 nextNotificationSide, nextNotificationRow, nextSystemSide, nextSystemRow,
                 fusionSide, fusionRow, systemIconScale, notificationIconScale,
                 spanOffsetX, spanOffsetY, customClock, clockPattern, showWeather,
-                telemetry, notificationClock, controlCenter);
+                telemetry, notificationClock, controlCenter));
+    }
+
+    public FusionConfig withStatusClockSizeSp(int value) {
+        return new FusionConfig(this, clampStatusClockSize(value));
+    }
+
+    public static int clampStatusClockSize(int value) {
+        return value == 0 ? 0 : Math.max(8, Math.min(48, value));
     }
 
     public static int clampStatusBarHeight(int value) {

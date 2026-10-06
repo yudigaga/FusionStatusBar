@@ -20,6 +20,8 @@ final class StatusBarHookInstaller {
             "com.android.systemui.statusbar.phone.MiuiPhoneStatusBarView";
     static final String PHONE_BASE_CLASS =
             "com.android.systemui.statusbar.phone.PhoneStatusBarView";
+    static final String STATUS_WINDOW_CONTROLLER_CLASS =
+            "com.android.systemui.statusbar.window.StatusBarWindowControllerImpl";
     static final String KEYGUARD_CLASS =
             "com.android.systemui.statusbar.phone.MiuiKeyguardStatusBarView";
 
@@ -42,6 +44,9 @@ final class StatusBarHookInstaller {
         PHONE_LAYOUT,
         PHONE_CUTOUT_UPDATE,
         PHONE_MEASURE,
+        STATUS_WINDOW_LAYOUT_PARAMS,
+        STATUS_WINDOW_APPLY,
+        STATUS_WINDOW_REFRESH_HEIGHT,
         KEYGUARD_ATTACHED,
         KEYGUARD_LAYOUT
     }
@@ -65,17 +70,20 @@ final class StatusBarHookInstaller {
         final Class<?> batteryContainer;
         final Class<?> phone;
         final Class<?> phoneBase;
+        final Class<?> statusWindowController;
         final Class<?> keyguard;
         final List<String> missingClasses;
 
         Targets(Class<?> battery, Class<?> container, Class<?> batteryContainer,
-                Class<?> phone, Class<?> phoneBase, Class<?> keyguard,
+                Class<?> phone, Class<?> phoneBase, Class<?> statusWindowController,
+                Class<?> keyguard,
                 List<String> missingClasses) {
             this.battery = battery;
             this.container = container;
             this.batteryContainer = batteryContainer;
             this.phone = phone;
             this.phoneBase = phoneBase;
+            this.statusWindowController = statusWindowController;
             this.keyguard = keyguard;
             this.missingClasses = Collections.unmodifiableList(new ArrayList<>(missingClasses));
         }
@@ -125,8 +133,10 @@ final class StatusBarHookInstaller {
         Class<?> batteryContainer = resolve(BATTERY_CONTAINER_CLASS, targetLoader);
         Class<?> phone = resolve(PHONE_CLASS, targetLoader);
         Class<?> phoneBase = resolve(PHONE_BASE_CLASS, targetLoader);
+        Class<?> statusWindow = resolve(STATUS_WINDOW_CONTROLLER_CLASS, targetLoader);
         Class<?> keyguard = resolve(KEYGUARD_CLASS, targetLoader);
-        return new Targets(battery, container, batteryContainer, phone, phoneBase, keyguard,
+        return new Targets(battery, container, batteryContainer, phone, phoneBase, statusWindow,
+                keyguard,
                 missingClasses);
     }
 
@@ -141,6 +151,8 @@ final class StatusBarHookInstaller {
             layoutHooks += exact(targets.phoneBase, "onMeasure", new Class<?>[] {int.class, int.class},
                     Callback.PHONE_MEASURE);
         }
+        if (targets.statusWindowController != null)
+            layoutHooks += installStatusWindow(targets.statusWindowController);
         if (targets.keyguard != null) layoutHooks += installKeyguard(targets.keyguard);
 
         return new Result(targets.battery, targets.batteryContainer, batteryHooks, containerHooks,
@@ -214,6 +226,29 @@ final class StatusBarHookInstaller {
         count += exact(type, "onLayout",
                 new Class<?>[] {boolean.class, int.class, int.class, int.class, int.class},
                 Callback.KEYGUARD_LAYOUT);
+        return count;
+    }
+
+    private int installStatusWindow(Class<?> type) {
+        int count = 0;
+        count += exact(type, "getBarLayoutParamsForRotation", new Class<?>[] {int.class},
+                Callback.STATUS_WINDOW_LAYOUT_PARAMS);
+        count += matchingCount(type, "apply", 1, Callback.STATUS_WINDOW_APPLY);
+        count += exact(type, "refreshStatusBarHeight", new Class<?>[0],
+                Callback.STATUS_WINDOW_REFRESH_HEIGHT);
+        return count;
+    }
+
+    private int matchingCount(Class<?> type, String methodName, int parameterCount,
+            Callback callback) {
+        int count = 0;
+        for (Method method : type.getDeclaredMethods()) {
+            if (!method.getName().equals(methodName)
+                    || method.getParameterCount() != parameterCount) continue;
+            method.setAccessible(true);
+            count += install(type, methodName, method, callback);
+        }
+        if (count == 0) missingMethods.add(type.getSimpleName() + "#" + methodName);
         return count;
     }
 

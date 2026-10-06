@@ -20,7 +20,7 @@ public class ConfigurationBackupTest {
         ControlCenterConfig center = ControlCenterConfig.defaults().withEnabled(true).withColumns(5)
                 .withLayoutPlan(ControlCenterLayoutPlan.blank(5).forPublication(true).encode());
         FusionConfig source = FusionConfig.defaults().withIconScale(115).withStrokeScale(125)
-                .withControlCenter(center).withRevision(87);
+                .withStatusClockSizeSp(21).withControlCenter(center).withRevision(87);
         FusionConfig restored = ConfigurationBackupCodec.read(new ByteArrayInputStream(ConfigurationBackupCodec.encode(source)));
         Bundle expected = source.toBundle(), actual = restored.toBundle();
         assertEquals(expected.keySet(), actual.keySet());
@@ -36,12 +36,18 @@ public class ConfigurationBackupTest {
 
     @Test public void previousCompleteBackupsAndPresetsDefaultTheNewGlobalSurface() throws Exception {
         JSONObject full = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()), StandardCharsets.UTF_8));
-        full.getJSONObject("config").remove(ControlCenterConfig.KEY_SURFACE);
-        full.getJSONObject("config").remove(ControlCenterConfig.KEY_BORDER_ENABLED);
-        full.getJSONObject("config").remove(ControlCenterConfig.KEY_BORDER_WIDTH);
+        JSONObject priorConfig = full.getJSONObject("config");
+        priorConfig.put(FusionConfig.KEY_SCHEMA_VERSION, 4);
+        priorConfig.remove(FusionConfig.KEY_STATUS_CLOCK_SIZE);
+        priorConfig.remove(ControlCenterConfig.KEY_HIDE_DATE);
+        priorConfig.remove(ControlCenterConfig.KEY_HIDE_CARRIER);
+        priorConfig.remove(ControlCenterConfig.KEY_SURFACE);
+        priorConfig.remove(ControlCenterConfig.KEY_BORDER_ENABLED);
+        priorConfig.remove(ControlCenterConfig.KEY_BORDER_WIDTH);
         assertEquals(ControlCenterSurface.DEFAULT, decode(full.toString()).controlCenter.surface);
         assertFalse(decode(full.toString()).controlCenter.borderEnabled);
         assertEquals(1, decode(full.toString()).controlCenter.borderWidthDp);
+        assertEquals(0, decode(full.toString()).statusClockSizeSp);
         JSONObject preset = ConfigurationBackupCodec.configJson(ControlCenterConfig.defaults().withTileScale(115));
         preset.remove(ControlCenterConfig.KEY_SURFACE);
         preset.remove(ControlCenterConfig.KEY_BORDER_ENABLED);
@@ -80,7 +86,7 @@ public class ConfigurationBackupTest {
                 "{\"config_schema_version\":999,\"icon_scale\":100}", "{\"config_schema_version\":-1,\"icon_scale\":100}",
                 "{\"icon_scale\":999}", "{\"icon_scale\":100.5}", "{\"icon_scale\":1e2}",
                 "{\"new_option\":true}", "{\"icon_scale\":100,\"control_center_layout_plan\":\"broken\"}",
-                "{\"config_schema_version\":4,\"icon_scale\":100}"};
+                "{\"config_schema_version\":5,\"icon_scale\":100}"};
         for (String value : invalid) assertThrows(value, IOException.class, () -> decode(value));
         JSONObject future = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()), StandardCharsets.UTF_8));
         future.put("version", 2);

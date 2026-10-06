@@ -272,7 +272,6 @@ public class ControlCenterRuntimeShapeTest {
         card.setBackgroundColor(0xff9fa1a4);
         grid.addTile(card, ControlCenterLayoutPlan.Item.tile("wifi", 0, 0, 2, 1), 0);
         layout(grid);
-
         var image = draw(grid);
         assertEquals("OEM rectangular material must not leak through the rounded corner",
                 0, Color.alpha(image.getPixel(card.getLeft(), card.getTop())));
@@ -308,7 +307,6 @@ public class ControlCenterRuntimeShapeTest {
         grid.applyMaterials(ControlCenterConfig.defaults().withEnabled(true)
                 .withGlobalBorder(true, 2));
         layout(grid);
-
         var image = draw(grid);
         View decoration = grid.getChildAt(grid.getChildCount() - 1);
         int center = image.getPixel(decoration.getLeft() + decoration.getWidth() / 2,

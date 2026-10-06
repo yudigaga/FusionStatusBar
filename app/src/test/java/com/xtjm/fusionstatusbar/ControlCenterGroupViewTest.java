@@ -107,6 +107,10 @@ public class ControlCenterGroupViewTest {
                         () -> new String[] {"无线局域网络", "已连接"});
                 layout(entry, 180, 80);
                 assertEquals(180, entry.getWidth()); assertEquals(80, entry.getHeight());
+                assertEquals("The editor preview uses its preview basis and native tiles keep OEM measure",
+                        Math.round((nativeTile ? ControlCenterGridGeometry.rowHeightPx(activity) : 72)
+                                * activity.getResources().getDisplayMetrics().density),
+                        icon.getMeasuredWidth());
                 float size = icon.getWidth() * icon.getScaleX();
                 assertTrue(size >= previousSize);
                 assertTrue(size <= 80);
@@ -126,6 +130,58 @@ public class ControlCenterGroupViewTest {
         }
     }
 
+    @Test public void previewAndNativeGroupMembersUseTheSameContentScaleBasis() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        for (boolean labels : new boolean[] {false, true}) {
+            View preview = new View(activity);
+            ControlCenterGroupEntry previewEntry = new ControlCenterGroupEntry(activity, preview,
+                    labels, false, 100, () -> new String[] {"WLAN", "已连接"});
+            layout(previewEntry, 180, 80);
+
+            View nativeTile = new NativeGroupTile(activity);
+            ControlCenterGroupEntry nativeEntry = new ControlCenterGroupEntry(activity, nativeTile,
+                    labels, true, 100, () -> new String[] {"WLAN", "已连接"});
+            layout(nativeEntry, 180, 80);
+
+            assertEquals("OEM root is scaled into the same member slot as the preview",
+                    preview.getWidth() * preview.getScaleX(),
+                    nativeTile.getWidth() * nativeTile.getScaleX(), 1f);
+            assertEquals("The touch target remains the full member slot", 180, nativeEntry.getWidth());
+        }
+    }
+
+    @Test public void nativeMemberScaleResizesTheCircleSurfaceAndGlyphTogether() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        float[] visualScales = new float[2];
+        int[] requested = {50, 150};
+        int nativeWidth = -1;
+        for (int i = 0; i < requested.length; i++) {
+            android.widget.FrameLayout tile = new android.widget.FrameLayout(activity);
+            tile.setBackground(new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[] {Color.RED, Color.RED}));
+            View glyph = new View(activity);
+            glyph.setBackgroundColor(Color.WHITE);
+            tile.addView(glyph, new android.widget.FrameLayout.LayoutParams(24, 24,
+                    android.view.Gravity.CENTER));
+            ControlCenterGroupEntry entry = new ControlCenterGroupEntry(activity, tile,
+                    false, true, requested[i], () -> new String[] {"Wi-Fi", "已连接"});
+
+            layout(entry, 120, 120);
+
+            visualScales[i] = tile.getScaleX();
+            if (nativeWidth < 0) nativeWidth = tile.getWidth();
+            assertEquals("The native tile still occupies its fixed child bounds", nativeWidth,
+                    tile.getWidth());
+            assertEquals("The nested glyph itself is not separately counter-scaled", 1f,
+                    glyph.getScaleX(), 0f);
+            assertEquals(120, entry.getWidth());
+            assertEquals(120, entry.getHeight());
+        }
+        assertTrue("Both the circular surface and its child glyph share the member scale",
+                visualScales[0] < visualScales[1]);
+    }
+
     @Test public void smallMemberIconsRemainCenteredInsideUnchangedTouchTargets() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         View tile = new View(activity);
@@ -140,7 +196,7 @@ public class ControlCenterGroupViewTest {
         entry.performClick(); assertEquals(1, clicks[0]);
     }
 
-    @Test public void tallGroupEnlargesNativeAndPreviewGlyphsAboveDefaultWithoutMovingSlots() {
+    @Test public void fullCellScaleRemainsClippedToMemberSlotWithoutMovingSlots() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         for (boolean nativeTile : new boolean[] {false, true}) {
             int[] defaultPixels = new int[3];
@@ -177,7 +233,7 @@ public class ControlCenterGroupViewTest {
                         if (Color.alpha(bitmap.getPixel(x, y)) > 0) pixels++;
                     assertTrue(pixels > 100);
                     if (scale == 100) defaultPixels[i] = pixels;
-                    else if (i == 0) assertTrue("150% must enlarge painted glyph pixels", pixels > defaultPixels[i] * 1.5f);
+                    else if (i == 0) assertTrue("Requested scale must not reduce painted surface", pixels >= defaultPixels[i]);
                     else assertEquals("Other selected icons keep their size", defaultPixels[i], pixels);
                 }
                 for (int y = 0; y < bitmap.getHeight(); y++) for (int x = 0; x < bitmap.getWidth(); x++) {
@@ -198,9 +254,11 @@ public class ControlCenterGroupViewTest {
         layout(entry, 180, 80);
         var glyph = tile.icon.icon;
         assertEquals(42f, tile.getWidth() * tile.getScaleX(), 0f);
-        assertEquals(2f, glyph.getScaleX(), 0f);
+        assertEquals(1f, glyph.getScaleX(), 0f);
+        assertTrue(tile.icon.getScaleX() > 1.8f);
         float glyphCenter = (tile.icon.getLeft() + glyph.getLeft() + glyph.getWidth() / 2f) * tile.getScaleX();
-        float glyphRight = glyphCenter + glyph.getWidth() * glyph.getScaleX() * tile.getScaleX() / 2f;
+        float glyphRight = glyphCenter + glyph.getWidth() * glyph.getScaleX()
+                * tile.icon.getScaleX() * tile.getScaleX() / 2f;
         assertTrue(glyphRight <= entry.getChildAt(1).getLeft());
         assertTrue(entry.getChildAt(1).getWidth() >= 90);
     }

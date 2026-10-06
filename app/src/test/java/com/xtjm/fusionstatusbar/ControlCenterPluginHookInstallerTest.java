@@ -32,6 +32,47 @@ public class ControlCenterPluginHookInstallerTest {
                                 boolean.class, boolean.class, boolean.class, boolean.class)));
     }
 
+    @Test public void nativeHeaderVisibilityRecomputationMethodsAreHooked() throws Exception {
+        ClassLoader loader = getClass().getClassLoader();
+        Resolver resolver = new Resolver();
+        resolver.bindClass(loader,
+                "miui.systemui.controlcenter.panel.main.header.ControlCenterHeaderController",
+                HeaderFixture.class);
+        Registrar registrar = new Registrar();
+
+        ControlCenterPluginHookInstaller.Result result = installer(resolver, registrar,
+                new AtomicInteger()).install(loader);
+
+        assertEquals(1, result.count(ControlCenterPluginHookInstaller.Group.HEADER_DATE));
+        assertEquals(1, result.count(ControlCenterPluginHookInstaller.Group.HEADER_CARRIER));
+        assertTrue(registrar.contains("ControlCenterHeaderController#updateDateVisibility/0",
+                HeaderFixture.class.getDeclaredMethod("updateDateVisibility")));
+        assertTrue(registrar.contains(
+                "ControlCenterHeaderController#updateCarrierAndPrivacyVisible/2",
+                HeaderFixture.class.getDeclaredMethod("updateCarrierAndPrivacyVisible",
+                        boolean.class, boolean.class)));
+    }
+
+    @Test public void resolvesTheCurrentCombinedShadeHeaderController() throws Exception {
+        ClassLoader loader = getClass().getClassLoader();
+        Resolver resolver = new Resolver();
+        resolver.bindClass(loader,
+                "com.android.systemui.controlcenter.shade.ControlCenterHeaderController",
+                HeaderFixture.class);
+        Registrar registrar = new Registrar();
+
+        ControlCenterPluginHookInstaller.Result result = installer(resolver, registrar,
+                new AtomicInteger()).install(loader);
+
+        assertEquals(1, result.count(ControlCenterPluginHookInstaller.Group.HEADER_DATE));
+        assertEquals(1, result.count(ControlCenterPluginHookInstaller.Group.HEADER_CARRIER));
+    }
+
+    public static final class HeaderFixture {
+        void updateDateVisibility() { }
+        void updateCarrierAndPrivacyVisible(boolean carrierVisible, boolean privacyVisible) { }
+    }
+
     static final class AsyncIconFixture {
         private void updateIconInternal(Object state, boolean first, boolean second,
                 boolean third, boolean fourth) { }

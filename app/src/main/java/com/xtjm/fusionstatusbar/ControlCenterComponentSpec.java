@@ -12,6 +12,7 @@ final class ControlCenterComponentSpec {
     static final String VOLUME = "control:volume";
     static final String DEVICE_CENTER = "control:device-center";
     static final String DEVICE_CONTROLS = "control:device-controls";
+    static final String FIVE_G = "control:5g";
     static final String QS_CARD = "control:qs-card";
     static final String SLIDER = "control:slider";
     static final String COMPONENT_PREFIX = "control:component:";
@@ -68,6 +69,7 @@ final class ControlCenterComponentSpec {
         if (VOLUME.equalsIgnoreCase(spec)) return "音量";
         if (DEVICE_CENTER.equalsIgnoreCase(spec)) return "融合设备中心";
         if (DEVICE_CONTROLS.equalsIgnoreCase(spec)) return "设备控制";
+        if (FIVE_G.equalsIgnoreCase(spec)) return "5G";
         if (QS_CARD.equalsIgnoreCase(spec)) return "控制中心卡片";
         if (spec != null && spec.toLowerCase(Locale.ROOT).startsWith(COMPONENT_PREFIX)) {
             return "控制中心组件";
@@ -93,6 +95,11 @@ final class ControlCenterComponentSpec {
                 || BRIGHTNESS.equalsIgnoreCase(spec)
                 || VOLUME.equalsIgnoreCase(spec)) return 2;
         return 1;
+    }
+
+    static ControlCenterLayoutPlan.Shape defaultShape(String spec) {
+        return FIVE_G.equalsIgnoreCase(spec) ? ControlCenterLayoutPlan.Shape.CIRCLE
+                : ControlCenterLayoutPlan.Shape.RECTANGLE;
     }
 
     static <T> void reorder(List<T> items, String order, Function<T, String> specOf) {

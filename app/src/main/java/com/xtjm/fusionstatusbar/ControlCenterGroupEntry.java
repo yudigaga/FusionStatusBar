@@ -7,15 +7,15 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.TextView;
-import android.widget.ImageView;
 import java.util.function.Supplier;
 
-/** Keeps the native touch target while scaling its glyph inside stable member bounds. */
+/** Keeps the group touch slot stable while scaling a member tile's surface and glyph together. */
 @android.annotation.SuppressLint("ViewConstructor")
 final class ControlCenterGroupEntry extends ViewGroup {
     private final View icon;
-    private final View glyph;
-    private final float glyphScaleX, glyphScaleY;
+    private final View surface;
+    private final float surfaceScaleX, surfaceScaleY;
+    private final float surfacePivotX, surfacePivotY;
     private final boolean showLabel, nativeTile;
     private final int iconScale;
     private final TextView title, subtitle;
@@ -27,7 +27,7 @@ final class ControlCenterGroupEntry extends ViewGroup {
         return true;
     };
     private ViewTreeObserver observer;
-    private int iconSize, naturalSize, labelGap;
+    private int iconSize, baseIconSize, naturalSize, labelGap;
 
     View iconView() { return icon; }
 
@@ -40,9 +40,12 @@ final class ControlCenterGroupEntry extends ViewGroup {
             throw new IllegalArgumentException("Invalid member icon scale");
         this.icon = icon; this.showLabel = showLabel; this.nativeTile = nativeTile; this.labels = labels;
         this.iconScale = iconScale;
-        glyph = findGlyph(icon);
-        glyphScaleX = glyph == null ? 1f : glyph.getScaleX();
-        glyphScaleY = glyph == null ? 1f : glyph.getScaleY();
+        Object surfaceView = nativeTile ? ControlCenterRuntimeGrid.readField(icon, "icon") : null;
+        surface = surfaceView instanceof View view && view != icon ? view : null;
+        surfaceScaleX = surface == null ? 1f : surface.getScaleX();
+        surfaceScaleY = surface == null ? 1f : surface.getScaleY();
+        surfacePivotX = surface == null ? 0f : surface.getPivotX();
+        surfacePivotY = surface == null ? 0f : surface.getPivotY();
         setClipChildren(true);
         addView(icon);
         title = text(14, Color.WHITE); subtitle = text(11, 0xffafb0b4);
@@ -90,11 +93,11 @@ final class ControlCenterGroupEntry extends ViewGroup {
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         int w = MeasureSpec.getSize(widthSpec), h = MeasureSpec.getSize(heightSpec);
         setMeasuredDimension(w, h);
-        int baseSize = Math.max(1, Math.min(h, showLabel ? Math.min(w / 3, dp(42)) : w));
+        baseIconSize = Math.max(1, Math.min(h, showLabel ? Math.min(w / 3, dp(42)) : w));
         labelGap = showLabel ? Math.min(dp(6), Math.max(0, w - 2)) : 0;
         int maximumSize = Math.max(1, Math.min(h, showLabel ? (w - labelGap) / 2 : w));
-        iconSize = glyph != null ? baseSize
-                : Math.max(1, Math.min(maximumSize, Math.round(baseSize * iconScale / 100f)));
+        iconSize = Math.max(1, Math.min(maximumSize,
+                Math.round(baseIconSize * iconScale / 100f)));
         naturalSize = nativeTile ? ControlCenterGridGeometry.rowHeightPx(getContext()) : dp(72);
         icon.measure(MeasureSpec.makeMeasureSpec(naturalSize, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(naturalSize, MeasureSpec.EXACTLY));
@@ -111,9 +114,16 @@ final class ControlCenterGroupEntry extends ViewGroup {
         int y = (getHeight() - iconSize) / 2;
         icon.layout(x, y, x + naturalSize, y + naturalSize);
         icon.setPivotX(0); icon.setPivotY(0);
-        float scale = iconSize / (float) Math.max(1, naturalSize);
+        float scale = (surface == null ? iconSize : baseIconSize)
+                / (float) Math.max(1, naturalSize);
         icon.setScaleX(scale); icon.setScaleY(scale);
-        if (glyph != null) scaleGlyph();
+        if (surface != null) {
+            float memberScale = iconSize / (float) Math.max(1, baseIconSize);
+            surface.setPivotX(surface.getWidth() / 2f);
+            surface.setPivotY(surface.getHeight() / 2f);
+            surface.setScaleX(surfaceScaleX * memberScale);
+            surface.setScaleY(surfaceScaleY * memberScale);
+        }
         if (showLabel) {
             int top = Math.max(0, (getHeight() - title.getMeasuredHeight() - subtitle.getMeasuredHeight()) / 2);
             int left = iconSize + labelGap;
@@ -121,44 +131,14 @@ final class ControlCenterGroupEntry extends ViewGroup {
             subtitle.layout(left, title.getBottom(), getWidth(), title.getBottom() + subtitle.getMeasuredHeight());
         }
     }
-    private View findGlyph(View view) {
-        if (view instanceof ControlCenterPreviewTile preview && preview.getChildCount() > 0)
-            return preview.getChildAt(0);
-        Object first = ControlCenterRuntimeGrid.readField(view, "icon");
-        if (first instanceof View container && container != view) {
-            Object nested = ControlCenterRuntimeGrid.readField(container, "icon");
-            if (nested instanceof View image && image != container) return image;
-            if (!(container instanceof ViewGroup)) return container;
-            View image = findGlyph(container);
-            if (image != null) return image;
+
+    void release() {
+        if (surface != null) {
+            surface.setScaleX(surfaceScaleX);
+            surface.setScaleY(surfaceScaleY);
+            surface.setPivotX(surfacePivotX);
+            surface.setPivotY(surfacePivotY);
         }
-        if (view instanceof ViewGroup group) for (int i = 0; i < group.getChildCount(); i++) {
-            View child = group.getChildAt(i);
-            if (child instanceof ImageView) return child;
-            View nested = findGlyph(child);
-            if (nested != null) return nested;
-        }
-        return null;
-    }
-    private void scaleGlyph() {
-        if (iconScale == ControlCenterGroupData.DEFAULT_ICON_SCALE) return;
-        int width = glyph.getWidth(), height = glyph.getHeight();
-        if (width <= 0 || height <= 0) return;
-        float factor = iconScale / 100f;
-        float centerX = glyph.getLeft() + width / 2f, centerY = glyph.getTop() + height / 2f;
-        View child = glyph;
-        // Keep the glyph inside every native ancestor; its circular surface and touch slot stay fixed.
-        while (child.getParent() instanceof View parent) {
-            float availableX = Math.min(centerX, parent.getWidth() - centerX) * 2f;
-            float availableY = Math.min(centerY, parent.getHeight() - centerY) * 2f;
-            factor = Math.min(factor, Math.min(availableX / (width * Math.max(0.01f, Math.abs(glyphScaleX))),
-                    availableY / (height * Math.max(0.01f, Math.abs(glyphScaleY)))));
-            if (parent == icon) break;
-            centerX += parent.getLeft(); centerY += parent.getTop(); child = parent;
-        }
-        factor = Math.max(0.01f, factor);
-        glyph.setPivotX(width / 2f); glyph.setPivotY(height / 2f);
-        glyph.setScaleX(glyphScaleX * factor); glyph.setScaleY(glyphScaleY * factor);
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }

@@ -109,6 +109,46 @@ public class ControlCenterTileSurfaceRegressionTest {
         assertNativeAnimation(card.getBackground(), nativeSurface);
     }
 
+    @Test public void unchangedTileSyncRemainsManagedWithoutInvalidatingItsSurface() {
+        var tile = new QSTileItemView();
+        var layers = new LayerDrawable(new Drawable[] {
+                new ColorDrawable(Color.GRAY), new ColorDrawable(Color.BLUE)});
+        layers.setLayerInset(1, 35, 35, 35, 35);
+        var icon = image(tile, layers);
+        synchronize(tile);
+        var callback = new AnimationCallback();
+        layers.setCallback(callback);
+        icon.invalidations = 0;
+        for (int i = 0; i < 5; i++)
+            assertTrue("An unchanged surface still owns the tile material",
+                    ControlCenterMaterials.syncTileView(tile,
+                            ControlCenterConfig.defaults().withEnabled(true)));
+        assertEquals("Repeated material synchronization must not schedule another frame",
+                0, callback.invalidations);
+        assertEquals("A managed but unchanged surface must not invalidate its ImageView",
+                0, icon.invalidations);
+        tile.state.state = 1;
+        assertTrue(ControlCenterMaterials.syncTileView(tile,
+                ControlCenterConfig.defaults().withEnabled(true)));
+        assertTrue("A real state change must invalidate the surface", icon.invalidations > 0);
+    }
+
+    @Test public void unchangedCardGeometryDoesNotInvalidateTheWrappedBackground() {
+        var card = new QSCardItemView();
+        card.setBackground(new ColorDrawable(Color.GRAY));
+        var item = ControlCenterLayoutPlan.Item.tile("wifi", 0, 0, 2, 1);
+        assertTrue(ControlCenterMaterials.syncCardView(card, item));
+        var callback = new AnimationCallback();
+        card.getBackground().setCallback(callback);
+        for (int i = 0; i < 5; i++)
+            assertTrue(ControlCenterMaterials.syncCardView(card,
+                    item.withShape(item.shape, item.cornerRadius)));
+        assertEquals(0, callback.invalidations);
+        assertTrue(ControlCenterMaterials.syncCardView(card,
+                item.withShape(ControlCenterLayoutPlan.Shape.CAPSULE, 0)));
+        assertTrue(callback.invalidations > 0);
+    }
+
     private void assertNativeAnimation(Drawable installed, Drawable nativeSurface) {
         var callback = new AnimationCallback();
         installed.setCallback(callback);
@@ -137,8 +177,8 @@ public class ControlCenterTileSurfaceRegressionTest {
                 ControlCenterConfig.defaults().withEnabled(true)));
     }
 
-    private ImageView image(QSTileItemView tile, LayerDrawable layers) {
-        var icon = new ImageView(tile.getContext());
+    private CountingImageView image(QSTileItemView tile, LayerDrawable layers) {
+        var icon = new CountingImageView(tile.getContext());
         icon.setScaleType(ImageView.ScaleType.FIT_XY);
         icon.setImageDrawable(layers);
         tile.addView(icon, new FrameLayout.LayoutParams(100, 100));
@@ -146,6 +186,12 @@ public class ControlCenterTileSurfaceRegressionTest {
                 View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY));
         tile.layout(0, 0, 100, 100);
         return icon;
+    }
+
+    private static final class CountingImageView extends ImageView {
+        int invalidations;
+        CountingImageView(android.content.Context context) { super(context); }
+        @Override public void invalidate() { invalidations++; super.invalidate(); }
     }
 
     private Bitmap draw(View view) {

@@ -2,7 +2,9 @@ package com.xtjm.fusionstatusbar;
 
 import android.app.Activity;
 import android.graphics.Outline;
+import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -16,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.GraphicsMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +27,7 @@ import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, manifest = Config.NONE)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ControlCenterSliderLayoutTest {
     @Test
     public void wideVolumeChangesInputAxisFillAndKeepsNativeCallbacks() throws Exception {
@@ -123,6 +127,22 @@ public class ControlCenterSliderLayoutTest {
         holder.slider.setMax(0);
         assertTrue(holder.fill().isEmpty());
         layout.restore();
+    }
+
+    @Test
+    public void horizontalProgressFillStaysInsideTheConfiguredBorder() throws Exception {
+        Holder horizontal = new Holder();
+        ControlCenterSliderLayout horizontalLayout = ControlCenterSliderLayout.create(horizontal,
+                ControlCenterLayoutPlan.Item.component("control:brightness", 0, 0, 3, 1),
+                0f, 4f);
+        horizontalLayout.measure(600, 200);
+        horizontal.layout(600, 200);
+        horizontal.slider.setProgress(50);
+        assertEquals(new Rect(4, 4, 300, 196), horizontal.fill());
+        horizontal.slider.setProgress(100);
+        assertEquals(new Rect(4, 4, 596, 196), horizontal.fill());
+        horizontalLayout.restore();
+
     }
 
     @Test
@@ -245,7 +265,17 @@ public class ControlCenterSliderLayoutTest {
             Outline outline = new Outline();
             binding.progress.getOutlineProvider().getOutline(binding.progress, outline);
             Rect rect = new Rect();
-            outline.getRect(rect);
+            if (!outline.getRect(rect) && !outline.isEmpty()) {
+                try {
+                    java.lang.reflect.Field field = Outline.class.getDeclaredField("mPath");
+                    field.setAccessible(true);
+                    RectF bounds = new RectF();
+                    ((Path) field.get(outline)).computeBounds(bounds, true);
+                    bounds.roundOut(rect);
+                } catch (ReflectiveOperationException error) {
+                    throw new AssertionError(error);
+                }
+            }
             return rect;
         }
         void touch(long down, long time, int action, float x, float y) {

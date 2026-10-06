@@ -31,6 +31,33 @@ public class ControlCenterGlobalTileAvailabilityTest {
     private ActivityController<MainActivity> controller;
     private MainActivity activity;
 
+    @Test public void freshAddCatalogOffersTheModuleOwnedFiveGTIleWithoutTheOtherModulesSpec() throws Exception {
+        launch("");
+        List<String> available = candidates();
+        assertTrue(available.contains(ControlCenterComponentSpec.FIVE_G));
+        assertFalse(available.contains("custom_5g"));
+    }
+
+    @Test public void moduleOwnedFiveGSwitchAddsAndRemovesTheTileFromTheCatalog() throws Exception {
+        launch("");
+        Dialog panel = openPanel();
+        Switch toggle = requiredSwitch(panel, "5G");
+        assertTrue(toggle.isChecked());
+        assertTrue(candidates().contains(ControlCenterComponentSpec.FIVE_G));
+
+        toggle.performClick();
+        assertTrue(activity.editorSession().draft().isHidden(ControlCenterComponentSpec.FIVE_G));
+        assertFalse(candidates().contains(ControlCenterComponentSpec.FIVE_G));
+        panel.dismiss();
+
+        Dialog reopened = openPanel();
+        Switch disabled = requiredSwitch(reopened, "5G");
+        assertFalse(disabled.isChecked());
+        disabled.performClick();
+        assertFalse(activity.editorSession().draft().isHidden(ControlCenterComponentSpec.FIVE_G));
+        assertTrue(candidates().contains(ControlCenterComponentSpec.FIVE_G));
+    }
+
     @Test public void applicationAliasesHaveOneRecoverableGlobalSwitch() throws Exception {
         String full = "custom(com.example.global/com.example.global.apptile)";
         launch(full);

@@ -30,9 +30,13 @@ public class ControlCenterGroupRuntimeTest {
         }
         var group = ControlCenterLayoutPlan.Item.group("group:test", data.arrange(ControlCenterGroupData.Arrangement.MIXED), 0, 0, 2, 2);
         Owner owner = new Owner(); Factory factory = new Factory(); Adapter adapter = new Adapter();
+        ControlCenterHostAdapter.Panel panel = new ControlCenterHostAdapter.Panel(
+                new ControlCenterHostAdapter.State(adapter, null, "NORMAL", "VERTICAL"),
+                new LinkedHashMap<>(), new LinkedHashMap<>(), owner, factory, Item.class,
+                false, false, new LinkedHashMap<>());
         Class<?> type = Class.forName(ControlCenterRuntimeGrid.class.getName() + "$GridState");
         Constructor<?> constructor = type.getDeclaredConstructors()[0]; constructor.setAccessible(true);
-        Object state = constructor.newInstance(adapter, owner, factory, Item.class, ControlCenterConfig.defaults(),
+        Object state = constructor.newInstance(adapter, panel, Item.class, ControlCenterConfig.defaults(),
                 false, 4, List.of(group), tiles, Collections.emptyMap(), 0, 2);
         Holder carrier = new Holder(new FrameLayout(activity));
         Field field = type.getDeclaredField("outerHolder"); field.setAccessible(true); field.set(state, carrier);

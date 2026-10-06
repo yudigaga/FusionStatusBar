@@ -7,7 +7,7 @@ import android.widget.LinearLayout;
 import android.widget.Toast;
 
 /* JADX INFO: loaded from: classes2.dex */
-public final class MainActivity extends android.app.Activity {
+public final class MainActivity extends android.app.Activity implements ControlCenterSettingsPage.Host {
     private static final java.lang.String KEY_SELECTED_PAGE = "selected_page";
     private static final java.lang.String PROJECT_REPOSITORY_URL = "https://github.com/yudigaga/FusionStatusBar";
     private static final java.lang.String MIUIX_REPOSITORY_URL = "https://github.com/compose-miuix-ui/miuix";
@@ -24,10 +24,7 @@ public final class MainActivity extends android.app.Activity {
     private com.xtjm.fusionstatusbar.ControlCenterActualEditor controlCenterActualPreview;
     private android.widget.TextView controlCenterActualSummary;
     private android.widget.LinearLayout controlCenterAvailablePreview;
-    private boolean controlCenterCompactMode;
     private android.widget.Button controlCenterCompactModeButton;
-    private com.xtjm.fusionstatusbar.ControlCenterConfig controlCenterDraft;
-    private boolean controlCenterDraftDirty;
     private com.xtjm.fusionstatusbar.ControlCenterGridEditor controlCenterGridEditor;
     private android.widget.LinearLayout controlCenterGridPanel;
     private ControlCenterWallpaperWorkspace controlCenterWallpaperWorkspace;
@@ -41,12 +38,16 @@ public final class MainActivity extends android.app.Activity {
     private android.widget.Switch controlCenterEnabledSwitch;
     private android.widget.Button controlCenterUndoButton;
     private android.widget.Button controlCenterRedoButton;
-    private ControlCenterEditorSession editorSession;
+    private ControlCenterSettingsPage controlCenterSettingsPage;
     private ControlCenterPageCoordinator editorPage;
     private android.widget.TextView controlCenterDraftHint;
     private android.widget.Button controlCenterDraftRetryButton;
     private ControlCenterPreviewLoader previewLoader;
     private FusionConfigRepository.Session configSession;
+    private DiagnosticLogExporter.ExportOptions pendingDiagnosticOptions =
+            DiagnosticLogExporter.ExportOptions.defaults();
+    private java.util.concurrent.atomic.AtomicBoolean diagnosticExportCancellation;
+    private android.app.AlertDialog diagnosticExportDialog;
     private boolean settingsLoaded;
     private boolean controlCenterSaving;
     private boolean configWriteInFlight;
@@ -166,11 +167,10 @@ public final class MainActivity extends android.app.Activity {
                             ControlCenterEditorSession restoredSession, android.os.Bundle state) {
                         config = loaded.config;
                         controlCenterSavedRevision = loaded.revision;
-                        editorSession = restoredSession;
-                        syncEditorState();
+                        controlCenterSettingsPage = new ControlCenterSettingsPage(restoredSession);
                         initializeSettingsViews(state);
                         settingsLoaded = true;
-                        if (editorSession.isDirty())
+                        if (controlCenterSettingsPage.isDirty())
                             Toast.makeText(MainActivity.this, R.string.editor_draft_restored, Toast.LENGTH_SHORT).show();
                         refreshOverview();
                         ((android.view.ViewGroup) startupOverlay.getParent()).removeView(startupOverlay);
@@ -404,7 +404,8 @@ public final class MainActivity extends android.app.Activity {
         super.onResume();
         resumed = true;
         suppressEditorSelection = false;
-        if (editorSession != null && controlCenterGridEditor != null) controlCenterGridEditor.restoreSelection(editorSession.selection());
+        if (controlCenterSettingsPage != null && controlCenterGridEditor != null)
+            controlCenterGridEditor.restoreSelection(controlCenterSettingsPage.selection());
         refreshControlCenterAppTiles();
         if (this.activationObserver == null) {
             this.activationObserver = new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) { // from class: com.xtjm.fusionstatusbar.MainActivity.15
@@ -526,7 +527,7 @@ public final class MainActivity extends android.app.Activity {
         });
         this.fusionSettingsSummary = (android.widget.TextView) fusionRow.getTag();
         addDivider(personalizationCard);
-        android.widget.LinearLayout layoutRow = addPreference(personalizationCard, "状态栏布局", "双排、元素位置和状态栏高度", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.17
+        android.widget.LinearLayout layoutRow = addPreference(personalizationCard, "状态栏布局", "双排、元素位置和状态栏总高度", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.17
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$12(view);
@@ -767,19 +768,7 @@ public final class MainActivity extends android.app.Activity {
         controlCenterCanvasSummary.setTextColor(textSecondaryColor());
         controlCenterCanvasSummary.setPadding(0, dp(12), 0, dp(10));
         controlCenterGridPanel.addView(controlCenterCanvasSummary, matchWrap());
-        controlCenterGridEditor = new ControlCenterGridEditor(this, new ControlCenterGridEditor.Listener() {
-            @Override public void onItemClicked(String id) { showControlGridItemDialog(id); }
-            @Override public void onItemMoved(String id, int x, int y) { commitControlGridGesture(id, x, y, -1, -1); }
-            @Override public void onItemResized(String id, int width, int height) {
-                commitControlGridGesture(id, -1, -1, width, height);
-            }
-            @Override public void onItemAction(String id, ControlCenterGridEditor.EditAction action) {
-                applyControlGridOverlayAction(id, action);
-            }
-            @Override public void onSelectionChanged(String id) {
-                if (editorSession != null && !suppressEditorSelection) { editorSession.select(id); persistEditorSession(); }
-            }
-        });
+        controlCenterGridEditor = controlCenterSettingsPage.createGridEditor(this);
         controlCenterGridPanel.addView(controlCenterGridEditor, matchWrap());
         android.widget.TextView gestureHint = labelView("点击查看属性 · 长按编辑与移动 · 状态为示意", 12f, false);
         gestureHint.setTextColor(textSecondaryColor());
@@ -789,7 +778,7 @@ public final class MainActivity extends android.app.Activity {
             if (controlCenterWallpaperWorkspace == null) {
                 controlCenterWallpaperWorkspace = new ControlCenterWallpaperWorkspace(this, controlCenterGridEditor);
             }
-            controlCenterWallpaperWorkspace.open(controlCenterCompactMode ? "紧凑布局 · 壁纸画布" : "标准布局 · 壁纸画布",
+            controlCenterWallpaperWorkspace.open(isCompactControlCenter() ? "紧凑布局 · 壁纸画布" : "标准布局 · 壁纸画布",
                     this::undoControlGridChange);
             controlCenterWallpaperWorkspace.setBackgroundStrength(controlCenterSettings().backgroundBlur);
         }), matchWrap());
@@ -938,37 +927,26 @@ public final class MainActivity extends android.app.Activity {
     private void selectControlCenterMode(boolean compact) {
         if (configRestoring) return;
         if (controlCenterGridEditor != null) controlCenterGridEditor.finishEditing();
-        editorSession.selectMode(compact);
-        syncEditorState();
-        persistEditorSession();
-        updateSettingsSummaries();
+        controlCenterSettingsPage.selectCanvas(compact, this);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public com.xtjm.fusionstatusbar.ControlCenterConfig controlCenterSettings() {
-        if (this.controlCenterDraft == null && this.config != null) {
-            this.controlCenterDraft = this.config.controlCenter;
-        }
-        if (this.controlCenterDraft != null) {
-            return this.controlCenterDraft;
-        }
-        return this.config == null ? com.xtjm.fusionstatusbar.ControlCenterConfig.defaults() : this.config.controlCenter;
+        if (controlCenterSettingsPage != null) return controlCenterSettingsPage.draft();
+        return config == null ? ControlCenterConfig.defaults() : config.controlCenter;
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public void updateControlCenterDraft(com.xtjm.fusionstatusbar.ControlCenterConfig next) {
-        if (next == null || this.config == null || configRestoring) {
+        if (next == null || this.config == null || controlCenterSettingsPage == null || configRestoring) {
             return;
         }
-        editorSession.edit(next);
-        controlCenterSaveFailed = false;
-        syncEditorState();
-        persistEditorSession();
-        updateSettingsSummaries();
+        controlCenterSettingsPage.edit(next);
+        onPageDraftChanged();
     }
 
     private boolean hasPendingControlCenterDraft() {
-        return editorSession != null && editorSession.isDirty();
+        return controlCenterSettingsPage != null && controlCenterSettingsPage.isDirty();
     }
 
     private void pushControlCenterDraft() {
@@ -987,7 +965,7 @@ public final class MainActivity extends android.app.Activity {
             android.widget.Toast.makeText(this, "布局存在重叠、越界或重复项目，无法推送", Toast.LENGTH_LONG).show();
         } else {
             if (plan != null) {
-                plan = plan.forPublication(this.controlCenterCompactMode);
+                plan = plan.forPublication(this.isCompactControlCenter());
                 draft = draft.withLayoutPlan(plan.encode());
                 android.util.Log.i("FusionStatusBar", "control-center publish canvas="
                         + plan.runtimeLayout + " columns="
@@ -999,7 +977,7 @@ public final class MainActivity extends android.app.Activity {
     }
 
     private void commitControlCenterDraft(com.xtjm.fusionstatusbar.ControlCenterConfig next, java.lang.String message) {
-        ControlCenterConfig submittedDraft = editorSession.draft();
+        ControlCenterConfig submittedDraft = controlCenterSettingsPage.draft();
         saveHandler.removeCallbacks(saveSettings);
         pendingSettingsSave = false;
         controlCenterSaving = true;
@@ -1014,13 +992,12 @@ public final class MainActivity extends android.app.Activity {
                 config = config.withControlCenter(result.config.controlCenter).withRevision(result.revision);
                 controlCenterSavedRevision = result.revision;
                 editorPage.published(result.revision);
-                editorSession.saved(submittedDraft, result.config.controlCenter);
+                controlCenterSettingsPage.saved(submittedDraft, result.config.controlCenter);
                 Toast.makeText(this, R.string.editor_saved_waiting, Toast.LENGTH_SHORT).show();
             } else {
                 cancelPendingSystemUiRestart();
                 Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
             }
-            syncEditorState();
             persistEditorSession();
             updateSettingsSummaries();
             if (pendingSettingsSave) flushSettingsSave();
@@ -1028,15 +1005,16 @@ public final class MainActivity extends android.app.Activity {
         });
     }
 
-    ControlCenterEditorSession editorSession() { return editorSession; }
+    ControlCenterEditorSession editorSession() {
+        return controlCenterSettingsPage == null ? null : controlCenterSettingsPage.session();
+    }
+
+    private boolean isCompactControlCenter() {
+        return controlCenterSettingsPage != null && controlCenterSettingsPage.compact();
+    }
+
     boolean settingsLoaded() { return settingsLoaded; }
     boolean savingControlCenter() { return controlCenterSaving; }
-
-    private void syncEditorState() {
-        controlCenterDraft = editorSession.draft();
-        controlCenterDraftDirty = editorSession.isDirty();
-        controlCenterCompactMode = editorSession.compact();
-    }
 
     private void persistEditorSession() {
         if (editorPage != null) editorPage.persist();
@@ -1068,10 +1046,9 @@ public final class MainActivity extends android.app.Activity {
                             config = result.config;
                             controlCenterSavedRevision = result.revision;
                             editorPage.replacePublished(config.controlCenter, result.revision);
-                            editorSession = editorPage.session();
-                            syncEditorState();
+                            controlCenterSettingsPage.replaceSession(editorPage.session());
                             controlCenterSaveFailed = false;
-                            if (editorSession.isDirty()) Toast.makeText(MainActivity.this,
+                            if (controlCenterSettingsPage.isDirty()) Toast.makeText(MainActivity.this,
                                     R.string.editor_backup_draft_kept, Toast.LENGTH_LONG).show();
                             preview.setPreviewConfig(config);
                             applyControls();
@@ -1088,16 +1065,16 @@ public final class MainActivity extends android.app.Activity {
     private LayoutPresetController presetController() {
         if (presetController == null) presetController = new LayoutPresetController(this,
                 new LayoutPresetController.Host() {
-                    @Override public ControlCenterConfig draft() { return editorSession.draft(); }
-                    @Override public boolean compact() { return editorSession.compact(); }
+                    @Override public ControlCenterConfig draft() { return controlCenterSettingsPage.draft(); }
+                    @Override public boolean compact() { return controlCenterSettingsPage.compact(); }
                     @Override public boolean canEdit() {
-                        return settingsLoaded && editorSession != null && !controlCenterSaving
+                        return settingsLoaded && controlCenterSettingsPage != null && !controlCenterSaving
                                 && !configRestoring && !configWriteInFlight && !pendingSettingsSave;
                     }
                     @Override public void loadPreset(ControlCenterConfig next, boolean compact) {
                         if (!canEdit()) return;
                         if (controlCenterGridEditor != null) controlCenterGridEditor.finishEditing();
-                        editorSession.loadPreset(next, compact);
+                        controlCenterSettingsPage.loadPreset(next, compact);
                         controlCenterSaveFailed = false;
                         renderEditorSession();
                     }
@@ -1221,120 +1198,109 @@ public final class MainActivity extends android.app.Activity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public void showControlCenterSettingsDialog() {
-        showSettingsDialog("布局与外观", new com.xtjm.fusionstatusbar.MainActivity.DialogBuilder() { // from class: com.xtjm.fusionstatusbar.MainActivity.33
-            @Override // com.xtjm.fusionstatusbar.MainActivity.DialogBuilder
-            public void build(android.widget.LinearLayout content) {
-                com.xtjm.fusionstatusbar.ControlCenterConfig settings = com.xtjm.fusionstatusbar.MainActivity.this.controlCenterSettings();
-                addSectionLabel(content, "当前画布");
-                final java.lang.String modeLabel = controlCenterCompactMode ? "紧凑布局" : "标准布局";
-                com.xtjm.fusionstatusbar.MainActivity.this.addSlider(content, "画布列数", "仅调整当前" + modeLabel + "的网格列数", 3, 6, currentControlGridPlan().mode(controlCenterCompactMode).columns, " 列", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity.33.2
-                    @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-                    public void apply(int value) {
-                        ControlCenterLayoutPlan plan = currentControlGridPlan();
-                        applyControlGridPlan(plan.withMode(controlCenterCompactMode,
-                                plan.mode(controlCenterCompactMode).withColumns(value)));
-                    }
-                });
-                addSectionLabel(content, "统一外观范围");
-                SystemSurfaceConfig systemSurfaces = settings.systemSurfaces;
-                addSwitch(content, "接管电源菜单", "", systemSurfaces.powerMenu, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withSystemSurfaces(
-                            current.systemSurfaces.withPowerMenu(value)));
-                });
-                addSwitch(content, "接管音量菜单", "", systemSurfaces.volumeDialog, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withSystemSurfaces(
-                            current.systemSurfaces.withVolumeDialog(value)));
-                });
-                addSwitch(content, "接管通知中心通知", "", systemSurfaces.notifications, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withSystemSurfaces(
-                            current.systemSurfaces.withNotifications(value)));
-                });
-                addSwitch(content, "接管悬浮通知", "", systemSurfaces.headsUp, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withSystemSurfaces(
-                            current.systemSurfaces.withHeadsUp(value)));
-                });
-                addSectionLabel(content, "系统菜单");
-                addSwitch(content, "三条电源菜单", "", systemSurfaces.extendedPowerMenu, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withSystemSurfaces(
-                            current.systemSurfaces.withExtendedPowerMenu(value)));
-                });
-                SettingsChoiceSelector volumeLength = new SettingsChoiceSelector(MainActivity.this,
-                        "音量条长度", new String[] {"标准", "短款"},
-                        systemSurfaces.compactVolume ? 1 : 0, inputColor(), textPrimaryColor(),
-                        textSecondaryColor(), accentColor(), index -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withSystemSurfaces(
-                            current.systemSurfaces.withCompactVolume(index == 1)));
-                });
-                content.addView(volumeLength, matchWrap());
-                addSectionLabel(content, "全局外观");
-                ControlCenterSurface[] surfaces = ControlCenterSurface.values();
-                String[] surfaceLabels = new String[surfaces.length];
-                for (int i = 0; i < surfaces.length; i++) surfaceLabels[i] = surfaces[i].label;
-                LinearLayout[] containerBlurRows = new LinearLayout[2];
-                SettingsChoiceSelector surface = new SettingsChoiceSelector(MainActivity.this,
-                        "全局容器背景", surfaceLabels, settings.surface.ordinal(), inputColor(),
-                        textPrimaryColor(), textSecondaryColor(), accentColor(), index -> {
-                    ControlCenterSurface selected = surfaces[index];
-                    updateControlCenterDraft(controlCenterSettings().withSurface(selected));
-                    for (LinearLayout row : containerBlurRows) {
-                        if (row != null) setControlCenterSliderEnabled(row, selected.allowsContainerBlur());
-                    }
-                });
-                content.addView(surface, matchWrap());
-                LinearLayout[] borderWidthRow = new LinearLayout[1];
-                addSwitch(content, "全局描边", "", settings.borderEnabled, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withGlobalBorder(value, current.borderWidthDp));
-                    if (borderWidthRow[0] != null) setControlCenterSliderEnabled(borderWidthRow[0], value);
-                });
-                borderWidthRow[0] = (LinearLayout) addSlider(content, "描边粗细", "", 1, 4,
-                        settings.borderWidthDp, " dp", value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withGlobalBorder(current.borderEnabled, value));
-                });
-                setControlCenterSliderEnabled(borderWidthRow[0], settings.borderEnabled);
-                addHint(content, "以下设置同时应用于标准布局和紧凑布局。项目尺寸、形状和独立圆角请在画布中点击项目调整。");
-                com.xtjm.fusionstatusbar.MainActivity.this.addSlider(content, "内容缩放", "缩放项目内部图标和内容；项目宽高由画布网格决定", 70, 130, settings.tileScale, "%", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity.33.3
-                    @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-                    public void apply(int value) {
-                        com.xtjm.fusionstatusbar.MainActivity.this.updateControlCenterDraft(com.xtjm.fusionstatusbar.MainActivity.this.controlCenterSettings().withTileScale(value));
-                    }
-                });
-                com.xtjm.fusionstatusbar.MainActivity.this.addSlider(content, "默认圆角", "用于矩形项目；单项目设置的独立圆角优先，圆角为 0 时使用此默认值", 0, 32, settings.cornerRadius, " dp", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity.33.4
-                    @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-                    public void apply(int value) {
-                        com.xtjm.fusionstatusbar.MainActivity.this.updateControlCenterDraft(com.xtjm.fusionstatusbar.MainActivity.this.controlCenterSettings().withCornerRadius(value));
-                    }
-                });
-                com.xtjm.fusionstatusbar.MainActivity.this.addSlider(content, "项目间距", "调整画布中相邻项目之间的留白", 0, 24, settings.spacing, " dp", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity.33.5
-                    @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-                    public void apply(int value) {
-                        com.xtjm.fusionstatusbar.MainActivity.this.updateControlCenterDraft(com.xtjm.fusionstatusbar.MainActivity.this.controlCenterSettings().withSpacing(value));
-                    }
-                });
-                addBlurSlider(content, "背景模糊", settings.backgroundBlur, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withBlur(value, current.cardBlur, current.tileBlur));
-                });
-                containerBlurRows[0] = addBlurSlider(content, "卡片模糊", settings.cardBlur, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withBlur(current.backgroundBlur, value, current.tileBlur));
-                });
-                containerBlurRows[1] = addBlurSlider(content, "磁贴模糊", settings.tileBlur, value -> {
-                    ControlCenterConfig current = controlCenterSettings();
-                    updateControlCenterDraft(current.withBlur(current.backgroundBlur, current.cardBlur, value));
-                });
-                for (LinearLayout row : containerBlurRows) {
-                    setControlCenterSliderEnabled(row, settings.surface.allowsContainerBlur());
-                }
-            }
-        });
+        if (controlCenterSettingsPage != null) controlCenterSettingsPage.showAppearanceDialog(this);
+    }
+
+    @Override public void showPageDialog(String title, ControlCenterSettingsPage.ContentBuilder builder) {
+        showSettingsDialog(title, builder::build);
+    }
+
+    @Override public ControlCenterLayoutPlan currentGridPlan() { return currentControlGridPlan(); }
+
+    @Override public ControlCenterLayoutPlan.Mode resolvedGridMode(boolean compact) {
+        return currentControlGridPlan().resolve(compact, availableControlGridSpecs()).mode;
+    }
+
+    @Override public ControlCenterGridEditor createPageGridEditor(ControlCenterGridEditor.Listener listener) {
+        return new ControlCenterGridEditor(this, listener);
+    }
+
+    @Override public View addPageGroupEditor(LinearLayout content, String id) {
+        ControlCenterGroupEditor editor = new ControlCenterGroupEditor(this,
+                () -> findControlGridItem(id), () -> {
+                    java.util.List<String> available = availableControlGridSpecs();
+                    available.removeIf(spec -> ControlCenterComponentSpec.isSpecial(spec)
+                            || currentControlGridPlan().mode(isCompactControlCenter()).items.stream().anyMatch(item ->
+                                    item.containsSpec(spec) && (item.type != ControlCenterLayoutPlan.Type.TILE || item.locked)));
+                    return available;
+                }, group -> changeControlGroup(id, group), this::tileLabel,
+                () -> {
+                    controlCenterSettingsPage.applyGridAction(id,
+                            ControlCenterGridEditor.EditAction.UNPAIR, this);
+                    if (findControlGridItem(id) == null) content.removeAllViews();
+                }, textPrimaryColor(), (specs, selectedIndex) ->
+                        showControlTileChoiceSheet("添加成员", specs, selectedIndex));
+        content.addView(editor, matchWrap());
+        return editor;
+    }
+
+    @Override public void refreshPageGroupEditor(View editor) {
+        if (editor instanceof ControlCenterGroupEditor group) group.refresh();
+    }
+
+    @Override public ControlCenterCardStylePicker addPageCardStylePicker(LinearLayout content,
+            ControlCenterLayoutPlan.Item selected,
+            java.util.function.UnaryOperator<ControlCenterLayoutPlan.Item> update) {
+        ControlCenterCardStylePicker picker = new ControlCenterCardStylePicker(this, selected,
+                textPrimaryColor(), surfaceColor(), update);
+        content.addView(picker, matchWrap());
+        return picker;
+    }
+
+    @Override public android.widget.Button addPageButton(LinearLayout content, String title,
+            boolean enabled, Runnable action) {
+        android.widget.Button button = controlCenterButton(title, false, view -> action.run());
+        button.setEnabled(enabled);
+        content.addView(button, matchWrap());
+        return button;
+    }
+
+    @Override public void showPairCreation() { showAddControlPairDialog(); }
+    @Override public boolean suppressPageSelection() { return suppressEditorSelection; }
+    @Override public void persistPageSelection() { persistEditorSession(); }
+
+    @Override public void onPageDraftChanged() {
+        controlCenterSaveFailed = false;
+        persistEditorSession();
+        updateSettingsSummaries();
+    }
+
+    @Override public void rejectPageEdit(String reason) {
+        Toast.makeText(this, reason, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override public void addPageSectionLabel(LinearLayout content, String title) {
+        addSectionLabel(content, title);
+    }
+
+    @Override public void addPageHint(LinearLayout content, String text) { addHint(content, text); }
+
+    @Override public android.widget.Switch addPageToggle(LinearLayout content, String title,
+            String summary, boolean checked, java.util.function.Consumer<Boolean> update) {
+        return addSwitch(content, title, summary, checked, update::accept);
+    }
+
+    @Override public View addPageSlider(LinearLayout content, String title, String summary,
+            int minimum, int maximum, int value, String suffix,
+            java.util.function.IntConsumer update) {
+        return addSlider(content, title, summary, minimum, maximum, value, suffix, update::accept);
+    }
+
+    @Override public View addPageChoice(LinearLayout content, String title, String[] options,
+            int selected, java.util.function.IntConsumer update) {
+        SettingsChoiceSelector selector = new SettingsChoiceSelector(this, title, options, selected,
+                inputColor(), textPrimaryColor(), textSecondaryColor(), accentColor(), update::accept);
+        content.addView(selector, matchWrap());
+        return selector;
+    }
+
+    @Override public View addPageBlurSlider(LinearLayout content, String title, int value,
+            java.util.function.IntConsumer update) {
+        return addBlurSlider(content, title, value, update::accept);
+    }
+
+    @Override public void setPageSliderEnabled(View row, boolean enabled) {
+        if (row instanceof LinearLayout linear) setControlCenterSliderEnabled(linear, enabled);
     }
 
     private void confirmResetControlCenter() {
@@ -1486,6 +1452,7 @@ public final class MainActivity extends android.app.Activity {
         ControlCenterConfig settings = controlCenterSettings();
         specs.addAll(settings.orderedSpecs());
         specs.addAll(java.util.Arrays.asList(settings.hidden.split(",")));
+        specs.add(ControlCenterComponentSpec.FIVE_G);
         ControlCenterLayoutPlan stored = ControlCenterLayoutPlan.decode(settings.layoutPlan);
         if (stored != null) {
             for (ControlCenterLayoutPlan.Mode mode : new ControlCenterLayoutPlan.Mode[] {stored.regular, stored.compact}) {
@@ -1495,7 +1462,8 @@ public final class MainActivity extends android.app.Activity {
         java.util.LinkedHashSet<String> canonical = new java.util.LinkedHashSet<>();
         for (String spec : specs) {
             String key = ControlCenterConfig.canonicalSpec(spec);
-            if (!key.isEmpty() && !ControlCenterComponentSpec.isSpecial(key)) canonical.add(key);
+            if (!key.isEmpty() && (!ControlCenterComponentSpec.isSpecial(key)
+                    || ControlCenterComponentSpec.FIVE_G.equals(key))) canonical.add(key);
         }
         return new java.util.ArrayList<>(canonical);
     }
@@ -1510,6 +1478,7 @@ public final class MainActivity extends android.app.Activity {
                 ControlCenterComponentSpec.VOLUME,
                 ControlCenterComponentSpec.DEVICE_CENTER,
                 ControlCenterComponentSpec.DEVICE_CONTROLS,
+                ControlCenterComponentSpec.FIVE_G,
                 ControlCenterComponentSpec.QS_CARD}) {
             if (!settings.isHidden(spec) && !specs.contains(spec)) specs.add(spec);
         }
@@ -1523,7 +1492,7 @@ public final class MainActivity extends android.app.Activity {
         }
         controlCenterSettings();
         com.xtjm.fusionstatusbar.ControlCenterLayoutPlan plan = currentControlGridPlan();
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Mode mode = plan.mode(this.controlCenterCompactMode);
+        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Mode mode = plan.mode(this.isCompactControlCenter());
         for (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item2 : mode.items) {
             if (item2.containsSpec(spec)) {
                 return;
@@ -1531,10 +1500,12 @@ public final class MainActivity extends android.app.Activity {
         }
         if (com.xtjm.fusionstatusbar.ControlCenterComponentSpec.isSpecial(spec)) {
             item = com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item.component(spec, -1, -1, java.lang.Math.min(mode.columns, com.xtjm.fusionstatusbar.ControlCenterComponentSpec.defaultSpan(spec)), com.xtjm.fusionstatusbar.ControlCenterComponentSpec.defaultRows(spec));
+            item = item.withShape(com.xtjm.fusionstatusbar.ControlCenterComponentSpec
+                    .defaultShape(spec), 0);
         } else {
             item = com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item.tile(spec, -1, -1, 1, 1);
         }
-        applyControlGridPlan(plan.withItem(this.controlCenterCompactMode, item));
+        applyControlGridPlan(plan.withItem(this.isCompactControlCenter(), item));
     }
 
     private com.xtjm.fusionstatusbar.ControlCenterLayoutPlan currentControlGridPlan() {
@@ -1547,12 +1518,12 @@ public final class MainActivity extends android.app.Activity {
             return;
         }
         if (this.controlCenterRegularModeButton != null) {
-            styleControlCenterButton(this.controlCenterRegularModeButton, !this.controlCenterCompactMode);
-            this.controlCenterRegularModeButton.setSelected(!this.controlCenterCompactMode);
+            styleControlCenterButton(this.controlCenterRegularModeButton, !this.isCompactControlCenter());
+            this.controlCenterRegularModeButton.setSelected(!this.isCompactControlCenter());
         }
         if (this.controlCenterCompactModeButton != null) {
-            styleControlCenterButton(this.controlCenterCompactModeButton, this.controlCenterCompactMode);
-            this.controlCenterCompactModeButton.setSelected(this.controlCenterCompactMode);
+            styleControlCenterButton(this.controlCenterCompactModeButton, this.isCompactControlCenter());
+            this.controlCenterCompactModeButton.setSelected(this.isCompactControlCenter());
         }
         com.xtjm.fusionstatusbar.ControlCenterConfig settings = controlCenterSettings();
         this.controlCenterGridEditor.setGeometry(settings.spacing, settings.cornerRadius);
@@ -1560,7 +1531,7 @@ public final class MainActivity extends android.app.Activity {
         this.controlCenterGridEditor.setSurface(settings.surface);
         this.controlCenterGridEditor.setGlobalBorder(settings.borderEnabled, settings.borderWidthDp);
         if (controlCenterWallpaperWorkspace != null) controlCenterWallpaperWorkspace.setBackgroundStrength(settings.backgroundBlur);
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Resolved resolved = currentControlGridPlan().resolve(this.controlCenterCompactMode, availableControlGridSpecs());
+        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Resolved resolved = currentControlGridPlan().resolve(this.isCompactControlCenter(), availableControlGridSpecs());
         java.util.ArrayList<com.xtjm.fusionstatusbar.ControlCenterGridEditor.Cell> cells = new java.util.ArrayList<>();
         for (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item : resolved.items) {
         if (item.type == ControlCenterLayoutPlan.Type.GROUP) {
@@ -1590,7 +1561,8 @@ public final class MainActivity extends android.app.Activity {
         }
         cells.sort(java.util.Comparator.comparingInt(
                 (com.xtjm.fusionstatusbar.ControlCenterGridEditor.Cell cell) -> cell.zIndex));
-        String selection = editorSession == null ? "" : editorSession.selection();
+        String selection = controlCenterSettingsPage == null
+                ? "" : controlCenterSettingsPage.selection();
         this.controlCenterGridEditor.setCells(resolved.mode.columns, cells);
         this.controlCenterGridEditor.restoreSelection(selection);
     }
@@ -1623,9 +1595,9 @@ public final class MainActivity extends android.app.Activity {
         }
         try {
             ControlCenterCaptureImport imported = ControlCenterCaptureImport.from(
-                    controlCenterActualPreview.capturedLayout(), currentControlGridPlan().mode(controlCenterCompactMode).columns,
+                    controlCenterActualPreview.capturedLayout(), currentControlGridPlan().mode(isCompactControlCenter()).columns,
                     getResources().getDisplayMetrics().density);
-            applyControlGridPlan(currentControlGridPlan().withMode(controlCenterCompactMode, imported.mode), imported.spacingDp);
+            applyControlGridPlan(currentControlGridPlan().withMode(isCompactControlCenter(), imported.mode), imported.spacingDp);
             android.util.Log.i("FusionStatusBar", "control-center imported geometry columns=" + imported.mode.columns
                     + " spacingDp=" + imported.spacingDp + " items=" + imported.mode.items.size());
         } catch (IllegalArgumentException error) {
@@ -1651,36 +1623,29 @@ public final class MainActivity extends android.app.Activity {
 
     private void undoControlGridChange() {
         if (configRestoring) return;
-        if (!editorSession.undo()) Toast.makeText(this, R.string.editor_nothing_to_undo, Toast.LENGTH_SHORT).show();
-        else renderEditorSession();
+        if (!controlCenterSettingsPage.undoCanvas(this))
+            Toast.makeText(this, R.string.editor_nothing_to_undo, Toast.LENGTH_SHORT).show();
     }
 
     private void redoControlGridChange() {
         if (configRestoring) return;
-        if (!editorSession.redo()) Toast.makeText(this, R.string.editor_nothing_to_redo, Toast.LENGTH_SHORT).show();
-        else renderEditorSession();
+        if (!controlCenterSettingsPage.redoCanvas(this))
+            Toast.makeText(this, R.string.editor_nothing_to_redo, Toast.LENGTH_SHORT).show();
     }
 
     private void renderEditorSession() {
-        syncEditorState();
         persistEditorSession();
         updateSettingsSummaries();
     }
 
     private void clearControlGridMode() {
-        ControlCenterLayoutPlan plan = currentControlGridPlan();
-        ControlCenterLayoutPlan.Mode mode = plan.mode(this.controlCenterCompactMode);
-        if (mode.items.isEmpty()) {
+        if (!controlCenterSettingsPage.clearCanvas(this)) {
             Toast.makeText(this, "当前网格已经为空", Toast.LENGTH_SHORT).show();
-            return;
         }
-        applyControlGridPlan(plan.withMode(this.controlCenterCompactMode,
-                new ControlCenterLayoutPlan.Mode(mode.columns,
-                        java.util.Collections.emptyList())));
     }
 
     private com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item findControlGridItem(java.lang.String id) {
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Resolved resolved = currentControlGridPlan().resolve(this.controlCenterCompactMode, availableControlGridSpecs());
+        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Resolved resolved = currentControlGridPlan().resolve(this.isCompactControlCenter(), availableControlGridSpecs());
         for (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item : resolved.items) {
             if (item.id.equals(id)) {
                 return item;
@@ -1696,39 +1661,12 @@ public final class MainActivity extends android.app.Activity {
     private void changeControlGridItem(java.lang.String id,
             java.util.function.UnaryOperator<com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item> change,
             boolean allowLocked) {
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item current = findControlGridItem(id);
-        if (current == null) {
-            return;
-        }
-        if (current.locked && !allowLocked) {
-            Toast.makeText(this, "项目已锁定，请先解锁", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item changed = (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) change.apply(current);
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan plan = currentControlGridPlan();
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Mode mode = plan.mode(this.controlCenterCompactMode);
-        if (!allowLocked) {
-            ControlCenterLayoutPlan.Mode placed = ControlCenterGridPlacement.place(mode, changed);
-            if (placed == null) {
-                Toast.makeText(this, "目标位置超出画布或被锁定项目占用", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            applyControlGridPlan(plan.withMode(controlCenterCompactMode, placed));
-            return;
-        }
-        java.util.ArrayList<com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item> items = new java.util.ArrayList<>();
-        items.add(changed);
-        for (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item : mode.items) {
-            if (!item.id.equals(id)) {
-                items.add(item);
-            }
-        }
-        applyControlGridPlan(plan.withMode(this.controlCenterCompactMode, new com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Mode(mode.columns, items)));
+        controlCenterSettingsPage.editGridItem(id, change, allowLocked, this);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item lambda$moveControlGridItem$12(int x, int y, com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item) {
-        return item.withPosition(java.lang.Math.max(0, java.lang.Math.min(x, currentControlGridPlan().mode(this.controlCenterCompactMode).columns - item.width)), java.lang.Math.max(0, java.lang.Math.min(y, 128 - item.height)));
+        return item.withPosition(java.lang.Math.max(0, java.lang.Math.min(x, currentControlGridPlan().mode(this.isCompactControlCenter()).columns - item.width)), java.lang.Math.max(0, java.lang.Math.min(y, 128 - item.height)));
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1743,56 +1681,15 @@ public final class MainActivity extends android.app.Activity {
 
     /** A completed gesture is one validated, undoable draft transaction, never a save. */
     private void commitControlGridGesture(String id, int x, int y, int width, int height) {
-        ControlCenterLayoutPlan.Item item = findControlGridItem(id);
-        if (item == null || item.locked) return;
-        int nextX = x < 0 ? item.x : x;
-        int nextY = y < 0 ? item.y : y;
-        int nextWidth = width < 0 ? item.width : width;
-        int nextHeight = height < 0 ? item.height : height;
-        if (nextX == item.x && nextY == item.y && nextWidth == item.width && nextHeight == item.height) return;
-        changeControlGridItem(id, current -> current.withPosition(nextX, nextY).withSize(nextWidth, nextHeight));
+        controlCenterSettingsPage.commitGridGesture(id, x, y, width, height, this);
     }
 
     private void applyControlGridOverlayAction(String id, ControlCenterGridEditor.EditAction action) {
-        ControlCenterLayoutPlan.Item item = findControlGridItem(id);
-        if (item == null || (item.locked && action != ControlCenterGridEditor.EditAction.TOGGLE_LOCK)) return;
-        ControlCenterLayoutPlan plan = currentControlGridPlan();
-        ControlCenterLayoutPlan next;
-        switch (action) {
-            case REMOVE:
-                next = plan.removeItem(controlCenterCompactMode, id);
-                break;
-            case TOGGLE_LOCK:
-                next = plan.withItem(controlCenterCompactMode, item.withLocked(!item.locked));
-                break;
-            case TOGGLE_HIDDEN:
-                next = plan.withItem(controlCenterCompactMode, item.withHidden(!item.hidden));
-                break;
-            case UNPAIR:
-                if (item.type != ControlCenterLayoutPlan.Type.PAIR && item.type != ControlCenterLayoutPlan.Type.GROUP) return;
-                next = plan.unpair(controlCenterCompactMode, id);
-                break;
-            case TOGGLE_DIRECTION:
-                if (item.type != ControlCenterLayoutPlan.Type.PAIR) return;
-                boolean horizontal = item.direction != ControlCenterLayoutPlan.Direction.HORIZONTAL;
-                int columns = plan.mode(controlCenterCompactMode).columns;
-                int nextWidth = Math.min(columns, Math.max(horizontal ? 2 : 1, item.height));
-                int nextHeight = Math.min(ControlCenterLayoutPlan.MAX_HEIGHT,
-                        Math.max(horizontal ? 1 : 2, item.width));
-                ControlCenterLayoutPlan.Item rotated = item.withDirection(horizontal
-                        ? ControlCenterLayoutPlan.Direction.HORIZONTAL : ControlCenterLayoutPlan.Direction.VERTICAL)
-                        .withSize(nextWidth, nextHeight)
-                        .withPosition(Math.min(item.x, columns - nextWidth),
-                                Math.min(item.y, ControlCenterLayoutPlan.MAX_ROWS - nextHeight));
-                next = plan.withItem(controlCenterCompactMode, rotated);
-                break;
-            default: return;
-        }
-        applyValidatedControlGridEdit(next);
+        controlCenterSettingsPage.applyGridAction(id, action, this);
     }
 
     private void applyValidatedControlGridEdit(ControlCenterLayoutPlan next) {
-        if (!next.mode(controlCenterCompactMode).validate().isEmpty()) {
+        if (!next.mode(isCompactControlCenter()).validate().isEmpty()) {
             Toast.makeText(this, "当前位置空间不足，布局未修改", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -1805,7 +1702,7 @@ public final class MainActivity extends android.app.Activity {
             public java.lang.Object apply(java.lang.Object value) {
                 com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item =
                         (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) value;
-                int columns = currentControlGridPlan().mode(controlCenterCompactMode).columns;
+                int columns = currentControlGridPlan().mode(isCompactControlCenter()).columns;
                 int nextWidth = Math.max(1, Math.min(width, columns - item.x));
                 int nextHeight = Math.max(1, Math.min(
                         com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.MAX_HEIGHT, height));
@@ -1827,12 +1724,12 @@ public final class MainActivity extends android.app.Activity {
         if (current == null || current.locked || current.type != ControlCenterLayoutPlan.Type.GROUP) return;
         ControlCenterLayoutPlan plan = currentControlGridPlan();
         for (String spec : current.withGroup(data).specs()) {
-            for (ControlCenterLayoutPlan.Item other : plan.mode(controlCenterCompactMode).items) {
+            for (ControlCenterLayoutPlan.Item other : plan.mode(isCompactControlCenter()).items) {
                 if (!other.id.equals(id) && other.containsSpec(spec)
                         && (other.locked || other.type != ControlCenterLayoutPlan.Type.TILE)) return;
             }
         }
-        applyValidatedControlGridEdit(plan.withItem(controlCenterCompactMode, current.withGroup(data)));
+        applyValidatedControlGridEdit(plan.withItem(isCompactControlCenter(), current.withGroup(data)));
     }
 
     private void showAddControlPairDialog() {
@@ -1847,7 +1744,7 @@ public final class MainActivity extends android.app.Activity {
             java.util.ArrayList<String> others = new java.util.ArrayList<>(specs);
             others.remove(first);
             showControlTileChoiceSheet("选择第二个磁贴", others, secondIndex ->
-                    applyControlGridPlan(currentControlGridPlan().withPair(controlCenterCompactMode,
+                    applyControlGridPlan(currentControlGridPlan().withPair(isCompactControlCenter(),
                             first, others.get(secondIndex), ControlCenterLayoutPlan.Direction.HORIZONTAL,
                             -1, -1, 2, 1)));
         });
@@ -1860,7 +1757,7 @@ public final class MainActivity extends android.app.Activity {
             return;
         }
         java.util.ArrayList<String> specs = availableControlGridSpecs();
-        ControlCenterLayoutPlan.Mode mode = currentControlGridPlan().mode(controlCenterCompactMode);
+        ControlCenterLayoutPlan.Mode mode = currentControlGridPlan().mode(isCompactControlCenter());
         specs.removeIf(spec -> mode.items.stream().anyMatch(item -> item.containsSpec(spec)));
         specs.sort(java.util.Comparator.comparingInt(spec ->
                 ControlCenterComponentSpec.isSpecial(spec) ? 2 : spec.startsWith("custom(") ? 1 : 0));
@@ -1878,9 +1775,9 @@ public final class MainActivity extends android.app.Activity {
             if (index == 0) showAddControlPairDialog();
             else if (index == 1) {
                 String id = "group:" + java.util.UUID.randomUUID();
-                applyControlGridPlan(currentControlGridPlan().withItem(controlCenterCompactMode,
+                applyControlGridPlan(currentControlGridPlan().withItem(isCompactControlCenter(),
                         ControlCenterLayoutPlan.Item.group(id, ControlCenterGroupData.empty(), -1, -1, 2, 2)));
-                showControlGridItemDialog(id);
+                if (controlCenterSettingsPage != null) controlCenterSettingsPage.showItemProperties(id, MainActivity.this);
             } else addTileToBlankGrid(specs.get(index - 2));
         });
     }
@@ -1902,7 +1799,8 @@ public final class MainActivity extends android.app.Activity {
     private String addControlItemLabel(String spec, java.util.List<String> capturedComponents, boolean hasCapture) {
         if (!ControlCenterComponentSpec.isSpecial(spec)) return tileLabel(spec);
         String label = ControlCenterComponentSpec.label(spec);
-        return "组件 · " + label + (capturedComponents.contains(spec) ? "" : hasCapture ? " · 本次未检测到" : " · 未验证");
+        if (ControlCenterComponentSpec.FIVE_G.equals(spec)) return "组件 · " + label;
+        return "组件 · " + label + (capturedComponents.contains(spec) ? "" : hasCapture ? " · 参考布局未包含" : " · 未验证");
     }
 
     private android.graphics.drawable.Drawable addControlItemIcon(String spec) {
@@ -1924,248 +1822,6 @@ public final class MainActivity extends android.app.Activity {
         }
         icon.setBounds(0, 0, size, size);
         return icon;
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public void showControlGridItemDialog(final java.lang.String id) {
-        final com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item selected = findControlGridItem(id);
-        if (selected == null) {
-            return;
-        }
-        showSettingsDialog(selected.type == ControlCenterLayoutPlan.Type.PAIR || selected.type == ControlCenterLayoutPlan.Type.GROUP ? "组合卡片" : tileLabel(selected.firstSpec), new com.xtjm.fusionstatusbar.MainActivity.DialogBuilder() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda36
-            @Override // com.xtjm.fusionstatusbar.MainActivity.DialogBuilder
-            public final void build(android.widget.LinearLayout linearLayout) {
-                MainActivity.this.lambda$showControlGridItemDialog$29(selected, id, linearLayout);
-            }
-        });
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$29(com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item selected, final java.lang.String id, android.widget.LinearLayout content) {
-        ControlCenterGroupEditor groupEditor = selected.type == ControlCenterLayoutPlan.Type.GROUP
-                ? new ControlCenterGroupEditor(this, () -> findControlGridItem(id), () -> {
-                    java.util.List<String> available = availableControlGridSpecs();
-                    available.removeIf(spec -> ControlCenterComponentSpec.isSpecial(spec)
-                            || currentControlGridPlan().mode(controlCenterCompactMode).items.stream().anyMatch(item ->
-                                    item.containsSpec(spec) && (item.type != ControlCenterLayoutPlan.Type.TILE || item.locked)));
-                    return available;
-                }, group -> changeControlGroup(id, group), this::tileLabel,
-                () -> {
-                    applyControlGridOverlayAction(id, ControlCenterGridEditor.EditAction.UNPAIR);
-                    if (findControlGridItem(id) == null) content.removeAllViews();
-                }, textPrimaryColor(), (specs, selectedIndex) ->
-                        showControlTileChoiceSheet("添加成员", specs, selectedIndex)) : null;
-        if (groupEditor != null) content.addView(groupEditor, matchWrap());
-        int columns = currentControlGridPlan().mode(this.controlCenterCompactMode).columns;
-        addSlider(content, "宽度", "占用网格列数", 1, columns, selected.width, " 列", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda19
-            @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-            public final void apply(int i) {
-                MainActivity.this.lambda$showControlGridItemDialog$18(id, i);
-            }
-        });
-        addSlider(content, "高度", "占用网格行数", 1, 6, selected.height, " 行", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda20
-            @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-            public final void apply(int i) {
-                MainActivity.this.lambda$showControlGridItemDialog$20(id, i);
-            }
-        });
-        ControlCenterCardStylePicker stylePicker = new ControlCenterCardStylePicker(this, selected,
-                textPrimaryColor(), surfaceColor(), proposed -> {
-            changeControlGridItem(id, item -> item.withShape(proposed.shape, proposed.cornerRadius));
-            return findControlGridItem(id);
-        });
-        content.addView(stylePicker, matchWrap());
-        android.widget.Button remove = new android.widget.Button(this);
-        remove.setEnabled(!selected.locked);
-        android.widget.Button state = new android.widget.Button(this);
-        state.setText(selected.locked ? "解锁此项目" : "锁定此项目");
-        state.setAllCaps(false);
-        state.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override
-            public void onClick(android.view.View view) {
-                changeControlGridItem(id, new java.util.function.UnaryOperator() {
-                    @Override
-                    public java.lang.Object apply(java.lang.Object raw) {
-                        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item =
-                                (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) raw;
-                        return item.withLocked(!item.locked);
-                    }
-                }, true);
-                state.setText(findControlGridItem(id).locked ? "解锁此项目" : "锁定此项目");
-                stylePicker.bind(findControlGridItem(id));
-                remove.setEnabled(!findControlGridItem(id).locked);
-                if (groupEditor != null) groupEditor.refresh();
-            }
-        });
-        content.addView(state, matchWrap());
-        android.widget.Button visibility = new android.widget.Button(this);
-        visibility.setText(selected.hidden ? "显示此项目" : "隐藏此项目");
-        visibility.setAllCaps(false);
-        visibility.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override
-            public void onClick(android.view.View view) {
-                changeControlGridItem(id, new java.util.function.UnaryOperator() {
-                    @Override
-                    public java.lang.Object apply(java.lang.Object raw) {
-                        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item =
-                                (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) raw;
-                        return item.withHidden(!item.hidden);
-                    }
-                }, true);
-                visibility.setText(findControlGridItem(id).hidden ? "显示此项目" : "隐藏此项目");
-            }
-        });
-        content.addView(visibility, matchWrap());
-        addSlider(content, "层级", "重叠时的绘制顺序", -20, 20, selected.zIndex, "",
-                new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() {
-                    @Override
-                    public void apply(int value) {
-                        changeControlGridItem(id, new java.util.function.UnaryOperator() {
-                            @Override
-                            public java.lang.Object apply(java.lang.Object raw) {
-                                return ((com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) raw)
-                                        .withZIndex(value);
-                            }
-                        }, true);
-                    }
-                });
-        if (columns > selected.width) {
-            addSlider(content, "横向位置", "网格起始列", 0, columns - selected.width, selected.x, " 列", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda21
-                @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-                public final void apply(int i) {
-                    MainActivity.this.lambda$showControlGridItemDialog$22(id, i);
-                }
-            });
-        }
-        addSlider(content, "纵向位置", "网格起始行", 0, java.lang.Math.min(128 - selected.height, java.lang.Math.max(24, selected.y + 4)), selected.y, " 行", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda23
-            @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
-            public final void apply(int i) {
-                MainActivity.this.lambda$showControlGridItemDialog$24(id, i);
-            }
-        });
-        remove.setText("从网格移除");
-        remove.setAllCaps(false);
-        remove.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override
-            public void onClick(android.view.View view) {
-                ControlCenterLayoutPlan.Item current = findControlGridItem(id);
-                if (current == null || current.locked) return;
-                applyControlGridPlan(currentControlGridPlan().removeItem(
-                        MainActivity.this.controlCenterCompactMode, id));
-                if (selected.type == ControlCenterLayoutPlan.Type.GROUP) content.removeAllViews();
-            }
-        });
-        content.addView(remove, matchWrap());
-        if (selected.type == com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Type.PAIR) {
-            final android.widget.Button direction = new android.widget.Button(this);
-            direction.setText(selected.direction == com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Direction.HORIZONTAL ? "改为上下排列" : "改为左右排列");
-            direction.setAllCaps(false);
-            direction.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda24
-                @Override // android.view.View.OnClickListener
-                public final void onClick(android.view.View view) {
-                    MainActivity.this.lambda$showControlGridItemDialog$26(id, direction, view);
-                }
-            });
-            content.addView(direction, matchWrap());
-            android.widget.Button unpair = new android.widget.Button(this);
-            unpair.setText("拆分卡片");
-            unpair.setAllCaps(false);
-            unpair.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda25
-                @Override // android.view.View.OnClickListener
-                public final void onClick(android.view.View view) {
-                    MainActivity.this.lambda$showControlGridItemDialog$27(id, view);
-                }
-            });
-            content.addView(unpair, matchWrap());
-            return;
-        }
-        if (selected.type == com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Type.TILE) {
-            android.widget.Button pair = new android.widget.Button(this);
-            pair.setText("与另一磁贴组成卡片");
-            pair.setAllCaps(false);
-            pair.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda26
-                @Override // android.view.View.OnClickListener
-                public final void onClick(android.view.View view) {
-                    MainActivity.this.lambda$showControlGridItemDialog$28(view);
-                }
-            });
-            content.addView(pair, matchWrap());
-        }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$18(java.lang.String id, final int value) {
-        changeControlGridItem(id, new java.util.function.UnaryOperator() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda6
-            @Override // java.util.function.Function
-            public final java.lang.Object apply(java.lang.Object obj) {
-                com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item = (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) obj;
-                return item.withSize(value, item.height);
-            }
-        });
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$20(java.lang.String id, final int value) {
-        changeControlGridItem(id, new java.util.function.UnaryOperator() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda34
-            @Override // java.util.function.Function
-            public final java.lang.Object apply(java.lang.Object obj) {
-                com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item = (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) obj;
-                return item.withSize(item.width, value);
-            }
-        });
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$22(java.lang.String id, final int value) {
-        changeControlGridItem(id, new java.util.function.UnaryOperator() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda32
-            @Override // java.util.function.Function
-            public final java.lang.Object apply(java.lang.Object obj) {
-                com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item = (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) obj;
-                return item.withPosition(value, item.y);
-            }
-        });
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$24(java.lang.String id, final int value) {
-        changeControlGridItem(id, new java.util.function.UnaryOperator() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda3
-            @Override // java.util.function.Function
-            public final java.lang.Object apply(java.lang.Object obj) {
-                com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item = (com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) obj;
-                return item.withPosition(item.x, value);
-            }
-        });
-    }
-
-    static /* synthetic */ com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item lambda$showControlGridItemDialog$25(com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item item) {
-        com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Direction direction;
-        if (item.direction == com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Direction.HORIZONTAL) {
-            direction = com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Direction.VERTICAL;
-        } else {
-            direction = com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Direction.HORIZONTAL;
-        }
-        return item.withDirection(direction);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$26(java.lang.String id, android.widget.Button direction, android.view.View view) {
-        changeControlGridItem(id, new java.util.function.UnaryOperator() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda29
-            @Override // java.util.function.Function
-            public final java.lang.Object apply(java.lang.Object obj) {
-                return com.xtjm.fusionstatusbar.MainActivity.lambda$showControlGridItemDialog$25((com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Item) obj);
-            }
-        });
-        direction.setText(findControlGridItem(id).direction == com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Direction.HORIZONTAL ? "改为上下排列" : "改为左右排列");
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$27(java.lang.String id, android.view.View view) {
-        applyControlGridPlan(currentControlGridPlan().unpair(this.controlCenterCompactMode, id));
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$showControlGridItemDialog$28(android.view.View view) {
-        showAddControlPairDialog();
     }
 
     private void refreshControlCenterPreview() {
@@ -2423,7 +2079,7 @@ public final class MainActivity extends android.app.Activity {
         return tile;
     }
 
-    private java.lang.String tileLabel(java.lang.String spec) {
+    @Override public java.lang.String tileLabel(java.lang.String spec) {
         ControlCenterAppTiles.Entry applicationTile = ControlCenterAppTiles.find(controlCenterAppTiles, spec);
         if (applicationTile != null) return applicationTile.label + (applicationTile.application.equals(applicationTile.label)
                 ? "" : " · " + applicationTile.application);
@@ -3281,7 +2937,7 @@ public final class MainActivity extends android.app.Activity {
             return;
         }
         this.fusionSettingsSummary.setText("大小 " + this.config.iconScale + "% · 粗细 " + this.config.strokeScale + "% · " + (this.config.wifiIcon ? "显示 Wi-Fi" : "仅移动网络"));
-        this.layoutSettingsSummary.setText((this.config.doubleRow ? "双排" : "单排") + " · 融合" + shortPosition(this.config.fusionSide, this.config.fusionRow) + " · 系统" + shortPosition(this.config.systemSide, this.config.systemRow) + " · 高度 " + this.config.statusBarHeight + " dp");
+        this.layoutSettingsSummary.setText((this.config.doubleRow ? "双排" : "单排") + " · 融合" + shortPosition(this.config.fusionSide, this.config.fusionRow) + " · 系统" + shortPosition(this.config.systemSide, this.config.systemRow) + " · 总高 " + this.config.statusBarHeight + " dp");
         this.clockSettingsSummary.setText((this.config.customClock ? "自定义格式" : "系统时间") + (this.config.showWeather ? " · 显示天气" : ""));
         int enabled = 0;
         for (int metric = 0; metric < 3; metric++) {
@@ -3292,8 +2948,8 @@ public final class MainActivity extends android.app.Activity {
         this.telemetrySettingsSummary.setText(enabled + " 项启用 · 可分别调整字号、对齐和间距");
         if (this.controlCenterSummary != null) {
             ControlCenterConfig control = controlCenterSettings();
-            ControlCenterLayoutPlan.Mode mode = currentControlGridPlan().mode(controlCenterCompactMode);
-            String modeName = controlCenterCompactMode ? "紧凑布局" : "标准布局";
+            ControlCenterLayoutPlan.Mode mode = currentControlGridPlan().mode(isCompactControlCenter());
+            String modeName = isCompactControlCenter() ? "紧凑布局" : "标准布局";
             int hidden = 0;
             for (ControlCenterLayoutPlan.Item item : mode.items) {
                 if (item.hidden || control.isHidden(item.firstSpec)) hidden++;
@@ -3322,9 +2978,9 @@ public final class MainActivity extends android.app.Activity {
             updating = true;
             controlCenterEnabledSwitch.setChecked(control.enabled);
             updating = previousUpdating;
-            controlCenterUndoButton.setEnabled(editorSession.canUndo());
+            controlCenterUndoButton.setEnabled(controlCenterSettingsPage.canUndo());
             controlCenterUndoButton.setAlpha(controlCenterUndoButton.isEnabled() ? 1f : 0.45f);
-            controlCenterRedoButton.setEnabled(editorSession.canRedo());
+            controlCenterRedoButton.setEnabled(controlCenterSettingsPage.canRedo());
             controlCenterRedoButton.setAlpha(controlCenterRedoButton.isEnabled() ? 1f : 0.45f);
             if (this.controlCenterPushButton != null) {
                 this.controlCenterPushButton.setText(controlCenterSaving ? getString(R.string.editor_saving)
@@ -3395,6 +3051,25 @@ public final class MainActivity extends android.app.Activity {
     }
 
     private void chooseLogDestination() {
+        boolean[] selected = {false, false, false};
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.export_logs_options_title)
+                .setMessage(R.string.export_logs_options_summary)
+                .setMultiChoiceItems(new CharSequence[] {
+                        getString(R.string.export_logs_full_logcat),
+                        getString(R.string.export_logs_dmesg),
+                        getString(R.string.export_logs_lsposed)
+                }, selected, (dialog, which, checked) -> selected[which] = checked)
+                .setNegativeButton(R.string.backup_cancel, null)
+                .setPositiveButton(R.string.export_logs, (dialog, which) -> {
+                    pendingDiagnosticOptions = new DiagnosticLogExporter.ExportOptions(
+                            selected[0], selected[1], selected[2]);
+                    openLogDestinationPicker();
+                })
+                .show();
+    }
+
+    private void openLogDestinationPicker() {
         android.content.Intent intent = new android.content.Intent("android.intent.action.CREATE_DOCUMENT");
         intent.addCategory("android.intent.category.OPENABLE");
         intent.setType("application/zip");
@@ -3419,20 +3094,36 @@ public final class MainActivity extends android.app.Activity {
         }
         final android.net.Uri destination = data.getData();
         final android.widget.Button button = (android.widget.Button) findViewById(com.xtjm.fusionstatusbar.R.id.export_logs_button);
+        final DiagnosticLogExporter.ExportOptions options = pendingDiagnosticOptions;
+        final java.util.concurrent.atomic.AtomicBoolean cancellation =
+                new java.util.concurrent.atomic.AtomicBoolean();
+        diagnosticExportCancellation = cancellation;
         button.setEnabled(false);
         button.setText(com.xtjm.fusionstatusbar.R.string.exporting_logs);
+        diagnosticExportDialog = new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.exporting_logs)
+                .setMessage(R.string.export_logs_cancel_note)
+                .setNegativeButton(R.string.export_logs_cancel, (dialog, which) -> cancellation.set(true))
+                .setCancelable(false)
+                .show();
         new java.lang.Thread(new java.lang.Runnable() { // from class: com.xtjm.fusionstatusbar.MainActivity.107
             @Override // java.lang.Runnable
             public final void run() {
-                com.xtjm.fusionstatusbar.MainActivity.this.lambda$onActivityResult$82(destination, button);
+                com.xtjm.fusionstatusbar.MainActivity.this.lambda$onActivityResult$82(
+                        destination, button, options, cancellation);
             }
         }, "fusion-export-logs").start();
     }
 
-    public void lambda$onActivityResult$82(android.net.Uri destination, final android.widget.Button button) {
+    public void lambda$onActivityResult$82(android.net.Uri destination, final android.widget.Button button,
+            DiagnosticLogExporter.ExportOptions options,
+            java.util.concurrent.atomic.AtomicBoolean cancellation) {
         int result = com.xtjm.fusionstatusbar.R.string.export_logs_success;
         try {
-            com.xtjm.fusionstatusbar.DiagnosticLogExporter.export(getApplicationContext(), destination);
+            com.xtjm.fusionstatusbar.DiagnosticLogExporter.export(getApplicationContext(), destination,
+                    options, cancellation::get);
+        } catch (com.xtjm.fusionstatusbar.DiagnosticLogExporter.ExportCancelledException error) {
+            result = com.xtjm.fusionstatusbar.R.string.export_logs_cancelled;
         } catch (com.xtjm.fusionstatusbar.DiagnosticLogExporter.NoLogsException error) {
             result = com.xtjm.fusionstatusbar.R.string.export_logs_empty;
             android.util.Log.w("FusionStatusBar", "No matching logs to export", error);
@@ -3453,6 +3144,10 @@ public final class MainActivity extends android.app.Activity {
         runOnUiThread(new java.lang.Runnable() { // from class: com.xtjm.fusionstatusbar.MainActivity.108
             @Override // java.lang.Runnable
             public final void run() {
+                if (diagnosticExportDialog != null && diagnosticExportDialog.isShowing())
+                    diagnosticExportDialog.dismiss();
+                diagnosticExportDialog = null;
+                diagnosticExportCancellation = null;
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$onActivityResult$81(button, message);
             }
         });
@@ -3626,6 +3321,10 @@ public final class MainActivity extends android.app.Activity {
     }
 
     @Override protected void onDestroy() {
+        if (diagnosticExportCancellation != null) diagnosticExportCancellation.set(true);
+        if (diagnosticExportDialog != null && diagnosticExportDialog.isShowing())
+            diagnosticExportDialog.dismiss();
+        diagnosticExportDialog = null;
         cancelPendingSystemUiRestart();
         suppressEditorSelection = true;
         if (settingsDialogs != null) settingsDialogs.close();

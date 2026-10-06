@@ -14,6 +14,14 @@
     <string name="export_logs_root_failed">无法读取系统日志，请授权 root</string>
     <string name="export_logs_empty">暂无相关日志，请先复现问题</string>
     <string name="export_logs_save_failed">保存日志失败，请重试</string>
+    <string name="export_logs_options_title">诊断日志范围</string>
+    <string name="export_logs_options_summary">默认仅导出模块和系统崩溃相关日志。完整日志可能含设备标识、应用数据或个人信息，请只在排障需要时选择。</string>
+    <string name="export_logs_full_logcat">完整 logcat</string>
+    <string name="export_logs_dmesg">内核 dmesg</string>
+    <string name="export_logs_lsposed">LSPosed 日志</string>
+    <string name="export_logs_cancel_note">正在收集日志。取消会停止采集并删除未完成的导出文件。</string>
+    <string name="export_logs_cancel">取消导出</string>
+    <string name="export_logs_cancelled">已取消日志导出</string>
     <string name="reset_settings">恢复默认设置</string>
     <string name="preview_title">本地示例</string>
     <string name="preview_note">下面是实时预览，设置会在这里即时反映。</string>
@@ -46,8 +54,8 @@
     <string name="system_position">融合及系统图标位置</string>
     <string name="row_top">第一排</string>
     <string name="row_bottom">第二排</string>
-    <string name="statusbar_height">状态栏高度</string>
-    <string name="statusbar_height_value">状态栏高度 %1$d dp</string>
+    <string name="statusbar_height">状态栏总高度</string>
+    <string name="statusbar_height_value">状态栏总高度 %1$d dp</string>
     <string name="side_left">左侧</string>
     <string name="side_right">右侧</string>
     <string name="span_rows">融合图标跨两排</string>

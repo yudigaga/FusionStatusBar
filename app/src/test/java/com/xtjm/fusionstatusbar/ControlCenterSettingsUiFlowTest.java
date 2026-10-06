@@ -73,6 +73,19 @@ public class ControlCenterSettingsUiFlowTest {
         assertEquals(before, activity.editorSession().draft().layoutPlan);
     }
 
+    @Test public void freshAddCatalogOffersTheModuleOwned5gComponent() throws Exception {
+        launch();
+        java.lang.reflect.Method available = MainActivity.class.getDeclaredMethod(
+                "availableControlGridSpecs");
+        available.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<String> specs = (List<String>) available.invoke(activity);
+
+        assertTrue(specs.contains(ControlCenterComponentSpec.FIVE_G));
+        assertFalse(specs.contains("custom_5g"));
+        assertEquals("5G", activity.tileLabel(ControlCenterComponentSpec.FIVE_G));
+    }
+
     @Test public void morePopupUsesTheExistingSettingsSheet() throws Exception {
         LinearLayout page = launch();
         texts(page, "更多 ···").get(0).performClick();
@@ -192,7 +205,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertFalse(toggle.isChecked());
         assertFalse(push.isEnabled());
         toggle.performClick();
-        assertTrue(((ControlCenterConfig) field("controlCenterDraft")).enabled);
+        assertTrue(activity.editorSession().draft().enabled);
         assertFalse(FusionConfigStore.read(activity).controlCenter.enabled);
         assertTrue(push.isEnabled());
         assertEquals("推送修改", push.getText().toString());
@@ -207,7 +220,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertTrue(dialog.isShowing());
         View dialogContent = dialog.getWindow().getDecorView();
         assertTrue(texts(dialogContent, "磁贴风格").isEmpty());
-        for (String label : new String[] {"画布列数", "全局容器背景", "全局描边", "描边粗细", "内容缩放", "默认圆角", "项目间距", "背景模糊", "卡片模糊", "磁贴模糊"}) {
+        for (String label : new String[] {"画布列数", "隐藏日期", "隐藏运营商", "全局容器背景", "全局描边", "描边粗细", "内容缩放", "默认圆角", "项目间距", "背景模糊", "卡片模糊", "磁贴模糊"}) {
             assertEquals(label, 1, texts(dialogContent, label).size());
         }
         assertEquals(0, texts(page, "控制中心设置").size());
@@ -226,7 +239,7 @@ public class ControlCenterSettingsUiFlowTest {
         columns.setProgress(1);
         Shadows.shadowOf(columns).getOnSeekBarChangeListener().onProgressChanged(columns, 1, true);
         ControlCenterLayoutPlan draft = ControlCenterLayoutPlan.decode(
-                ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+                activity.editorSession().draft().layoutPlan);
         assertEquals(4, draft.compact.columns);
         assertEquals(5, draft.regular.columns);
         assertEquals(3, ControlCenterLayoutPlan.decode(
@@ -449,16 +462,16 @@ public class ControlCenterSettingsUiFlowTest {
                 "applyControlGridPlan", ControlCenterLayoutPlan.class);
         apply.setAccessible(true);
         apply.invoke(activity, previous);
-        String beforeImport = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String beforeImport = activity.editorSession().draft().layoutPlan;
         ControlCenterActualEditor reference = (ControlCenterActualEditor) field("controlCenterActualPreview");
         reference.setPreview(null, "v1|360|800|d2lmaQ==,0,0,100,100");
         java.lang.reflect.Method importLayout = MainActivity.class.getDeclaredMethod("importActualControlCenterDraft");
         importLayout.setAccessible(true);
         importLayout.invoke(activity);
-        assertNotEquals(beforeImport, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertNotEquals(beforeImport, activity.editorSession().draft().layoutPlan);
         assertEquals(2, historyCount());
         ((Button) field("controlCenterUndoButton")).performClick();
-        assertEquals(beforeImport, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(beforeImport, activity.editorSession().draft().layoutPlan);
         assertEquals(1, historyCount());
         assertFalse(FusionConfigStore.read(activity).controlCenter.enabled);
     }
@@ -480,7 +493,7 @@ public class ControlCenterSettingsUiFlowTest {
                         ControlCenterLayoutPlan.Item.component(ControlCenterComponentSpec.VOLUME,
                                 3, 0, 1, 2))),
                 new ControlCenterLayoutPlan.Mode(3, Collections.emptyList())).forPublication(false);
-        activity.updateControlCenterDraft(((ControlCenterConfig) field("controlCenterDraft"))
+        activity.updateControlCenterDraft(activity.editorSession().draft()
                 .withEnabled(true).withLayoutPlan(plan.encode()));
         int width = 328;
         page.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -508,7 +521,7 @@ public class ControlCenterSettingsUiFlowTest {
                 new ControlCenterLayoutPlan.Mode(5, Collections.singletonList(item)),
                 new ControlCenterLayoutPlan.Mode(3, Collections.singletonList(
                         ControlCenterLayoutPlan.Item.tile("wifi", 1, 0, 1, 1))));
-        activity.updateControlCenterDraft(((ControlCenterConfig) field("controlCenterDraft"))
+        activity.updateControlCenterDraft(activity.editorSession().draft()
                 .withEnabled(true).withLayoutPlan(plan.encode()));
         ControlCenterGridEditor editor = (ControlCenterGridEditor) field("controlCenterGridEditor");
         layoutEditor(editor);
@@ -522,12 +535,12 @@ public class ControlCenterSettingsUiFlowTest {
         editor.layout(0, 0, 360, editor.getMeasuredHeight());
     }
     private ControlCenterLayoutPlan draftPlan() throws Exception {
-        return ControlCenterLayoutPlan.decode(((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        return ControlCenterLayoutPlan.decode(activity.editorSession().draft().layoutPlan);
     }
     @Test public void overlayRemoveIsOneUndoableDraftEditAndDoesNotSave() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
-        String before = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String before = activity.editorSession().draft().layoutPlan;
         editor.getChildAt(0).performLongClick();
         layoutEditor(editor);
         findDescription(editor, "移除项目").performClick();
@@ -537,7 +550,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertNull(findDescription(editor, "完成画布编辑"));
         assertEquals(persisted, FusionConfigStore.read(activity).controlCenter.layoutPlan);
         ((Button) field("controlCenterUndoButton")).performClick();
-        assertEquals(before, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(before, activity.editorSession().draft().layoutPlan);
     }
     @Test public void overlayLockHideAndRestoreUseTheExistingDraftOnly() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
@@ -577,24 +590,24 @@ public class ControlCenterSettingsUiFlowTest {
     }
     @Test public void canvasSwitchClearsSelectionEvenForTheSameItemId() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
-        String before = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String before = activity.editorSession().draft().layoutPlan;
         editor.getChildAt(0).performLongClick();
         layoutEditor(editor);
         assertNotNull(findDescription(editor, "移除项目"));
         ((Button) field("controlCenterCompactModeButton")).performClick();
         layoutEditor(editor);
         assertNull(findDescription(editor, "移除项目"));
-        assertEquals(before, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(before, activity.editorSession().draft().layoutPlan);
         assertEquals(0, historyCount());
     }
     @Test public void invalidPlacementCommitDoesNotDirtyUndoOrPersist() throws Exception {
         prepareOverlayPlan(false);
-        String before = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String before = activity.editorSession().draft().layoutPlan;
         java.lang.reflect.Method commit = MainActivity.class.getDeclaredMethod("commitControlGridGesture",
                 String.class, int.class, int.class, int.class, int.class);
         commit.setAccessible(true);
         commit.invoke(activity, "wifi", 5, 0, 1, 1);
-        assertEquals(before, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(before, activity.editorSession().draft().layoutPlan);
         assertEquals(0, historyCount());
         commit.invoke(activity, "wifi", 1, 1, 1, 1);
         assertEquals(1, draftPlan().regular.items.get(0).x);
@@ -606,7 +619,7 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void wallpaperWorkspaceBackRestoresEditorAndDoesNotSave() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
         Object parent = editor.getParent();
-        String before = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String before = activity.editorSession().draft().layoutPlan;
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         texts(activity.getWindow().getDecorView(), "壁纸画布").get(0).performClick();
         ControlCenterWallpaperWorkspace workspace = (ControlCenterWallpaperWorkspace) field("controlCenterWallpaperWorkspace");
@@ -616,13 +629,13 @@ public class ControlCenterSettingsUiFlowTest {
         assertFalse(workspace.isOpen());
         assertFalse(activity.isFinishing());
         assertSame(parent, editor.getParent());
-        assertEquals(before, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(before, activity.editorSession().draft().layoutPlan);
         assertEquals(persisted, FusionConfigStore.read(activity).controlCenter.layoutPlan);
         assertEquals(0, historyCount());
     }
     @Test public void wallpaperWorkspaceReusesDraftActionsAndUndo() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
-        String before = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String before = activity.editorSession().draft().layoutPlan;
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         texts(activity.getWindow().getDecorView(), "壁纸画布").get(0).performClick();
         layoutEditor(editor);
@@ -632,7 +645,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertTrue(draftPlan().regular.items.isEmpty());
         View workspace = findDescription(activity.getWindow().getDecorView(), "控制中心编辑画布");
         texts(workspace, "撤销").get(0).performClick();
-        assertEquals(before, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(before, activity.editorSession().draft().layoutPlan);
         texts(workspace, "返回设置").get(0).performClick();
         assertSame(field("controlCenterGridPanel"), editor.getParent());
         assertEquals(persisted, FusionConfigStore.read(activity).controlCenter.layoutPlan);
@@ -664,7 +677,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertNull(settingsRoot.getParent());
         assertEquals(1, content.getChildCount());
         // Refreshing settings while editing must not put their root behind the canvas.
-        activity.updateControlCenterDraft((ControlCenterConfig) field("controlCenterDraft"));
+        activity.updateControlCenterDraft(activity.editorSession().draft());
         settingsRoot.setVisibility(View.VISIBLE);
         assertNull(settingsRoot.getParent());
         assertTrue(texts(content, "布局与外观").isEmpty());
@@ -676,7 +689,7 @@ public class ControlCenterSettingsUiFlowTest {
 
     @Test public void importUsesCapturedBoundsInsteadOfPackingAllTilesBeforeComponents() throws Exception {
         launch();
-        int spacingBefore = ((ControlCenterConfig) field("controlCenterDraft")).spacing;
+        int spacingBefore = activity.editorSession().draft().spacing;
         String compactBefore = draftPlan().compact.items.toString();
         ControlCenterActualEditor reference = (ControlCenterActualEditor) field("controlCenterActualPreview");
         reference.setPreview(null, "v2|440|900|86|188|290|392"
@@ -703,9 +716,9 @@ public class ControlCenterSettingsUiFlowTest {
         assertTrue(wifi.cornerRadius > 0);
         assertTrue(mode.validate().isEmpty());
         assertEquals(compactBefore, draftPlan().compact.items.toString());
-        assertEquals(16, ((ControlCenterConfig) field("controlCenterDraft")).spacing);
+        assertEquals(16, activity.editorSession().draft().spacing);
         ((Button) field("controlCenterUndoButton")).performClick();
-        assertEquals(spacingBefore, ((ControlCenterConfig) field("controlCenterDraft")).spacing);
+        assertEquals(spacingBefore, activity.editorSession().draft().spacing);
     }
 
     @Test public void draggingIntoAnUnlockedSlotReflowsLikePropertyEditing() throws Exception {
@@ -713,7 +726,7 @@ public class ControlCenterSettingsUiFlowTest {
         ControlCenterLayoutPlan.Mode mode = new ControlCenterLayoutPlan.Mode(4, java.util.Arrays.asList(
                 ControlCenterLayoutPlan.Item.tile("wifi", 0, 0, 1, 1),
                 ControlCenterLayoutPlan.Item.tile("bt", 1, 0, 1, 1)));
-        activity.updateControlCenterDraft(((ControlCenterConfig) field("controlCenterDraft"))
+        activity.updateControlCenterDraft(activity.editorSession().draft()
                 .withLayoutPlan(ControlCenterLayoutPlan.of(mode, mode).encode()));
         fixtureEdits = activity.editorSession().undoCount();
         java.lang.reflect.Method commit = MainActivity.class.getDeclaredMethod("commitControlGridGesture",
@@ -728,7 +741,7 @@ public class ControlCenterSettingsUiFlowTest {
 
     @Test public void cardStylePresetIsOneUndoableDraftEditAndDoesNotPublish() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
-        String before = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String before = activity.editorSession().draft().layoutPlan;
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         editor.getChildAt(0).performClick();
         Dialog dialog = ShadowDialog.getLatestDialog();
@@ -748,7 +761,28 @@ public class ControlCenterSettingsUiFlowTest {
         assertEquals(28, radius.getProgress());
         dialog.dismiss();
         ((Button) field("controlCenterUndoButton")).performClick();
-        assertEquals(before, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(before, activity.editorSession().draft().layoutPlan);
+    }
+
+    @Test public void cardStyleEditChangesOnlyTheSelectedCompactCanvas() throws Exception {
+        ControlCenterGridEditor editor = prepareOverlayPlan(false);
+        ((Button) field("controlCenterCompactModeButton")).performClick();
+        String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
+        editor.getChildAt(0).performClick();
+        Dialog dialog = ShadowDialog.getLatestDialog();
+        SettingsChoiceSelector presets = (SettingsChoiceSelector) findDescription(
+                dialog.getWindow().getDecorView(), "卡片样式");
+
+        presets.performClick();
+        presets.optionView(ControlCenterCardStyle.CAPSULE.ordinal()).performClick();
+
+        assertEquals(ControlCenterLayoutPlan.Shape.RECTANGLE, draftPlan().regular.items.get(0).shape);
+        assertEquals(ControlCenterLayoutPlan.Shape.CAPSULE, draftPlan().compact.items.get(0).shape);
+        assertEquals(persisted, FusionConfigStore.read(activity).controlCenter.layoutPlan);
+        assertEquals(1, historyCount());
+        ((Button) field("controlCenterUndoButton")).performClick();
+        assertEquals(ControlCenterLayoutPlan.Shape.RECTANGLE, draftPlan().compact.items.get(0).shape);
+        assertEquals(0, historyCount());
     }
 
     @Test public void legacyTelemetryPositionsUseInlineChoicesWithoutOpeningAnotherWindow() throws Exception {
@@ -803,7 +837,7 @@ public class ControlCenterSettingsUiFlowTest {
         Dialog properties = ShadowDialog.getLatestDialog();
         assertEquals(1, draftPlan().regular.items.size());
         assertEquals(ControlCenterLayoutPlan.Type.GROUP, draftPlan().regular.items.get(0).type);
-        String empty = ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan;
+        String empty = activity.editorSession().draft().layoutPlan;
         for (int i = 0; i < 3; i++) {
             texts(properties.getWindow().getDecorView(), "添加成员").get(0).performClick();
             Dialog members = ShadowDialog.getLatestDialog();
@@ -823,7 +857,7 @@ public class ControlCenterSettingsUiFlowTest {
         ((Button) field("controlCenterUndoButton")).performClick();
         assertEquals(ControlCenterLayoutPlan.Type.GROUP, draftPlan().regular.items.get(0).type);
         for (int i = 0; i < 4; i++) ((Button) field("controlCenterUndoButton")).performClick();
-        assertEquals(empty, ((ControlCenterConfig) field("controlCenterDraft")).layoutPlan);
+        assertEquals(empty, activity.editorSession().draft().layoutPlan);
     }
 
     @Test public void groupCannotClaimLockedOrGroupedTilesButCanMoveStandaloneTiles() throws Exception {
@@ -832,7 +866,7 @@ public class ControlCenterSettingsUiFlowTest {
         var mode = new ControlCenterLayoutPlan.Mode(4, java.util.Arrays.asList(group,
                 ControlCenterLayoutPlan.Item.tile("wifi", 3, 0, 1, 1),
                 ControlCenterLayoutPlan.Item.tile("bt", 3, 1, 1, 1).withLocked(true)));
-        activity.updateControlCenterDraft(((ControlCenterConfig) field("controlCenterDraft"))
+        activity.updateControlCenterDraft(activity.editorSession().draft()
                 .withLayoutPlan(ControlCenterLayoutPlan.of(mode, mode).encode()));
         java.lang.reflect.Method change = MainActivity.class.getDeclaredMethod("changeControlGroup", String.class, ControlCenterGroupData.class);
         change.setAccessible(true);
@@ -848,7 +882,7 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void groupPublishesOnlyOnExplicitPushAndLockedPropertiesCannotRemoveIt() throws Exception {
         launch();
         var group = ControlCenterLayoutPlan.Item.group("group:test", ControlCenterGroupData.empty().add("wifi"), 0, 0, 2, 2).withLocked(true);
-        activity.updateControlCenterDraft(((ControlCenterConfig) field("controlCenterDraft")).withEnabled(true)
+        activity.updateControlCenterDraft(activity.editorSession().draft().withEnabled(true)
                 .withLayoutPlan(ControlCenterLayoutPlan.blank(4).withItem(false, group).encode()));
         ControlCenterGridEditor editor = (ControlCenterGridEditor) field("controlCenterGridEditor");
         layoutEditor(editor);
@@ -889,7 +923,12 @@ public class ControlCenterSettingsUiFlowTest {
             captured.add(choiceList(choices).getAdapter().getItem(i).toString());
         }
         assertTrue(captured.contains("组件 · 音乐"));
-        String absent = "组件 · 设备控制 · 本次未检测到";
+        assertTrue("Module-owned 5G must not be reported missing from a native layout capture",
+                captured.contains("组件 · 5G"));
+        assertFalse(captured.stream().anyMatch(label -> label.startsWith("组件 · 5G ·")));
+        assertTrue(captured.contains("组件 · 设备控制 · 参考布局未包含"));
+        assertTrue(captured.contains("组件 · 控制中心卡片 · 参考布局未包含"));
+        String absent = "组件 · 设备控制 · 参考布局未包含";
         assertTrue(captured.contains(absent));
         choiceList(choices).performItemClick(null, captured.indexOf(absent), captured.indexOf(absent));
         assertEquals(ControlCenterComponentSpec.DEVICE_CONTROLS, draftPlan().regular.items.get(0).firstSpec);
@@ -939,7 +978,7 @@ public class ControlCenterSettingsUiFlowTest {
             slider.setProgress(values[i]);
             Shadows.shadowOf(slider).getOnSeekBarChangeListener().onProgressChanged(slider, values[i], true);
         }
-        ControlCenterConfig draft = (ControlCenterConfig) field("controlCenterDraft");
+        ControlCenterConfig draft = activity.editorSession().draft();
         assertEquals(0, draft.backgroundBlur); assertEquals(40, draft.cardBlur); assertEquals(75, draft.tileBlur);
         assertEquals(100, FusionConfigStore.read(activity).controlCenter.cardBlur);
         dialog.dismiss();

@@ -20,7 +20,9 @@ final class ControlCenterStyleSampler {
     private ControlCenterStyleSampler() { }
 
     static ControlCenterCapturedStyle read(View view, String spec) {
-        boolean small = view.getClass().getSimpleName().contains("QSTileItemView");
+        boolean fiveG = ControlCenterComponentSpec.FIVE_G.equals(spec)
+                && view instanceof ControlCenter5GTileView;
+        boolean small = fiveG || view.getClass().getSimpleName().contains("QSTileItemView");
         ControlCenterLayoutPlan.Shape shape = small ? ControlCenterLayoutPlan.Shape.CIRCLE : ControlCenterLayoutPlan.Shape.RECTANGLE;
         int radius = shape == ControlCenterLayoutPlan.Shape.CIRCLE ? 0 : 24;
         try {
@@ -34,7 +36,8 @@ final class ControlCenterStyleSampler {
         Object state = field(view, "state");
         if (state == null) state = field(view, "customizeState");
         Object active = field(state, "state");
-        int stateCode = active instanceof Number ? ((Number) active).intValue() : -1;
+        int stateCode = fiveG ? (((ControlCenter5GTileView) view).networkEnabled() ? 2 : 1)
+                : active instanceof Number ? ((Number) active).intValue() : -1;
         ArrayList<String> labels = new ArrayList<>();
         collectLabels(view, labels, 0);
         String label = labels.isEmpty() ? string(field(state, "label")) : labels.get(0);

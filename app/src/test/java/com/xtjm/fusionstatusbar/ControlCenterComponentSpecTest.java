@@ -36,6 +36,12 @@ public class ControlCenterComponentSpecTest {
                 ControlCenterComponentSpec.VOLUME));
         assertEquals(1, ControlCenterComponentSpec.defaultRows(
                 ControlCenterComponentSpec.DEVICE_CENTER));
+        assertEquals("5G", ControlCenterComponentSpec.label(ControlCenterComponentSpec.FIVE_G));
+        assertTrue(ControlCenterComponentSpec.isSpecial(ControlCenterComponentSpec.FIVE_G));
+        assertEquals(1, ControlCenterComponentSpec.defaultSpan(ControlCenterComponentSpec.FIVE_G));
+        assertEquals(1, ControlCenterComponentSpec.defaultRows(ControlCenterComponentSpec.FIVE_G));
+        assertEquals(ControlCenterLayoutPlan.Shape.CIRCLE,
+                ControlCenterComponentSpec.defaultShape(ControlCenterComponentSpec.FIVE_G));
         assertFalse(ControlCenterComponentSpec.isSpecial("bt"));
         assertTrue(ControlCenterComponentSpec.isSpecial(ControlCenterComponentSpec.MEDIA));
     }

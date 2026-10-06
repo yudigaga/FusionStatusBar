@@ -84,8 +84,8 @@ public class ControlCenterGroupEditorTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
         AlertDialog dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();
         View decor = dialog.getWindow().getDecorView();
-        EditText input = (EditText) description(decor, "图标大小 (%)");
-        SeekBar slider = (SeekBar) description(decor, "图标大小滑杆");
+        EditText input = (EditText) description(decor, "图标与圆圈大小 (%)");
+        SeekBar slider = (SeekBar) description(decor, "图标与圆圈大小滑杆");
         assertEquals(25, slider.getMin());
         assertEquals(200, slider.getMax());
         assertEquals("100", input.getText().toString());
@@ -113,7 +113,7 @@ public class ControlCenterGroupEditorTest {
         description(editor, "编辑 wifi").performClick();
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
         AlertDialog dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog();
-        EditText input = (EditText) description(dialog.getWindow().getDecorView(), "图标大小 (%)");
+        EditText input = (EditText) description(dialog.getWindow().getDecorView(), "图标与圆圈大小 (%)");
         for (String value : List.of("24", "201", "")) {
             input.setText(value);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();

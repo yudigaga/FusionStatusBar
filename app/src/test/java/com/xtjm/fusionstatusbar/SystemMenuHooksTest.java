@@ -1,9 +1,14 @@
 package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Canvas;
 import android.graphics.Outline;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.util.SparseArray;
 import android.view.View;
@@ -25,6 +30,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.GraphicsMode;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -106,20 +112,104 @@ public class SystemMenuHooksTest {
         }
     }
 
-    @Test public void volumeProgressRetainsItsAudioLevelClipAndRestoresItsDrawable() throws Throwable {
-        Registry hooks = install(Map.of(SystemMenuHooks.VOLUME_CONTROLLER, VolumeController.class));
+    @Test @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    public void volumeProgressIsInsetInsideThePublishedBorderAndRestoresNativeOutline() throws Throwable {
+        Registry hooks = install(Map.of(SystemMenuHooks.VOLUME_CONTROLLER, VolumeController.class,
+                SystemMenuHooks.VOLUME_PROGRESS_VIEW, ProgressView.class));
         VolumeController controller = new VolumeController(context);
         View progress = controller.mColumns.get(0).progressView;
         ViewOutlineProvider levelOutline = progress.getOutlineProvider();
         Object original = progress.getBackground();
-        SystemMenuHooks.updateConfig(settings(true, false, false, false).withSurface(ControlCenterSurface.DARK));
+        SystemMenuHooks.updateConfig(settings(true, false, false, false)
+                .withSurface(ControlCenterSurface.DARK).withGlobalBorder(true, 2));
         hooks.call(VolumeController.class, "initPanelView", controller, List.of(), null);
-        assertSame(levelOutline, progress.getOutlineProvider());
+        assertNotSame(levelOutline, progress.getOutlineProvider());
         assertTrue(progress.getClipToOutline());
         assertSame("The audio level fill is never replaced", original, progress.getBackground());
+        Outline inset = new Outline();
+        progress.getOutlineProvider().getOutline(progress, inset);
+        assertEquals(new Rect(2, 70, 18, 98), outlineBounds(inset));
+        ((ProgressView) progress).setRoundRect(40);
+        ViewOutlineProvider latestNativeOutline = progress.getOutlineProvider();
+        hooks.call(ProgressView.class, "setRoundRect", progress, List.of(40), null);
+        assertNotSame(levelOutline, progress.getOutlineProvider());
+        Outline updated = new Outline();
+        progress.getOutlineProvider().getOutline(progress, updated);
+        assertEquals(new Rect(2, 60, 18, 98), outlineBounds(updated));
+        SystemMenuHooks.updateConfig(settings(true, false, false, false)
+                .withSurface(ControlCenterSurface.DARK).withGlobalBorder(false, 2));
+        assertNotSame("The styled track still constrains the fill when its border is turned off",
+                latestNativeOutline, progress.getOutlineProvider());
+        assertEquals(new Rect(0, 60, 20, 100), outlineBounds(outlineOf(progress)));
         SystemMenuHooks.updateConfig(settings(false, false, false, false));
+        assertSame(latestNativeOutline, progress.getOutlineProvider());
         assertSame(original, progress.getBackground());
         assertEquals(1, controller.sizeRefreshes);
+    }
+
+    @Test
+    @Config(sdk = 35)
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    public void volumeFillUsesTheWholeTrackCurveWithoutMovingTheNativeLevelBoundary() throws Throwable {
+        Registry hooks = install(Map.of(SystemMenuHooks.VOLUME_CONTROLLER, VolumeController.class,
+                SystemMenuHooks.VOLUME_PROGRESS_VIEW, ProgressView.class));
+        VolumeController controller = new VolumeController(context);
+        ProgressView progress = controller.mColumns.get(0).progressView;
+        SystemMenuHooks.updateConfig(settings(true, false, false, false)
+                .withSurface(ControlCenterSurface.SOFT_GLASS).withCornerRadius(32).withGlobalBorder(true, 2));
+        hooks.call(VolumeController.class, "initPanelView", controller, List.of(), null);
+
+        Bitmap fill = drawOutline(progress);
+        assertEquals("Fill must stay inside the complete track's inset bottom curve", 0,
+                Color.alpha(fill.getPixel(2, 95)));
+        assertTrue("Fill must reach the border's inner edge without an extra gap",
+                Color.alpha(fill.getPixel(10, 97)) > 200);
+        assertTrue("The native 30 px level boundary stays at y=70", Color.alpha(fill.getPixel(10, 71)) > 200);
+        assertEquals(0, Color.alpha(fill.getPixel(10, 69)));
+        assertEquals("Fill must leave the border unobstructed", 0, Color.alpha(fill.getPixel(10, 98)));
+
+        progress.setRoundRect(100);
+        hooks.call(ProgressView.class, "setRoundRect", progress, List.of(100), null);
+        fill = drawOutline(progress);
+        assertEquals("A full level still follows the top track curve", 0, Color.alpha(fill.getPixel(2, 2)));
+        assertTrue(Color.alpha(fill.getPixel(10, 4)) > 200);
+        assertEquals(0, Color.alpha(fill.getPixel(2, 95)));
+    }
+
+    private static Bitmap drawOutline(View view) throws Exception {
+        Outline outline = outlineOf(view);
+        Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(Color.WHITE);
+        Rect rect = new Rect();
+        if (outline.getRect(rect)) {
+            canvas.drawRoundRect(new RectF(rect), Math.max(0, outline.getRadius()),
+                    Math.max(0, outline.getRadius()), paint);
+        } else if (!outline.isEmpty()) {
+            java.lang.reflect.Field field = Outline.class.getDeclaredField("mPath");
+            field.setAccessible(true);
+            canvas.drawPath((Path) field.get(outline), paint);
+        }
+        return bitmap;
+    }
+
+    private static Outline outlineOf(View view) {
+        Outline outline = new Outline();
+        view.getOutlineProvider().getOutline(view, outline);
+        return outline;
+    }
+
+    private static Rect outlineBounds(Outline outline) throws Exception {
+        Rect bounds = new Rect();
+        if (!outline.getRect(bounds) && !outline.isEmpty()) {
+            java.lang.reflect.Field field = Outline.class.getDeclaredField("mPath");
+            field.setAccessible(true);
+            RectF rect = new RectF();
+            ((Path) field.get(outline)).computeBounds(rect, true);
+            rect.roundOut(bounds);
+        }
+        return bounds;
     }
 
     @Test public void powerShaderIsPreservedUntilASuccessfulCustomSurfaceOwnsTheTrack() throws Throwable {
@@ -280,15 +370,35 @@ public class SystemMenuHooksTest {
     }
     private static class Column {
         final boolean isNeedShowDialog = true;
-        final View slider, progressView, view;
+        final View slider, progressViewBg, view;
+        final ProgressView progressView;
         Column(Context context) {
-            slider = new SeekBar(context); progressView = new View(context); view = new FrameLayout(context);
+            slider = new SeekBar(context); progressView = new ProgressView(context);
+            progressViewBg = new FrameLayout(context); view = new FrameLayout(context);
+            ((FrameLayout) progressViewBg).addView(progressView, new FrameLayout.LayoutParams(20, 100));
             progressView.setBackground(new ColorDrawable(Color.WHITE));
-            progressView.setOutlineProvider(new ViewOutlineProvider() {
-                @Override public void getOutline(View view, Outline outline) { outline.setRect(0, 70, 20, 100); }
-            });
             progressView.setClipToOutline(true);
+            progressView.layout(0, 0, 20, 100);
+            progressViewBg.measure(View.MeasureSpec.makeMeasureSpec(20, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY));
+            progressViewBg.layout(0, 0, 20, 100);
+            progressViewBg.setBackground(new ColorDrawable(Color.GRAY));
         }
         void setRadius(int radius) { }
+    }
+    private static class ProgressView extends View {
+        int mProgress = 30;
+        final float mProgressRadius = 8f;
+        final boolean mIsTimerProgress = false;
+        ProgressView(Context context) { super(context); layout(0, 0, 20, 100); setRoundRect(30); }
+        void setRoundRect(int value) {
+            mProgress = value;
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, view.getHeight() - mProgress, view.getWidth(),
+                            view.getHeight(), mProgressRadius);
+                }
+            });
+        }
     }
 }

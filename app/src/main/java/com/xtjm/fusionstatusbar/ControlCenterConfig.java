@@ -31,6 +31,8 @@ final class ControlCenterConfig {
     static final String KEY_SURFACE = "control_center_surface";
     static final String KEY_BORDER_ENABLED = "control_center_border_enabled";
     static final String KEY_BORDER_WIDTH = "control_center_border_width";
+    static final String KEY_HIDE_DATE = "control_center_hide_date";
+    static final String KEY_HIDE_CARRIER = "control_center_hide_carrier";
 
     static final String DEFAULT_ORDER =
             "cell,wifi,bt,airplane,mute,flashlight,screenshot,batterysaver,rotation,controls,"
@@ -53,6 +55,8 @@ final class ControlCenterConfig {
     final boolean borderEnabled;
     final int borderWidthDp;
     final SystemSurfaceConfig systemSurfaces;
+    final boolean hideDate;
+    final boolean hideCarrier;
 
     private ControlCenterConfig(boolean enabled, String order, String hidden, int columns,
             int tileScale, int cornerRadius, int spacing, int style, String layout) {
@@ -100,6 +104,17 @@ final class ControlCenterConfig {
             String layoutPlan, String componentOrder, String componentPlacement,
             int backgroundBlur, int cardBlur, int tileBlur, ControlCenterSurface surface,
             boolean borderEnabled, int borderWidthDp, SystemSurfaceConfig systemSurfaces) {
+        this(enabled, order, hidden, columns, tileScale, cornerRadius, spacing, style, layout,
+                layoutPlan, componentOrder, componentPlacement, backgroundBlur, cardBlur, tileBlur,
+                surface, borderEnabled, borderWidthDp, systemSurfaces, false, false);
+    }
+
+    private ControlCenterConfig(boolean enabled, String order, String hidden, int columns,
+            int tileScale, int cornerRadius, int spacing, int style, String layout,
+            String layoutPlan, String componentOrder, String componentPlacement,
+            int backgroundBlur, int cardBlur, int tileBlur, ControlCenterSurface surface,
+            boolean borderEnabled, int borderWidthDp, SystemSurfaceConfig systemSurfaces,
+            boolean hideDate, boolean hideCarrier) {
         this.enabled = enabled;
         this.order = normalizeList(order, DEFAULT_ORDER);
         this.hidden = normalizeList(hidden, "");
@@ -119,6 +134,8 @@ final class ControlCenterConfig {
         this.borderEnabled = borderEnabled;
         this.borderWidthDp = Math.max(1, Math.min(4, borderWidthDp));
         this.systemSurfaces = systemSurfaces == null ? SystemSurfaceConfig.defaults() : systemSurfaces;
+        this.hideDate = hideDate;
+        this.hideCarrier = hideCarrier;
     }
 
     static ControlCenterConfig defaults() {
@@ -143,7 +160,8 @@ final class ControlCenterConfig {
                 values.getInt(KEY_BACKGROUND_BLUR, 100), values.getInt(KEY_CARD_BLUR, 100), values.getInt(KEY_TILE_BLUR, 100),
                 ControlCenterSurface.fromOrdinal(values.getInt(KEY_SURFACE, 0)),
                 values.getBoolean(KEY_BORDER_ENABLED, false), values.getInt(KEY_BORDER_WIDTH, 1),
-                SystemSurfaceConfig.fromBundle(values));
+                SystemSurfaceConfig.fromBundle(values), values.getBoolean(KEY_HIDE_DATE, false),
+                values.getBoolean(KEY_HIDE_CARRIER, false));
     }
 
     static ControlCenterConfig read(SharedPreferences values) {
@@ -163,7 +181,8 @@ final class ControlCenterConfig {
                 values.getInt(KEY_BACKGROUND_BLUR, 100), values.getInt(KEY_CARD_BLUR, 100), values.getInt(KEY_TILE_BLUR, 100),
                 ControlCenterSurface.fromOrdinal(values.getInt(KEY_SURFACE, 0)),
                 values.getBoolean(KEY_BORDER_ENABLED, false), values.getInt(KEY_BORDER_WIDTH, 1),
-                SystemSurfaceConfig.read(values));
+                SystemSurfaceConfig.read(values), values.getBoolean(KEY_HIDE_DATE, false),
+                values.getBoolean(KEY_HIDE_CARRIER, false));
     }
 
     void writeTo(Bundle values) {
@@ -185,6 +204,8 @@ final class ControlCenterConfig {
         values.putInt(KEY_SURFACE, surface.ordinal());
         values.putBoolean(KEY_BORDER_ENABLED, borderEnabled);
         values.putInt(KEY_BORDER_WIDTH, borderWidthDp);
+        values.putBoolean(KEY_HIDE_DATE, hideDate);
+        values.putBoolean(KEY_HIDE_CARRIER, hideCarrier);
         systemSurfaces.writeTo(values);
     }
 
@@ -207,6 +228,8 @@ final class ControlCenterConfig {
         editor.putInt(KEY_SURFACE, surface.ordinal());
         editor.putBoolean(KEY_BORDER_ENABLED, borderEnabled);
         editor.putInt(KEY_BORDER_WIDTH, borderWidthDp);
+        editor.putBoolean(KEY_HIDE_DATE, hideDate);
+        editor.putBoolean(KEY_HIDE_CARRIER, hideCarrier);
         systemSurfaces.writeTo(editor);
     }
 
@@ -254,37 +277,54 @@ final class ControlCenterConfig {
     ControlCenterConfig withLayoutPlan(String value) {
         return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, value, componentOrder, componentPlacement, backgroundBlur, cardBlur, tileBlur,
-                surface, borderEnabled, borderWidthDp, systemSurfaces);
+                surface, borderEnabled, borderWidthDp, systemSurfaces, hideDate, hideCarrier);
     }
 
     ControlCenterConfig withComponentOrder(String value) {
         return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, layoutPlan, value, componentPlacement, backgroundBlur, cardBlur, tileBlur,
-                surface, borderEnabled, borderWidthDp, systemSurfaces);
+                surface, borderEnabled, borderWidthDp, systemSurfaces, hideDate, hideCarrier);
     }
 
     ControlCenterConfig withBlur(int background, int card, int tile) {
         return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, layoutPlan, componentOrder, componentPlacement, background, card, tile,
-                surface, borderEnabled, borderWidthDp, systemSurfaces);
+                surface, borderEnabled, borderWidthDp, systemSurfaces, hideDate, hideCarrier);
     }
 
     ControlCenterConfig withSurface(ControlCenterSurface value) {
         return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, layoutPlan, componentOrder, componentPlacement,
-                backgroundBlur, cardBlur, tileBlur, value, borderEnabled, borderWidthDp, systemSurfaces);
+                backgroundBlur, cardBlur, tileBlur, value, borderEnabled, borderWidthDp,
+                systemSurfaces, hideDate, hideCarrier);
     }
 
     ControlCenterConfig withGlobalBorder(boolean enabled, int widthDp) {
         return new ControlCenterConfig(this.enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, layoutPlan, componentOrder, componentPlacement,
-                backgroundBlur, cardBlur, tileBlur, surface, enabled, widthDp, systemSurfaces);
+                backgroundBlur, cardBlur, tileBlur, surface, enabled, widthDp, systemSurfaces,
+                hideDate, hideCarrier);
     }
 
     ControlCenterConfig withSystemSurfaces(SystemSurfaceConfig value) {
         return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, layoutPlan, componentOrder, componentPlacement,
-                backgroundBlur, cardBlur, tileBlur, surface, borderEnabled, borderWidthDp, value);
+                backgroundBlur, cardBlur, tileBlur, surface, borderEnabled, borderWidthDp, value,
+                hideDate, hideCarrier);
+    }
+
+    ControlCenterConfig withHideDate(boolean value) {
+        return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
+                spacing, style, layout, layoutPlan, componentOrder, componentPlacement,
+                backgroundBlur, cardBlur, tileBlur, surface, borderEnabled, borderWidthDp,
+                systemSurfaces, value, hideCarrier);
+    }
+
+    ControlCenterConfig withHideCarrier(boolean value) {
+        return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
+                spacing, style, layout, layoutPlan, componentOrder, componentPlacement,
+                backgroundBlur, cardBlur, tileBlur, surface, borderEnabled, borderWidthDp,
+                systemSurfaces, hideDate, value);
     }
 
     ControlCenterConfig withComponentSide(String spec, String side) {
@@ -308,7 +348,8 @@ final class ControlCenterConfig {
 
     ControlCenterConfig clearCustomization() {
         return new ControlCenterConfig(enabled, "", "", 4, 100, 0, 0, 0, "", "", "", "")
-                .withSystemSurfaces(systemSurfaces);
+                .withSystemSurfaces(systemSurfaces).withHideDate(hideDate)
+                .withHideCarrier(hideCarrier);
     }
 
     boolean hasTileOrderOverride() {
@@ -413,13 +454,13 @@ final class ControlCenterConfig {
         return new ControlCenterConfig(nextEnabled, nextOrder, nextHidden, nextColumns,
                 nextScale, nextRadius, nextSpacing, nextStyle, nextLayout, layoutPlan, componentOrder,
                 componentPlacement, backgroundBlur, cardBlur, tileBlur, surface, borderEnabled, borderWidthDp,
-                systemSurfaces);
+                systemSurfaces, hideDate, hideCarrier);
     }
 
     private ControlCenterConfig withComponentPlacement(String value) {
         return new ControlCenterConfig(enabled, order, hidden, columns, tileScale, cornerRadius,
                 spacing, style, layout, layoutPlan, componentOrder, value, backgroundBlur, cardBlur, tileBlur,
-                surface, borderEnabled, borderWidthDp, systemSurfaces);
+                surface, borderEnabled, borderWidthDp, systemSurfaces, hideDate, hideCarrier);
     }
 
     private static String normalizeList(String value, String fallback) {

@@ -170,7 +170,18 @@ public class FusionConfigTest {
 
     @Test
     public void configurationSchemaHasAnExplicitCurrentVersion() {
-        assertEquals(4, FusionConfig.CONFIG_SCHEMA_VERSION);
+        assertEquals(5, FusionConfig.CONFIG_SCHEMA_VERSION);
+    }
+
+    @Test
+    public void statusClockSizeUsesNativeDefaultAndSurvivesUnrelatedEdits() {
+        FusionConfig config = FusionConfig.defaults().withStatusClockSizeSp(19);
+        assertEquals(19, config.statusClockSizeSp);
+        assertEquals(19, config.withIconScale(120).withControlCenter(
+                ControlCenterConfig.defaults().withEnabled(true)).statusClockSizeSp);
+        assertEquals(0, config.withStatusClockSizeSp(0).statusClockSizeSp);
+        assertEquals(8, FusionConfig.clampStatusClockSize(1));
+        assertEquals(48, FusionConfig.clampStatusClockSize(90));
     }
 
     @Test

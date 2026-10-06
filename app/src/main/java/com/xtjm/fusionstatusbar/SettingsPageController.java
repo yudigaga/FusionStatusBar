@@ -47,6 +47,7 @@ final class SettingsPageController {
     void showClock() {
         show("时间与天气", content -> {
             section(content, "时间");
+            FusionConfig initial = model.current();
             Switch custom = toggle(content, "自定义时间格式", "仅应用于状态栏时间", model.current().customClock, value -> { });
             EditText pattern = pattern(content, model.current().clockPattern, model.current().customClock, false,
                     "例如：HH:mm E", value -> edit(current -> current.withClockPattern(value)));
@@ -54,6 +55,9 @@ final class SettingsPageController {
                 pattern.setEnabled(value);
                 edit(current -> current.withCustomClock(value));
             });
+            optionalSize(content, "自定义字号", "关闭时恢复系统原始字号", "状态栏时间字号",
+                    "只调整顶部状态栏时间，不影响通知中心时间", initial.statusClockSizeSp,
+                    16, 8, 48, value -> edit(current -> current.withStatusClockSizeSp(value)));
             section(content, "天气");
             toggle(content, "显示天气", "在时间后显示天气摘要", model.current().showWeather,
                     value -> edit(current -> current.withShowWeather(value)));
@@ -162,7 +166,7 @@ final class SettingsPageController {
             FusionConfig initial = model.current();
             section(content, "基础布局");
             Switch doubleRow = toggle(content, "启用双排状态栏", "将时间、通知、系统图标和信息块分配到两排", initial.doubleRow, value -> { });
-            slider(content, "状态栏高度", "双排时每排的可用空间", 32, 96, initial.statusBarHeight, " dp", value -> edit(current -> current.withStatusBarHeight(value)));
+            slider(content, "状态栏总高度", "调整顶部状态栏内容区域；双排在此总高度内均分", 32, 96, initial.statusBarHeight, " dp", value -> edit(current -> current.withStatusBarHeight(value)));
             section(content, "元素位置");
             LinearLayout placements = new LinearLayout(activity); placements.setOrientation(LinearLayout.VERTICAL); content.addView(placements, wrap());
             choice(placements, "时间", positions(), initial.clockSide * 2 + initial.clockRow, value -> edit(current -> current.withElementPosition(0, value / 2, value % 2)));

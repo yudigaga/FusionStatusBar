@@ -11,6 +11,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import java.util.Objects;
 
 /** Visual-only renderer. No gesture, persistence, or SystemUI side effects. */
@@ -112,6 +113,9 @@ final class ControlCenterCardView extends FrameLayout {
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterPreviewTile preview) {
             preview.setBackdropColor(backdrop);
         }
+        if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof FiveGPreview fiveG) {
+            fiveG.applySurface(containerSurface, model.active);
+        }
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof MediaPreview media) {
             media.applySurface(containerSurface);
         }
@@ -196,7 +200,9 @@ final class ControlCenterCardView extends FrameLayout {
         model = next;
         nativeColors.clear();
         surface.removeAllViews();
-        material.setColor(!next.paired && next.active ? ACTIVE_SURFACE : INACTIVE_SURFACE);
+        material.setColor(ControlCenterComponentSpec.FIVE_G.equals(next.spec)
+                ? containerSurface.stateColor(next.active)
+                : !next.paired && next.active ? ACTIVE_SURFACE : INACTIVE_SURFACE);
         material.setShape(next.shape == ControlCenterLayoutPlan.Shape.CIRCLE
                 ? GradientDrawable.OVAL : GradientDrawable.RECTANGLE);
         if (next.paired) {
@@ -233,6 +239,8 @@ final class ControlCenterCardView extends FrameLayout {
 
     private View content(String spec, String label, boolean active, boolean large) {
         ControlCenterCapturedStyle captured = Objects.equals(spec, model.spec) ? model.firstStyle : model.secondStyle;
+        if (ControlCenterComponentSpec.FIVE_G.equals(spec))
+            return new FiveGPreview(getContext(), active, model.scale, containerSurface);
         if (ControlCenterComponentSpec.BRIGHTNESS.equalsIgnoreCase(spec)
                 || ControlCenterComponentSpec.VOLUME.equalsIgnoreCase(spec)
                 || ControlCenterComponentSpec.SLIDER.equalsIgnoreCase(spec)) {
@@ -245,6 +253,26 @@ final class ControlCenterCardView extends FrameLayout {
                 captured != null && !captured.subtitle.isEmpty() ? captured.subtitle : active ? "已开启" : "已关闭",
                 large ? ControlCenterPreviewTile.MODE_LARGE : ControlCenterPreviewTile.MODE_CIRCLE,
                 active, 0, model.scale, false, captured == null ? null : captured.icon);
+    }
+
+    private static final class FiveGPreview extends TextView {
+        private final int scale;
+
+        FiveGPreview(Context context, boolean active, int scale, ControlCenterSurface surface) {
+            super(context);
+            this.scale = scale;
+            setText("5G");
+            setGravity(Gravity.CENTER);
+            setIncludeFontPadding(false);
+            setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+            applySurface(surface, active);
+        }
+
+        void applySurface(ControlCenterSurface surface, boolean active) {
+            int color = active ? 0xff3482f6 : surface.neutralForeground();
+            setTextColor(color);
+            setTextSize(24f * Math.max(70, Math.min(130, scale)) / 100f);
+        }
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {

@@ -23,9 +23,10 @@ import xml.etree.ElementTree as ET
 
 
 PACKAGE = "io.github.yudigaga.fusionstatusbar"
-ACTIVITY = PACKAGE + "/com.xtjm.fusionstatusbar.MainActivity"
+ACTIVITY_CLASS = "com.xtjm.fusionstatusbar.MainActivity"
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDS = re.compile(r"^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$")
+SURFACE_CHOICES = ("原有背景", "透明", "雾面", "深色", "晶透", "浅色", "石墨", "冰蓝", "薄荷", "柔光玻璃")
 
 
 class HarnessError(RuntimeError):
@@ -80,8 +81,8 @@ def verify_overview(root):
             "activationLabels": activation, "settledSnapshotOnly": True}
 
 
-def selector_current_row(root):
-    selector = find_node(root, "卡片样式")
+def selector_current_row(root, title="全局容器背景"):
+    selector = find_node(root, title)
     rows = [n for n in selector.iter("node")
             if n.get("content-desc") == "当前选择" and n.get("clickable") == "true"]
     if len(rows) != 1:
@@ -89,34 +90,45 @@ def selector_current_row(root):
     return selector, rows[0]
 
 
-def verify_editor(root, expanded):
+def verify_choice_selector(root, expanded, title="全局容器背景", expected_options=SURFACE_CHOICES):
     nodes = list(root.iter("node"))
     if any(n.get("class") == "android.widget.Spinner" for n in nodes):
-        raise HarnessError("Editor snapshot contains a legacy Spinner")
-    selector, current = selector_current_row(root)
+        raise HarnessError("Choice selector snapshot contains a legacy Spinner")
+    selector, current = selector_current_row(root, title)
     if selector.get("enabled") != "true":
-        raise HarnessError("Card-style selector is locked; this run must not alter the lock")
+        raise HarnessError(f"Choice selector {title!r} is disabled")
     options = [n for n in selector.iter("node") if n.get("clickable") == "true"
-               and n.get("content-desc") not in (None, "", "卡片样式", "当前选择")]
+               and n.get("content-desc") in expected_options]
     selected_value = [n.get("text", "") for n in current.iter("node")
                       if n.get("text") and n.get("text") not in ("⌄", "⌃")]
     result = {"expanded": expanded, "hasSpinner": False, "selectorEnabled": True,
-              "currentValueLabels": selected_value, "currentRowCenter": node_center(current)}
+              "selector": title, "currentValueLabels": selected_value,
+              "currentRowCenter": node_center(current)}
     if expanded:
-        minor = find_node(selector, "微圆角", clickable=True)
-        custom = find_node(selector, "自定义", clickable=True)
+        found = {n.get("content-desc") for n in options}
+        missing = sorted(set(expected_options) - found)
+        if missing:
+            raise HarnessError(f"Expanded selector is missing options: {', '.join(missing)}")
         marks = [n for n in selector.iter("node") if n.get("content-desc") == "已选择"]
         selected_options = [n for n in options if n.get("selected") == "true"]
-        if minor.get("enabled") != "true" or custom.get("enabled") != "false":
-            raise HarnessError("Expected enabled 微圆角 and disabled 自定义")
         if len(marks) != 1 or len(selected_options) != 1:
             raise HarnessError("Expected exactly one selected option and selection mark")
-        result.update({"customDisabled": True, "minorRadiusEnabled": True,
-                       "selectionMarkCount": len(marks),
+        result.update({"optionLabels": sorted(found), "selectionMarkCount": len(marks),
                        "selectedOption": selected_options[0].get("content-desc")})
     elif options:
-        raise HarnessError("Card-style options are still visible after collapse")
+        raise HarnessError("Choice options are still visible after collapse")
     return result
+
+
+def verify_appearance_dialog(root, expanded):
+    titles = [n for n in root.iter("node") if n.get("text") == "布局与外观"]
+    if len(titles) != 1:
+        raise HarnessError("Appearance dialog title is missing or duplicated")
+    finish = find_node(root, "完成", attr="text", clickable=True)
+    selector = find_node(root, "全局容器背景")
+    choice = verify_choice_selector(root, expanded)
+    return {"title": "布局与外观", "finishCenter": node_center(finish),
+            "selectorCenter": node_center(selector), "choice": choice}
 
 
 def parse_preferences(text):
@@ -206,6 +218,10 @@ class Adb:
 class FlowHarness:
     def __init__(self, args):
         self.args = args
+        self.package = getattr(args, "package", PACKAGE)
+        activity_class = getattr(args, "activity", ACTIVITY_CLASS)
+        self.activity = self.package + "/" + activity_class
+        self.private_evidence_available = False
         self.output = ROOT / "build" / "perf"
         self.prefix = args.output_name
         self.raw_dir = self.output / (self.prefix + ".raw")
@@ -214,6 +230,7 @@ class FlowHarness:
         self.checkpoints = []
         self.traces = []
         self.result = {"scenario": args.scenario, "serial": args.serial,
+                       "package": self.package, "activity": self.activity,
                        "iterationsRequested": args.iterations, "completedCycles": 0,
                        "measurementStartedUtc": None, "measurementEndedUtc": None,
                        "cycles": self.cycles, "resourceCheckpoints": self.checkpoints,
@@ -256,7 +273,7 @@ class FlowHarness:
     def focus(self, label):
         text, row, _ = self.adb.shell("dumpsys", "window", label=label)
         match = re.search(r"mCurrentFocus=Window\{([^}\r\n]+)\}", text)
-        if match is None or PACKAGE + "/" not in match.group(1):
+        if match is None or self.package + "/" not in match.group(1):
             raise HarnessError("The unlocked target app does not own the focused window")
         return {"window": match.group(1).split()[0], "raw": row["stdout"]}
 
@@ -298,32 +315,42 @@ class FlowHarness:
         return {"pids": value.strip().split(), "raw": row["stdout"]}
 
     def private_file(self, path, label):
-        output, row, code = self.adb.shell("run-as", PACKAGE, "cat", path,
+        if not self.private_evidence_available:
+            return {"path": path, "available": False, "present": None, "sha256": None,
+                    "reason": "run_as_unavailable", "raw": None}, None
+        output, row, code = self.adb.shell("run-as", self.package, "cat", path,
                                           label=label, allowed=(0, 1))
         if code == 0:
-            return {"path": path, "present": True,
+            return {"path": path, "available": True, "present": True,
                     "sha256": hashlib.sha256((self.output / row["stdout"]).read_bytes()).hexdigest(),
                     "raw": row["stdout"]}, output
-        _, _, existence = self.adb.shell("run-as", PACKAGE, "test", "-e", path,
+        _, _, existence = self.adb.shell("run-as", self.package, "test", "-e", path,
                                          label=label + "-exists", allowed=(0, 1))
         if existence == 0:
             raise HarnessError(f"Private file exists but cannot be read: {path}")
-        return {"path": path, "present": False, "sha256": None, "raw": row["stdout"]}, None
+        return {"path": path, "available": True, "present": False,
+                "sha256": None, "raw": row["stdout"]}, None
 
     def config_snapshot(self, label):
         # Only committed settings are compared. Activation, editor selection and
         # preview cache are deliberately not treated as configuration mutations.
-        paths = [f"/data/user_de/{self.user_id}/{PACKAGE}/files/fusion_config_v4.json",
-                 f"/data/user_de/{self.user_id}/{PACKAGE}/shared_prefs/fusion_statusbar.xml",
-                 f"/data/user/{self.user_id}/{PACKAGE}/shared_prefs/fusion_statusbar.xml"]
+        paths = [f"/data/user_de/{self.user_id}/{self.package}/files/fusion_config_v4.json",
+                 f"/data/user_de/{self.user_id}/{self.package}/shared_prefs/fusion_statusbar.xml",
+                 f"/data/user/{self.user_id}/{self.package}/shared_prefs/fusion_statusbar.xml"]
         return [self.private_file(path, label + f"-{index}")[0]
                 for index, path in enumerate(paths)]
 
     def receipt(self, label):
-        path = f"/data/user_de/{self.user_id}/{PACKAGE}/shared_prefs/fusion_activation.xml"
+        path = f"/data/user_de/{self.user_id}/{self.package}/shared_prefs/fusion_activation.xml"
         file_info, text = self.private_file(path, label)
         values = parse_preferences(text) if text is not None else {}
         pid = self.pid("com.android.systemui", label + "-systemui-pid")
+        if not file_info["available"]:
+            return {"file": file_info, "values": {}, "systemUi": pid,
+                    "availability": "unavailable", "reason": "run_as_unavailable",
+                    "versionMatchesInstalled": None, "receiptSystemUiPid": None,
+                    "pidMatchesCurrentSystemUi": None, "bootStartDeltaMs": None,
+                    "sameBootWithinTolerance": None}
         session = str(values.get("runtime_session", ""))
         session_parts = session.split(":", 2)
         stored_pid = session_parts[1] if len(session_parts) == 3 else None
@@ -332,6 +359,7 @@ class FlowHarness:
                              - float(self.metadata["deviceUptimeSeconds"])) * 1000
         boot_delta_ms = abs(float(values.get("boot_start_ms", 0)) - estimated_boot_ms)
         return {"file": file_info, "values": values, "systemUi": pid,
+                "availability": "available" if text is not None else "missing",
                 "versionMatchesInstalled": values.get("module_version") == app["versionName"]
                     and values.get("module_code") == app["versionCode"],
                 "receiptSystemUiPid": stored_pid,
@@ -341,9 +369,9 @@ class FlowHarness:
 
     def resource_checkpoint(self, cycle, label):
         captured = utc_now()
-        memory, mem_row, _ = self.adb.shell("dumpsys", "meminfo", PACKAGE, label=label + "-meminfo")
+        memory, mem_row, _ = self.adb.shell("dumpsys", "meminfo", self.package, label=label + "-meminfo")
         _, cpu_row, _ = self.adb.shell("dumpsys", "cpuinfo", label=label + "-cpuinfo")
-        pid = self.pid(PACKAGE, label + "-app-pid")
+        pid = self.pid(self.package, label + "-app-pid")
         pss = re.search(r"TOTAL PSS:\s*(\d+)", memory)
         if pss is None:
             pss = re.search(r"(?m)^\s*TOTAL\s+(\d+)\s", memory)
@@ -355,12 +383,12 @@ class FlowHarness:
         return row
 
     def renderer_stats(self, label):
-        text, row, _ = self.adb.shell("dumpsys", "gfxinfo", PACKAGE, label=label + "-gfxinfo")
-        _, frame_row, _ = self.adb.shell("dumpsys", "gfxinfo", PACKAGE, "framestats", label=label + "-framestats")
+        text, row, _ = self.adb.shell("dumpsys", "gfxinfo", self.package, label=label + "-gfxinfo")
+        _, frame_row, _ = self.adb.shell("dumpsys", "gfxinfo", self.package, "framestats", label=label + "-framestats")
         return {"gfxinfo": row["stdout"], "framestats": frame_row["stdout"], **parse_gfxinfo(text)}
 
     def start(self, label):
-        text, row, _ = self.adb.shell("am", "start", "-W", "-n", ACTIVITY, label=label)
+        text, row, _ = self.adb.shell("am", "start", "-W", "-n", self.activity, label=label)
         if re.search(r"(?m)^Status:\s*ok\s*$", text) is None or "Error:" in text:
             raise HarnessError("am start -W did not report Status: ok")
         fields = {}
@@ -370,7 +398,7 @@ class FlowHarness:
                 fields[key] = match.group(1).strip()
         time.sleep(self.args.initial_wait_ms / 1000)
         return {"raw": row["stdout"], "fields": fields,
-                "app": self.pid(PACKAGE, label + "-pid")}
+                "app": self.pid(self.package, label + "-pid")}
 
     def prepare(self):
         self.output.mkdir(parents=True, exist_ok=True)
@@ -389,10 +417,11 @@ class FlowHarness:
         if re.fullmatch(r"\d+", user.strip()) is None:
             raise HarnessError("Cannot determine Android user")
         self.user_id = int(user.strip())
-        # Verify run-as once; do not report unreadable data as missing settings.
-        identity, _, _ = self.adb.shell("run-as", PACKAGE, "id", label="run-as-identity")
-        if "uid=" not in identity:
-            raise HarnessError("Debug run-as is unavailable; config invariance cannot be verified")
+        # Release sampling can proceed without private-file access; the missing
+        # config and runtime evidence must remain explicitly unverified.
+        identity, identity_row, identity_code = self.adb.shell(
+            "run-as", self.package, "id", label="run-as-identity", allowed=(0, 1))
+        self.private_evidence_available = identity_code == 0 and "uid=" in identity
         for path in [self.remote_xml, *[self.remote_trace(i) for i in range(1, self.args.iterations + 1)]]:
             _, _, code = self.adb.shell("test", "-e", path, label="remote-output-exists", allowed=(0, 1))
             if code == 0:
@@ -410,13 +439,19 @@ class FlowHarness:
         device_time, _, _ = self.adb.shell("date", "+%s", label="device-time")
         self.metadata = {"capturedUtc": utc_now(), "serial": self.args.serial,
                          "androidUser": self.user_id, "sdk": sdk.strip(),
-                         "app": self.package_metadata(PACKAGE),
+                         "app": self.package_metadata(self.package), "activity": self.activity,
                          "systemUi": self.package_metadata("com.android.systemui"),
                          "deviceUptimeSeconds": uptime.split()[0], "deviceEpochSeconds": device_time.strip(),
                          "uptimeRaw": uptime_row["stdout"], "physicalDeviceAllowed": self.args.allow_physical_device,
                          "deviceSettingsChanged": False, "traceBufferKb": self.args.trace_buffer_kb,
                          "traceBufferInterpretation": "atrace -b is a per-CPU KiB buffer; short per-cycle captures",
-                         "initialWaitMs": self.args.initial_wait_ms, "actionWaitMs": self.args.action_wait_ms}
+                         "initialWaitMs": self.args.initial_wait_ms, "actionWaitMs": self.args.action_wait_ms,
+                         "privateEvidence": {"available": self.private_evidence_available,
+                                             "reason": "" if self.private_evidence_available else "run_as_unavailable",
+                                             "identityExitCode": identity_code,
+                                             "identityRaw": identity_row["stdout"],
+                                             "identityErrorRaw": identity_row["stderr"]}}
+        self.result["privateEvidenceAvailable"] = self.private_evidence_available
         refresh = {}
         for key in ("peak_refresh_rate", "min_refresh_rate", "user_refresh_rate", "refresh_rate_mode"):
             value, _, _ = self.adb.shell("settings", "get", "system", key, label="refresh-" + key)
@@ -430,7 +465,7 @@ class FlowHarness:
         self.focus("initial-focused-window")
         if self.args.scenario == "editor-choice":
             self.learn_editor()
-            self.adb.shell("dumpsys", "gfxinfo", PACKAGE, "reset", label="reset-gfxinfo")
+            self.adb.shell("dumpsys", "gfxinfo", self.package, "reset", label="reset-gfxinfo")
         self.resource_checkpoint(0, "checkpoint-before")
         self.write_json("metadata.json", self.metadata)
 
@@ -441,37 +476,36 @@ class FlowHarness:
         nav = find_node(root, "控制中心", clickable=True)
         if nav.get("selected") != "true":
             raise HarnessError("Control-center navigation is not selected")
-        self.tile_center = node_center(find_node(root, "Wi-Fi、示意预览", clickable=True))
+        appearance_center = node_center(find_node(root, "布局与外观", clickable=True))
         self.activity_window = self.focus("learn-activity-focus")["window"]
-        self.tap(self.tile_center, "learn-wifi-tile")
+        self.tap(appearance_center, "learn-open-appearance-dialog")
         self.sheet_window = self.focus("learn-sheet-focus")["window"]
         if self.sheet_window == self.activity_window:
-            raise HarnessError("Wi-Fi item tap did not open an editor sheet")
-        root = self.ui("learn-editor-collapsed")
-        collapsed = verify_editor(root, False)
-        self.collapsed_center = collapsed["currentRowCenter"]
-        self.tap(self.collapsed_center, "learn-expand-selector")
+            raise HarnessError("布局与外观 did not open a dialog window")
+        collapsed_root = self.ui("learn-selector-collapsed")
+        collapsed_dialog = verify_appearance_dialog(collapsed_root, False)
+        self.tap(collapsed_dialog["choice"]["currentRowCenter"], "learn-expand-surface-selector")
         self.require_focus(self.sheet_window, "learn-expanded-focus")
-        root = self.ui("learn-editor-expanded")
-        expanded = verify_editor(root, True)
-        self.expanded_center = expanded["currentRowCenter"]
-        self.tap(self.expanded_center, "learn-collapse-selector")
+        expanded_root = self.ui("learn-selector-expanded")
+        expanded_dialog = verify_appearance_dialog(expanded_root, True)
+        self.tap(expanded_dialog["choice"]["currentRowCenter"], "learn-collapse-surface-selector")
         self.require_focus(self.sheet_window, "learn-collapsed-focus")
-        verify_editor(self.ui("learn-editor-recollapsed"), False)
-        self.back("learn-close-sheet")
+        recollapsed_root = self.ui("learn-dialog-recollapsed")
+        recollapsed_dialog = verify_appearance_dialog(recollapsed_root, False)
+        self.tap(recollapsed_dialog["finishCenter"], "learn-close-appearance-dialog")
         self.require_focus(self.activity_window, "learn-returned-focus")
-        self.metadata["learnedEditor"] = {"tileCenter": self.tile_center,
-                                         "collapsedCurrentRowCenter": self.collapsed_center,
-                                         "expandedCurrentRowCenter": self.expanded_center,
-                                         "collapsedVerification": collapsed,
-                                         "expandedVerification": expanded}
+        self.metadata["learnedEditor"] = {"entryCenter": appearance_center,
+                                         "collapsedVerification": collapsed_dialog,
+                                         "expandedVerification": expanded_dialog,
+                                         "recollapsedVerification": recollapsed_dialog,
+                                         "selectedOptionTapped": False}
         self.write_json("metadata.json", self.metadata)
 
     def cold_cycle(self, index):
         label = f"cycle-{index:02d}"
-        before = self.pid(PACKAGE, label + "-pid-before")
-        self.adb.shell("am", "force-stop", PACKAGE, label=label + "-force-stop")
-        stopped = self.pid(PACKAGE, label + "-pid-stopped")
+        before = self.pid(self.package, label + "-pid-before")
+        self.adb.shell("am", "force-stop", self.package, label=label + "-force-stop")
+        stopped = self.pid(self.package, label + "-pid-stopped")
         if stopped["pids"]:
             raise HarnessError("App process survived force-stop; cold launch is not valid")
         startup = self.start(label + "-startup")
@@ -487,32 +521,38 @@ class FlowHarness:
     def editor_cycle(self, index):
         label = f"cycle-{index:02d}"
         focus_rows = [self.require_focus(self.activity_window, label + "-before-open-focus")]
-        self.tap(self.tile_center, label + "-open-editor")
+        page = self.ui(label + "-control-center-page")
+        appearance_center = node_center(find_node(page, "布局与外观", clickable=True))
+        self.tap(appearance_center, label + "-open-appearance-dialog")
         sheet = self.focus(label + "-after-open-focus")
         if sheet["window"] == self.activity_window:
-            raise HarnessError("Item tap did not open a sheet")
+            raise HarnessError("布局与外观 did not open a dialog window")
         focus_rows.append(sheet)
         verify = index in (1, self.args.iterations)
         ui = {}
+        collapsed_root = self.ui(label + "-collapsed")
+        collapsed_dialog = verify_appearance_dialog(collapsed_root, False)
         if verify:
-            ui["collapsed"] = verify_editor(self.ui(label + "-collapsed"), False)
-            if ui["collapsed"]["currentRowCenter"] != self.collapsed_center:
-                raise HarnessError("Learned collapsed selector coordinate changed")
+            ui["collapsed"] = collapsed_dialog
         focus_rows.append(self.require_focus(sheet["window"], label + "-before-expand-focus"))
-        self.tap(self.collapsed_center, label + "-expand-selector")
+        self.tap(collapsed_dialog["choice"]["currentRowCenter"], label + "-expand-selector")
         focus_rows.append(self.require_focus(sheet["window"], label + "-after-expand-focus"))
+        expanded_root = self.ui(label + "-expanded")
+        expanded_dialog = verify_appearance_dialog(expanded_root, True)
         if verify:
-            ui["expanded"] = verify_editor(self.ui(label + "-expanded"), True)
-            if ui["expanded"]["currentRowCenter"] != self.expanded_center:
-                raise HarnessError("Learned expanded selector coordinate changed")
+            ui["expanded"] = expanded_dialog
         focus_rows.append(self.require_focus(sheet["window"], label + "-before-collapse-focus"))
-        self.tap(self.expanded_center, label + "-collapse-selector")
+        self.tap(expanded_dialog["choice"]["currentRowCenter"], label + "-collapse-selector")
         focus_rows.append(self.require_focus(sheet["window"], label + "-after-collapse-focus"))
+        recollapsed_root = self.ui(label + "-recollapsed")
+        recollapsed_dialog = verify_appearance_dialog(recollapsed_root, False)
         if verify:
-            ui["recollapsed"] = verify_editor(self.ui(label + "-recollapsed"), False)
-        self.back(label + "-close-editor")
+            ui["recollapsed"] = recollapsed_dialog
+        self.tap(recollapsed_dialog["finishCenter"], label + "-close-appearance-dialog")
         focus_rows.append(self.require_focus(self.activity_window, label + "-after-close-focus"))
         self.cycles.append({"cycle": index, "focusChecks": focus_rows,
+                            "appearanceEntryCenter": appearance_center,
+                            "selectedOptionTapped": False,
                             "uiVerification": ui, "uiSnapshotValidated": verify,
                             "completedUtc": utc_now()})
 
@@ -520,18 +560,21 @@ class FlowHarness:
         self.metadata["configAfter"] = self.config_snapshot("config-after")
         before = [(v["path"], v["present"], v["sha256"]) for v in self.metadata["configBefore"]]
         after = [(v["path"], v["present"], v["sha256"]) for v in self.metadata["configAfter"]]
-        self.result["committedConfigUnchanged"] = before == after
+        self.result["committedConfigUnchanged"] = (
+            before == after if self.private_evidence_available else None)
+        self.result["configInvarianceEvidence"] = (
+            "private_file_hashes" if self.private_evidence_available else "not_verified_run_as_unavailable")
         self.metadata["runtimeReceiptAfter"] = self.receipt("runtime-receipt-after")
         self.result["finalRenderer"] = self.renderer_stats("final")
-        for command, suffix in ((["dumpsys", "gfxinfo", PACKAGE], "gfxinfo.txt"),
-                                (["dumpsys", "gfxinfo", PACKAGE, "framestats"], "framestats.txt"),
+        for command, suffix in ((["dumpsys", "gfxinfo", self.package], "gfxinfo.txt"),
+                                (["dumpsys", "gfxinfo", self.package, "framestats"], "framestats.txt"),
                                 (["dumpsys", "cpuinfo"], "cpuinfo.txt"),
-                                (["dumpsys", "meminfo", PACKAGE], "meminfo.txt")):
+                                (["dumpsys", "meminfo", self.package], "meminfo.txt")):
             text, _, _ = self.adb.shell(*command, label="final-" + suffix)
             self.save_text(suffix, text)
         self.result["resourceSampling"] = "before/intermediate/after snapshots; no slow-frame attribution or leak verdict"
         self.result["coldRendererInterpretation"] = "cold-start restarts renderer; use per-cycle statistics rather than final-only aggregate"
-        if not self.result["committedConfigUnchanged"]:
+        if self.result["committedConfigUnchanged"] is False:
             raise HarnessError("Committed config hash changed during a no-edit flow")
 
     def stop_segment(self, index):
@@ -581,7 +624,7 @@ class FlowHarness:
                 cycle_error = None
                 try:
                     self.adb.shell("atrace", "--async_start", "-b", str(self.args.trace_buffer_kb),
-                                   "-a", PACKAGE, "gfx", "view", "wm", "am", "dalvik", "sched",
+                                   "-a", self.package, "gfx", "view", "wm", "am", "dalvik", "sched",
                                    label=f"cycle-{index:02d}-atrace-start")
                     if self.args.scenario == "cold-start":
                         self.cold_cycle(index)
@@ -630,6 +673,9 @@ class FlowHarness:
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True)
+    parser.add_argument("--package", default=PACKAGE)
+    parser.add_argument("--activity", default=ACTIVITY_CLASS,
+                        help="Activity class name; may be fully qualified or start with a dot")
     parser.add_argument("--scenario", required=True, choices=("cold-start", "editor-choice"))
     parser.add_argument("--iterations", type=int, default=30)
     parser.add_argument("--output-name", required=True)
@@ -640,6 +686,10 @@ def arguments(argv=None):
     parser.add_argument("--action-wait-ms", type=int, default=500)
     parser.add_argument("--trace-buffer-kb", type=int, default=32768)
     args = parser.parse_args(argv)
+    if re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", args.package, flags=re.ASCII) is None:
+        parser.error("Package must be a valid Android application ID")
+    if re.fullmatch(r"\.?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", args.activity, flags=re.ASCII) is None:
+        parser.error("Activity must be a fully qualified or relative class name")
     if re.fullmatch(r"[A-Za-z0-9._:-]+", args.serial) is None:
         parser.error("Serial contains unsupported characters")
     if not args.allow_physical_device and re.fullmatch(r"emulator-\d+", args.serial) is None:

@@ -36,6 +36,16 @@ final class RuntimeApplicationPolicy {
         return controlCenter(FusionActivationStatus.WAITING, "control_center_mount_pending");
     }
 
+    static Result systemSurface(String feature, boolean enabled, boolean adapterAvailable,
+            boolean applied, boolean mounted) {
+        if (!enabled) return new Result(feature, FusionActivationStatus.APPLIED, "native_restored");
+        if (!adapterAvailable) return new Result(feature, FusionActivationStatus.DEGRADED,
+                "surface_hooks_unavailable");
+        if (applied) return new Result(feature, FusionActivationStatus.APPLIED, "surface_applied");
+        return new Result(feature, mounted ? FusionActivationStatus.DEGRADED : FusionActivationStatus.WAITING,
+                mounted ? "surface_application_incomplete" : "surface_mount_pending");
+    }
+
     private static Result statusBar(String state, String reason) {
         return new Result(FusionActivationStatus.FEATURE_STATUS_BAR, state, reason);
     }

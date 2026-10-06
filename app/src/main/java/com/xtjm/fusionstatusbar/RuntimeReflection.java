@@ -15,12 +15,103 @@ import java.util.WeakHashMap;
 final class RuntimeReflection {
     // ClassValue is unavailable on Android 13. Weak values also break the member-to-class cycle.
     private static final Map<Class<?>, WeakReference<Members>> CACHE = new WeakHashMap<>();
+    private static final ThreadLocal<LastFieldLookup> LAST_FIELD =
+            ThreadLocal.withInitial(LastFieldLookup::new);
+    private static final ThreadLocal<LastMethodLookup> LAST_EXACT =
+            ThreadLocal.withInitial(LastMethodLookup::new);
+    private static final ThreadLocal<LastCountLookup> LAST_COUNT =
+            ThreadLocal.withInitial(LastCountLookup::new);
+    private static final ThreadLocal<LastMethodLookup> LAST_COMPATIBLE =
+            ThreadLocal.withInitial(LastMethodLookup::new);
     private static final class Members {
         final Map<String, Field> fields = new HashMap<>();
         final Map<Signature, Method> methods = new HashMap<>();
     }
     private record Signature(String name, List<Class<?>> arguments, int count, boolean oemOnly) { }
     private RuntimeReflection() { }
+
+    private static final class LastFieldLookup {
+        WeakReference<Class<?>> type;
+        String name;
+        WeakReference<Field> field;
+        boolean negative;
+
+        boolean matches(Class<?> requestedType, String requestedName) {
+            if (type == null || type.get() != requestedType || !requestedName.equals(name)) {
+                return false;
+            }
+            return negative || field.get() != null;
+        }
+
+        Field result() {
+            return negative ? null : field.get();
+        }
+
+        void record(Class<?> requestedType, String requestedName, Field resolved) {
+            type = new WeakReference<>(requestedType);
+            name = requestedName;
+            field = resolved == null ? new WeakReference<>(null) : new WeakReference<>(resolved);
+            negative = resolved == null;
+        }
+    }
+
+    private static final class LastMethodLookup {
+        WeakReference<Class<?>> type;
+        String name;
+        Class<?>[] arguments;
+        boolean oemOnly;
+        WeakReference<Method> method;
+        boolean negative;
+
+        boolean matches(Class<?> requestedType, String requestedName, Class<?>[] requestedArguments,
+                boolean requestedOemOnly) {
+            if (type == null || type.get() != requestedType || oemOnly != requestedOemOnly
+                    || !requestedName.equals(name) || !Arrays.equals(arguments, requestedArguments)) {
+                return false;
+            }
+            return negative || method.get() != null;
+        }
+
+        Method result() {
+            return negative ? null : method.get();
+        }
+
+        void record(Class<?> requestedType, String requestedName, Class<?>[] requestedArguments,
+                boolean requestedOemOnly, Method resolved) {
+            type = new WeakReference<>(requestedType);
+            name = requestedName;
+            arguments = requestedArguments.clone();
+            oemOnly = requestedOemOnly;
+            method = resolved == null ? new WeakReference<>(null) : new WeakReference<>(resolved);
+            negative = resolved == null;
+        }
+    }
+
+    private static final class LastCountLookup {
+        WeakReference<Class<?>> type;
+        String name;
+        int count;
+        WeakReference<Method> method;
+        boolean negative;
+
+        boolean matches(Class<?> requestedType, String requestedName, int requestedCount) {
+            return type != null && type.get() == requestedType && count == requestedCount
+                    && requestedName.equals(name) && (negative || method.get() != null);
+        }
+
+        Method result() {
+            return negative ? null : method.get();
+        }
+
+        void record(Class<?> requestedType, String requestedName, int requestedCount,
+                Method resolved) {
+            type = new WeakReference<>(requestedType);
+            name = requestedName;
+            count = requestedCount;
+            method = resolved == null ? new WeakReference<>(null) : new WeakReference<>(resolved);
+            negative = resolved == null;
+        }
+    }
 
     private static synchronized Members members(Class<?> type) {
         WeakReference<Members> reference = CACHE.get(type);
@@ -34,9 +125,15 @@ final class RuntimeReflection {
 
     static Field field(Class<?> type, String name) {
         if (type == null) return null;
+        LastFieldLookup last = LAST_FIELD.get();
+        if (last.matches(type, name)) return last.result();
         Members cache = members(type);
         synchronized (cache) {
-            if (cache.fields.containsKey(name)) return cache.fields.get(name);
+            if (cache.fields.containsKey(name)) {
+                Field result = cache.fields.get(name);
+                last.record(type, name, result);
+                return result;
+            }
             Field found = null;
             for (Class<?> current = type; current != null; current = current.getSuperclass()) {
                 try {
@@ -46,23 +143,39 @@ final class RuntimeReflection {
                 } catch (NoSuchFieldException ignored) { }
             }
             cache.fields.put(name, found);
+            last.record(type, name, found);
             return found;
         }
     }
 
     static Method exact(Class<?> type, String name, Class<?>[] arguments, boolean oemOnly) {
-        return resolve(type, new Signature(name, Arrays.asList(arguments.clone()), -1, oemOnly), null);
+        if (type == null) return null;
+        LastMethodLookup last = LAST_EXACT.get();
+        if (last.matches(type, name, arguments, oemOnly)) return last.result();
+        Method result = resolve(type, new Signature(name, Arrays.asList(arguments.clone()), -1, oemOnly), null);
+        last.record(type, name, arguments, oemOnly, result);
+        return result;
     }
 
     static Method withCount(Class<?> type, String name, int count) {
-        return resolve(type, new Signature(name, List.of(), count, false), null);
+        if (type == null) return null;
+        LastCountLookup last = LAST_COUNT.get();
+        if (last.matches(type, name, count)) return last.result();
+        Method result = resolve(type, new Signature(name, List.of(), count, false), null);
+        last.record(type, name, count, result);
+        return result;
     }
 
     static Method compatible(Class<?> type, String name, Object[] arguments) {
+        if (type == null) return null;
         Class<?>[] classes = new Class<?>[arguments.length];
         for (int i = 0; i < arguments.length; i++)
             classes[i] = arguments[i] == null ? null : arguments[i].getClass();
-        return resolve(type, new Signature(name, Arrays.asList(classes), -2, false), arguments);
+        LastMethodLookup last = LAST_COMPATIBLE.get();
+        if (last.matches(type, name, classes, false)) return last.result();
+        Method result = resolve(type, new Signature(name, Arrays.asList(classes), -2, false), arguments);
+        last.record(type, name, classes, false, result);
+        return result;
     }
 
     private static Method resolve(Class<?> type, Signature key, Object[] values) {

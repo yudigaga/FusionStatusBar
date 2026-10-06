@@ -56,6 +56,22 @@ public class SettingsPageControllerTest {
         assertEquals(125, config.iconScale);
     }
 
+    @Test public void statusClockSizeCanBeOverriddenAndReturnedToNativeDefault() {
+        pages.showClock();
+        Switch customSize = (Switch) find("自定义字号");
+        SeekBar size = (SeekBar) find("状态栏时间字号");
+        customSize.performClick();
+        Shadows.shadowOf(size).getOnSeekBarChangeListener()
+                .onProgressChanged(size, 22 - 8, true);
+        assertEquals(22, config.statusClockSizeSp);
+        customSize.performClick();
+        assertEquals(0, config.statusClockSizeSp);
+        assertFalse(size.isEnabled());
+        customSize.performClick();
+        assertEquals(22, config.statusClockSizeSp);
+        assertTrue(size.isEnabled());
+    }
+
     @Test public void notificationFontToggleRestoresSelectedSizeAfterDisabling() {
         pages.showNotificationClock();
         Switch custom = (Switch) find("自定义字号");

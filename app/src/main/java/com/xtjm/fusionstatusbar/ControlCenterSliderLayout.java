@@ -1,6 +1,9 @@
 package com.xtjm.fusionstatusbar;
 
 import android.graphics.Outline;
+import android.graphics.Matrix;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.util.Log;
 import android.view.Gravity;
@@ -19,7 +22,6 @@ import static com.xtjm.fusionstatusbar.ControlCenterRuntimeGrid.readField;
 
 /** Adapts the OEM slider to the published grid bounds. */
 final class ControlCenterSliderLayout {
-    private final Object holder;
     private final SeekBar slider;
     private final View progress;
     private final View progressBg;
@@ -42,6 +44,7 @@ final class ControlCenterSliderLayout {
     private final boolean surfaceClips;
     private final ControlCenterLayoutPlan.Item placement;
     private final float defaultRadiusPx;
+    private final float borderInsetPx;
     private final ViewOutlineProvider trackOutline;
     private final ViewOutlineProvider fillOutline;
     private final ViewTreeObserver.OnPreDrawListener geometryListener;
@@ -55,11 +58,16 @@ final class ControlCenterSliderLayout {
 
     static ControlCenterSliderLayout create(Object holder, ControlCenterLayoutPlan.Item item)
             throws ReflectiveOperationException {
-        return create(holder, item, 0f);
+        return create(holder, item, 0f, 0f);
     }
 
     static ControlCenterSliderLayout create(Object holder, ControlCenterLayoutPlan.Item item,
             float defaultRadiusPx) throws ReflectiveOperationException {
+        return create(holder, item, defaultRadiusPx, 0f);
+    }
+
+    static ControlCenterSliderLayout create(Object holder, ControlCenterLayoutPlan.Item item,
+            float defaultRadiusPx, float borderInsetPx) throws ReflectiveOperationException {
         if (item.type != ControlCenterLayoutPlan.Type.COMPONENT
                 || (!ControlCenterComponentSpec.BRIGHTNESS.equals(item.firstSpec)
                 && !ControlCenterComponentSpec.VOLUME.equals(item.firstSpec))) return null;
@@ -70,14 +78,13 @@ final class ControlCenterSliderLayout {
         return new ControlCenterSliderLayout(holder, (SeekBar) slider, (View) progress,
                 (View) readField(binding, "progressBg"), (View) readField(binding, "icon"),
                 (View) readField(binding, "topText"), (View) readField(binding, "toggleSliderInner"),
-                item, defaultRadiusPx);
+                item, defaultRadiusPx, borderInsetPx);
     }
 
     private ControlCenterSliderLayout(Object holder, SeekBar slider, View progress,
             View progressBg, View icon, View topText, View inner,
-            ControlCenterLayoutPlan.Item placement, float defaultRadiusPx)
+            ControlCenterLayoutPlan.Item placement, float defaultRadiusPx, float borderInsetPx)
             throws ReflectiveOperationException {
-        this.holder = holder;
         this.slider = slider;
         this.progress = progress;
         this.progressBg = progressBg;
@@ -86,6 +93,7 @@ final class ControlCenterSliderLayout {
         this.inner = inner;
         this.placement = placement;
         this.defaultRadiusPx = Math.max(0f, defaultRadiusPx);
+        this.borderInsetPx = Math.max(0f, borderInsetPx);
         this.horizontal = placement.width > placement.height;
         rotation = slider.getRotation();
         layoutDirection = slider.getLayoutDirection();
@@ -113,21 +121,41 @@ final class ControlCenterSliderLayout {
             }
         };
         fillOutline = new ViewOutlineProvider() {
+            private final Path path = new Path();
+            private final RectF track = new RectF();
+            private final RectF level = new RectF();
+            private final Matrix transform = new Matrix();
+
             @Override public void getOutline(View view, Outline result) {
                 int range = slider.getMax() - slider.getMin();
                 float fraction = range > 0
                         ? (slider.getProgress() - slider.getMin()) / (float) range : 0f;
                 fraction = Math.max(0f, Math.min(1f, fraction));
-                int extent = horizontal ? view.getWidth() : view.getHeight();
-                int filled = Math.round(extent * fraction);
-                if (filled == 0 || view.getWidth() <= 0 || view.getHeight() <= 0) {
+                if (view.getWidth() <= 0 || view.getHeight() <= 0) {
                     result.setEmpty();
-                } else if (horizontal) {
-                    result.setRoundRect(0, 0, filled, view.getHeight(), fillRadius());
-                } else {
-                    result.setRoundRect(0, view.getHeight() - filled,
-                            view.getWidth(), view.getHeight(), fillRadius());
+                    return;
                 }
+                View host = geometryHost();
+                track.set(0, 0, host.getWidth(), host.getHeight());
+                if (host != view) {
+                    transform.reset();
+                    host.transformMatrixToGlobal(transform);
+                    view.transformMatrixToLocal(transform);
+                    transform.mapRect(track);
+                }
+                level.set(track);
+                if (horizontal) {
+                    level.right = track.left + borderInsetPx
+                            + (track.width() - borderInsetPx * 2f) * fraction;
+                } else {
+                    level.top = track.bottom - borderInsetPx
+                            - (track.height() - borderInsetPx * 2f) * fraction;
+                }
+                if (fraction <= 0f) level.setEmpty();
+                SliderFillGeometry.intersect(path, track, trackRadius(host), borderInsetPx,
+                        level, placement.shape == ControlCenterLayoutPlan.Shape.CIRCLE);
+                if (path.isEmpty()) result.setEmpty();
+                else result.setPath(path);
             }
         };
         if (horizontal) {
@@ -220,7 +248,8 @@ final class ControlCenterSliderLayout {
             // independently of the grid's outer container and stroke.
             adaptCorners(progressBg, trackRadius(inner),
                     placement.shape == ControlCenterLayoutPlan.Shape.CIRCLE);
-            adaptCorners(progress, fillRadius(), false);
+            adaptCorners(progress, trackRadius(inner),
+                    placement.shape == ControlCenterLayoutPlan.Shape.CIRCLE);
         }
         if (inner != null || horizontal) setClip(progress, fillOutline);
     }
@@ -240,11 +269,6 @@ final class ControlCenterSliderLayout {
                 : defaultRadiusPx;
     }
 
-    private float fillRadius() {
-        float nativeRadius = progressRadius();
-        return inner == null ? nativeRadius : Math.min(nativeRadius, trackRadius(inner));
-    }
-
     private void adaptCorners(View view, float radius, boolean oval) {
         if (view == null || !(view.getBackground() instanceof GradientDrawable drawable)) return;
         nativeCorners.computeIfAbsent(drawable, NativeCorners::new);
@@ -255,21 +279,6 @@ final class ControlCenterSliderLayout {
         drawable.setShape(shape);
         drawable.setCornerRadius(radius);
         view.invalidateOutline();
-    }
-
-    private float progressRadius() {
-        float radius = 0f;
-        try {
-            Object value = callOptional(holder, "getProgressRadius");
-            if (value instanceof Number) radius = ((Number) value).floatValue();
-        } catch (ReflectiveOperationException ignored) {
-            // Theme backgrounds still supply their native radius below.
-        }
-        if (inner == null && progressBg != null
-                && progressBg.getBackground() instanceof GradientDrawable bg) {
-            radius = radius > 0f ? Math.min(radius, bg.getCornerRadius()) : bg.getCornerRadius();
-        }
-        return Math.max(0f, radius);
     }
 
     private static final class NativeCorners {

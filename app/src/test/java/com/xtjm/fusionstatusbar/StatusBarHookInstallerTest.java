@@ -26,14 +26,14 @@ public class StatusBarHookInstallerTest {
                 callback -> NO_OP);
 
         StatusBarHookInstaller.Targets targets = installer.resolve(getClass().getClassLoader());
-        assertEquals(6, resolver.resolvedNames.size());
+        assertEquals(7, resolver.resolvedNames.size());
         StatusBarHookInstaller.Result result = installer.install(targets);
 
         assertEquals(13, result.batteryHooks);
         assertEquals(4, result.containerHooks);
         assertEquals(2, result.batteryContainerHooks);
-        assertEquals(7, result.layoutHooks);
-        assertEquals(26, registrar.handles.size());
+        assertEquals(10, result.layoutHooks);
+        assertEquals(29, registrar.handles.size());
         assertTrue(registrar.contains("BatteryFixture#onMeasure",
                 BatteryFixture.class.getDeclaredMethod("onMeasure", int.class, int.class)));
         Method layout = BatteryFixture.class.getDeclaredMethod("onLayout", boolean.class,
@@ -41,13 +41,19 @@ public class StatusBarHookInstallerTest {
         assertTrue(registrar.contains("BatteryFixture#onLayout", layout));
         assertTrue(registrar.contains("PhoneBaseFixture#onMeasure",
                 PhoneBaseFixture.class.getDeclaredMethod("onMeasure", int.class, int.class)));
+        assertTrue(registrar.contains("StatusWindowFixture#getBarLayoutParamsForRotation",
+                StatusWindowFixture.class.getDeclaredMethod("getBarLayoutParamsForRotation", int.class)));
+        assertTrue(registrar.contains("StatusWindowFixture#apply",
+                StatusWindowFixture.class.getDeclaredMethod("apply", StatusWindowFixture.State.class)));
+        assertTrue(registrar.contains("StatusWindowFixture#refreshStatusBarHeight",
+                StatusWindowFixture.class.getDeclaredMethod("refreshStatusBarHeight")));
         assertTrue(result.missingClasses.isEmpty());
         assertTrue(result.missingMethods.isEmpty());
 
         StatusBarHookInstaller.Result repeated = installer.install(targets);
         assertEquals(0, repeated.batteryHooks + repeated.containerHooks
                 + repeated.batteryContainerHooks + repeated.layoutHooks);
-        assertEquals("Repeated installation retains the existing registrations", 26,
+        assertEquals("Repeated installation retains the existing registrations", 29,
                 registrar.handles.size());
     }
 
@@ -65,8 +71,8 @@ public class StatusBarHookInstallerTest {
         assertTrue(result.missingClasses.contains(StatusBarHookInstaller.BATTERY_CLASS));
         assertEquals(0, result.batteryHooks);
         assertEquals(4, result.containerHooks);
-        assertEquals(7, result.layoutHooks);
-        assertEquals(13, registrar.handles.size());
+        assertEquals(10, result.layoutHooks);
+        assertEquals(16, registrar.handles.size());
     }
 
     @Test public void missingMethodDoesNotPreventOtherMethodsInItsGroup() throws Exception {
@@ -83,7 +89,7 @@ public class StatusBarHookInstallerTest {
         assertTrue(result.missingMethods.contains("PartialBatteryFixture#onMeasure"));
         assertTrue(registrar.contains("PartialBatteryFixture#onAttachedToWindow",
                 PartialBatteryFixture.class.getDeclaredMethod("onAttachedToWindow")));
-        assertEquals(14, registrar.handles.size());
+        assertEquals(17, registrar.handles.size());
     }
 
     @Test public void retriesOnlyTheFailedRegistrationAndKeepsClassLoaderResultsSeparate()
@@ -128,6 +134,8 @@ public class StatusBarHookInstallerTest {
         resolver.classes.put(StatusBarHookInstaller.BATTERY_CONTAINER_CLASS, BatteryContainerFixture.class);
         resolver.classes.put(StatusBarHookInstaller.PHONE_CLASS, PhoneFixture.class);
         resolver.classes.put(StatusBarHookInstaller.PHONE_BASE_CLASS, PhoneBaseFixture.class);
+        resolver.classes.put(StatusBarHookInstaller.STATUS_WINDOW_CONTROLLER_CLASS,
+                StatusWindowFixture.class);
         resolver.classes.put(StatusBarHookInstaller.KEYGUARD_CLASS, KeyguardFixture.class);
         return resolver;
     }
@@ -223,6 +231,13 @@ public class StatusBarHookInstallerTest {
 
     public static class PhoneBaseFixture {
         void onMeasure(int a, int b) { }
+    }
+
+    public static class StatusWindowFixture {
+        static class State { }
+        Object getBarLayoutParamsForRotation(int rotation) { return null; }
+        void apply(State state) { }
+        void refreshStatusBarHeight() { }
     }
 
     public static class KeyguardFixture {

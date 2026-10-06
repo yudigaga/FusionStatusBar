@@ -13,7 +13,7 @@ final class FusionActivationStatus {
     private static final String PREFS = "fusion_activation";
     private static final String KEY_BOOT_START = "boot_start_ms";
     private static final String KEY_REPORT_TIME = "report_time_ms";
-    private static final String STATUS_URI = "content://io.github.yudigaga.fusionstatusbar.config/activation";
+    private static final String STATUS_URI = "content://" + BuildConfig.APPLICATION_ID + ".config/activation";
     private static final long BOOT_TOLERANCE_MS = 120_000L;
     static final String KEY_READ_REVISION = "read_revision";
     static final String KEY_APPLIED_REVISION = "applied_revision";
@@ -30,6 +30,10 @@ final class FusionActivationStatus {
     static final String FEATURE_STATUS_BAR = "status_bar";
     static final String FEATURE_CONTROL_CENTER = "control_center";
     static final String FEATURE_NOTIFICATION_CLOCK = "notification_clock";
+    static final String FEATURE_POWER_MENU = "power_menu";
+    static final String FEATURE_VOLUME_DIALOG = "volume_dialog";
+    static final String FEATURE_NOTIFICATION_SURFACE = "notification_surface";
+    static final String FEATURE_HEADS_UP = "heads_up";
     private static final Object LOCK = new Object();
     private static final String RUNTIME_SESSION = java.util.UUID.randomUUID().toString();
 

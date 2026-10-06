@@ -93,14 +93,11 @@ public final class SystemUiHooks {
             java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final Set<String> CONTROL_CENTER_COMPONENTS_LOGGED =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private static final AtomicBoolean CONTROL_CENTER_PLUGIN_HOOKED = new AtomicBoolean(false);
-    private static final Map<ClassLoader, Boolean> CONTROL_CENTER_PLUGIN_LOADERS =
-            new WeakHashMap<>();
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+    private static final ControlCenterPluginCapabilities CONTROL_CENTER_PLUGIN_CAPABILITIES =
+            new ControlCenterPluginCapabilities(MAIN_HANDLER::postDelayed);
     private static final BoundedHookRetry INSTALLATION_RETRY = new BoundedHookRetry(
             (task, delay) -> MAIN_HANDLER.postDelayed(task, delay), 3000L, 4);
-    private static final BoundedHookRetry CONTROL_CENTER_PLUGIN_RETRY = new BoundedHookRetry(
-            (task, delay) -> MAIN_HANDLER.postDelayed(task, delay), 3000L, 8);
     private static final AtomicBoolean CONTROL_CENTER_ADAPTER_REFRESH_POSTED =
             new AtomicBoolean(false);
     private static final RuntimeHookRegistry<XposedInterface.HookHandle> HANDLES =
@@ -127,6 +124,9 @@ public final class SystemUiHooks {
     private static Field notificationExpandContextField;
     private static Field notificationExpandProgressField;
     private static volatile FusionConfig currentConfig = FusionConfig.defaults();
+    private static boolean configApplied;
+    private static final Map<String, RuntimeApplicationPolicy.Result> FEATURE_STATES =
+            new java.util.HashMap<>();
     private static WeakReference<View> notificationStackRef = new WeakReference<>(null);
     private static float nativeNotificationTopPadding;
     private static volatile StatusBarLayoutPlan currentPlan =
@@ -196,6 +196,8 @@ public final class SystemUiHooks {
                 SystemUiHooks::ensureConfigObserver);
         int surfaceHooks = NotificationSurfaceHooks.install(classLoader, SystemUiHooks::hookMethod,
                 () -> currentConfig, SystemUiHooks::ensureConfigObserver);
+        SystemMenuHooks.setReporter(SystemUiHooks::reportSystemSurfaceApplication);
+        NotificationSurfaceHooks.setReporter(SystemUiHooks::reportSystemSurfaceApplication);
         log(Log.INFO, "system surface hooks menus=" + menuHooks + " notifications=" + surfaceHooks, null);
         if (statusBarTargets.battery == null) {
             log(Log.ERROR, "battery view missing; original icons kept", null);
@@ -387,6 +389,7 @@ public final class SystemUiHooks {
         if (source == null || classLoader == null) return;
         if (module == null) module = source;
         int hooks = hookControlCenterPlugin(classLoader);
+        CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(classLoader);
         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
                 SystemUiHooks::ensureConfigObserver);
         log(Log.INFO, "plugin menu hooks=" + menuHooks, null);
@@ -425,6 +428,9 @@ public final class SystemUiHooks {
             case PHONE_LAYOUT -> SystemUiHooks::phoneLayout;
             case PHONE_CUTOUT_UPDATE -> SystemUiHooks::phoneCutoutUpdate;
             case PHONE_MEASURE -> SystemUiHooks::phoneMeasure;
+            case STATUS_WINDOW_LAYOUT_PARAMS -> SystemUiHooks::statusWindowLayoutParams;
+            case STATUS_WINDOW_APPLY -> SystemUiHooks::statusWindowApply;
+            case STATUS_WINDOW_REFRESH_HEIGHT -> SystemUiHooks::statusWindowRefreshHeight;
             case KEYGUARD_ATTACHED -> SystemUiHooks::keyguardAttach;
             case KEYGUARD_LAYOUT -> SystemUiHooks::keyguardLayout;
         };
@@ -485,17 +491,15 @@ public final class SystemUiHooks {
 
     private static int hookControlCenterPlugin(ClassLoader targetLoader) {
         if (targetLoader == null) return 0;
+        CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(targetLoader);
         int before = HANDLES.size();
         ControlCenterPluginHookInstaller installer = controlCenterPluginHookInstaller();
         ControlCenterPluginHookInstaller.Result result = installer.install(targetLoader);
         int count = HANDLES.size() - before;
         boolean layoutAvailable = result.layoutAvailable;
-        synchronized (CONTROL_CENTER_PLUGIN_LOADERS) {
-            CONTROL_CENTER_PLUGIN_LOADERS.put(targetLoader, layoutAvailable);
-        }
-        if (layoutAvailable) {
-            CONTROL_CENTER_PLUGIN_HOOKED.set(true);
-        }
+        CONTROL_CENTER_PLUGIN_CAPABILITIES.record(targetLoader, result);
+        CONTROL_CENTER_PLUGIN_CAPABILITIES.scheduleRetry(targetLoader,
+                SystemUiHooks::hookControlCenterPlugin);
         if (count > 0) {
             log(Log.INFO, "control-center plugin hooks installed=" + count
                     + " compact=" + result.count(ControlCenterPluginHookInstaller.Group.COMPACT)
@@ -510,6 +514,8 @@ public final class SystemUiHooks {
                     + " componentBind=" + result.count(ControlCenterPluginHookInstaller.Group.COMPONENT_BIND)
                     + " componentShape=" + result.count(ControlCenterPluginHookInstaller.Group.COMPONENT_SHAPE)
                     + " componentLayout=" + result.count(ControlCenterPluginHookInstaller.Group.COMPONENT_LAYOUT)
+                    + " header=" + (result.count(ControlCenterPluginHookInstaller.Group.HEADER_DATE)
+                            + result.count(ControlCenterPluginHookInstaller.Group.HEADER_CARRIER))
                     + " grid=" + result.count(ControlCenterPluginHookInstaller.Group.GRID)
                     + " gridContent=" + result.count(ControlCenterPluginHookInstaller.Group.GRID_CONTENT)
                     + " layoutAvailable=" + layoutAvailable, null);
@@ -555,7 +561,33 @@ public final class SystemUiHooks {
             case COMPONENT_BIND -> SystemUiHooks::controlCenterPluginComponentBind;
             case COMPONENT_SPAN -> SystemUiHooks::controlCenterPluginComponentSpan;
             case COMPONENT_LAYOUT_BIND -> SystemUiHooks::controlCenterPluginComponentLayoutBind;
+            case HEADER_DATE -> SystemUiHooks::controlCenterPluginHeaderDate;
+            case HEADER_CARRIER_PRIVACY -> SystemUiHooks::controlCenterPluginHeaderCarrierPrivacy;
         };
+    }
+
+    private static Object controlCenterPluginHeaderDate(XposedInterface.Chain chain)
+            throws Throwable {
+        Object result = chain.proceed();
+        try {
+            ControlCenterHeaderVisibility.afterDateUpdate(chain.getThisObject(),
+                    currentConfig.controlCenter);
+        } catch (Throwable error) {
+            log(Log.WARN, "control-center date visibility update failed", error);
+        }
+        return result;
+    }
+
+    private static Object controlCenterPluginHeaderCarrierPrivacy(XposedInterface.Chain chain)
+            throws Throwable {
+        Object result = chain.proceed();
+        try {
+            ControlCenterHeaderVisibility.afterCarrierPrivacyUpdate(chain.getThisObject(),
+                    chain.getArgs().toArray(), currentConfig.controlCenter);
+        } catch (Throwable error) {
+            log(Log.WARN, "control-center carrier visibility update failed", error);
+        }
+        return result;
     }
 
     private static Object controlCenterPluginWindowBlurRatio(XposedInterface.Chain chain)
@@ -593,6 +625,7 @@ public final class SystemUiHooks {
                     Object result = chain.proceed(args);
                     if (name.equals("setMiViewBlurMode") || name.equals("setMiBackgroundBlurMode")) ControlCenterMaterials.updateNativeSurface(view,
                             currentConfig.controlCenter, controlCenterNativeEditing(view));
+                    ControlCenterRuntimeGrid.markMaterialsDirty(view);
                     return result;
                 })) nativeCount++;
             } catch (NoSuchMethodException ignored) { }
@@ -627,6 +660,7 @@ public final class SystemUiHooks {
                     args[0] = ControlCenterMaterials.drawableColor((Drawable) chain.getThisObject(), (Integer) args[0], currentConfig.controlCenter);
                     Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
                     ControlCenterMaterials.drawableUpdated((Drawable) chain.getThisObject(), currentConfig.controlCenter);
+                    markMaterialsDirty(chain.getThisObject());
                     return result;
                 });
             } catch (NoSuchMethodException ignored) { }
@@ -638,6 +672,7 @@ public final class SystemUiHooks {
                         (android.content.res.ColorStateList) args[0], currentConfig.controlCenter);
                 Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
                 ControlCenterMaterials.drawableUpdated((Drawable) chain.getThisObject(), currentConfig.controlCenter);
+                markMaterialsDirty(chain.getThisObject());
                 return result;
             });
             hookMethod("control-surface-colors", GradientDrawable.class.getDeclaredMethod("setColors", int[].class), chain -> {
@@ -645,6 +680,7 @@ public final class SystemUiHooks {
                 args[0] = ControlCenterMaterials.drawableColors((GradientDrawable) chain.getThisObject(), (int[]) args[0], currentConfig.controlCenter);
                 Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
                 ControlCenterMaterials.drawableUpdated((Drawable) chain.getThisObject(), currentConfig.controlCenter);
+                markMaterialsDirty(chain.getThisObject());
                 return result;
             });
         } catch (NoSuchMethodException ignored) { }
@@ -657,6 +693,7 @@ public final class SystemUiHooks {
                         currentConfig.controlCenter);
                 Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
                 ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                    markMaterialsDirty(drawable);
                 return result;
             });
             hookMethod("control-surface-tint-list", Drawable.class.getDeclaredMethod(
@@ -667,6 +704,7 @@ public final class SystemUiHooks {
                         (ColorStateList) args[0], currentConfig.controlCenter);
                 Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
                 ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                    markMaterialsDirty(drawable);
                 return result;
             });
             hookMethod("control-surface-tint-mode", Drawable.class.getDeclaredMethod(
@@ -677,6 +715,7 @@ public final class SystemUiHooks {
                         (PorterDuff.Mode) args[0], currentConfig.controlCenter);
                 Object result = ControlCenterMaterials.applyHook(() -> chain.proceed(args));
                 ControlCenterMaterials.drawableUpdated(drawable, currentConfig.controlCenter);
+                    markMaterialsDirty(drawable);
                 return result;
             });
         } catch (NoSuchMethodException ignored) { }
@@ -729,15 +768,7 @@ public final class SystemUiHooks {
     }
 
     private static void scheduleControlCenterPluginRetry() {
-        CONTROL_CENTER_PLUGIN_RETRY.scheduleIfNeeded(
-                () -> !CONTROL_CENTER_PLUGIN_HOOKED.get() || HANDLES.hasFailures(), () -> {
-            ArrayList<ClassLoader> targets;
-            synchronized (CONTROL_CENTER_PLUGIN_LOADERS) {
-                targets = new ArrayList<>(CONTROL_CENTER_PLUGIN_LOADERS.keySet());
-            }
-            if (!targets.contains(loader)) targets.add(loader);
-            for (ClassLoader target : targets) hookControlCenterPlugin(target);
-        });
+        CONTROL_CENTER_PLUGIN_CAPABILITIES.scheduleRetries(SystemUiHooks::hookControlCenterPlugin);
     }
 
     private static int hookCurrentTilesInteractor() {
@@ -1083,6 +1114,7 @@ public final class SystemUiHooks {
             Field itemViewField = findField(args[0].getClass(), "itemView");
             Object value = itemViewField == null ? null : itemViewField.get(args[0]);
             if (!(value instanceof View view) || item == null) return result;
+            ControlCenterRuntimeGrid.markMaterialsDirty(view);
             String spec = tileSpec(item);
             if (spec.isEmpty()) {
                 spec = ControlCenterComponentSpec.fromControllerName(item.getClass().getName());
@@ -1120,6 +1152,7 @@ public final class SystemUiHooks {
                 if (view instanceof View tile && tile.getParent() != null
                         && currentConfig.controlCenter.enabled
                         && !currentConfig.controlCenter.hasLayoutPlanOverride()) {
+                    ControlCenterRuntimeGrid.markMaterialsDirty(tile);
                     nativeControlCenterAppliedSettings = currentConfig.controlCenter;
                     reportControlCenterApplication(currentConfig.controlCenter,
                             FusionActivationStatus.APPLIED, "native_control_center_bound");
@@ -1632,6 +1665,7 @@ public final class SystemUiHooks {
             catch (RuntimeException | LinkageError error) {
                 log(Log.WARN, "control-center native tile material refresh failed", error);
             }
+            ControlCenterRuntimeGrid.markMaterialsDirty(view);
         }
         return result;
     }
@@ -1707,6 +1741,7 @@ public final class SystemUiHooks {
             ControlCenterMaterials.register(owner, drawable, ControlCenterMaterials.layer(owner), currentConfig.controlCenter);
         }
         Object result = chain.proceed();
+        markMaterialsDirty(chain.getThisObject());
         if (controlCenterNativeEditing(chain.getThisObject())) return result;
         ControlCenterConfig settings = currentConfig.controlCenter;
         if (settings.enabled && !settings.hasLayoutPlanOverride() && settings.cornerRadius > 0
@@ -1714,6 +1749,14 @@ public final class SystemUiHooks {
             drawable.setCornerRadius(dp((View) chain.getThisObject(), settings.cornerRadius));
         }
         return result;
+    }
+
+    private static void markMaterialsDirty(Object value) {
+        if (value instanceof View view) ControlCenterRuntimeGrid.markMaterialsDirty(view);
+        else if (value instanceof Drawable drawable) {
+            // Drawable hooks do not always expose their owner; the material registry
+            // will associate the update on its next bound-view pass.
+        }
     }
 
     private static Object controlCenterPluginCornerRadius(XposedInterface.Chain chain)
@@ -2328,6 +2371,7 @@ public final class SystemUiHooks {
     }
 
     private static boolean isControlCenterRecordView(View view) {
+        if (view instanceof ControlCenter5GTileView) return true;
         if (view instanceof ControlCenterGroupView) return true;
         if (CONTROL_CENTER_CAPTURE_SPECS.containsKey(view)) return true;
         String name = view.getClass().getName();
@@ -2337,6 +2381,7 @@ public final class SystemUiHooks {
     }
 
     private static String previewTileSpec(View view) {
+        if (view instanceof ControlCenter5GTileView) return ControlCenterComponentSpec.FIVE_G;
         if (view instanceof ControlCenterGroupView group) return group.item().id;
         String boundSpec = CONTROL_CENTER_CAPTURE_SPECS.get(view);
         if (boundSpec != null && !boundSpec.isEmpty()) return boundSpec;
@@ -2675,7 +2720,8 @@ public final class SystemUiHooks {
             int mode = View.MeasureSpec.getMode(heightSpec);
             int size = View.MeasureSpec.getSize(heightSpec);
             if (size > 0) {
-                long expanded = dp(root, currentConfig.statusBarHeight);
+                long expanded = Math.max(1, dp(root, currentConfig.statusBarHeight)
+                        - StatusBarWindowHeightController.waterfallInsetTop(root));
                 int maxSize = (1 << 30) - 1;
                 args[1] = View.MeasureSpec.makeMeasureSpec(
                         (int) Math.min(expanded, maxSize),
@@ -2691,8 +2737,52 @@ public final class SystemUiHooks {
         return result;
     }
 
+    private static Object statusWindowLayoutParams(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        Object context = ControlCenterRuntimeGrid.readField(chain.getThisObject(), "mContext");
+        if (context instanceof android.content.Context androidContext) {
+            int height = StatusBarWindowHeightController.heightPx(androidContext,
+                    currentConfig.statusBarHeight);
+            result = StatusBarWindowHeightController.adjustLayoutParams(result, height);
+        }
+        return result;
+    }
+
+    private static Object statusWindowApply(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        try {
+            if (!StatusBarWindowHeightController.apply(chain.getThisObject(), currentConfig)) {
+                log(Log.WARN, "status-bar window height owner unavailable", null);
+            }
+        } catch (Throwable error) {
+            log(Log.WARN, "status-bar window height apply failed", error);
+        }
+        return result;
+    }
+
+    private static Object statusWindowRefreshHeight(XposedInterface.Chain chain)
+            throws Throwable {
+        Object result = chain.proceed();
+        try {
+            StatusBarWindowHeightController.apply(chain.getThisObject(), currentConfig);
+        } catch (Throwable error) {
+            log(Log.WARN, "status-bar window height refresh failed", error);
+        }
+        return result;
+    }
+
     private static void applyStatusBarHeight(View root) {
-        int desiredHeight = dp(root, currentConfig.statusBarHeight);
+        applyStatusBarHeight(root, currentConfig);
+    }
+
+    static void applyStatusBarHeight(View root, FusionConfig config) {
+        int desiredHeight = Math.max(1, dp(root, config.statusBarHeight)
+                - StatusBarWindowHeightController.waterfallInsetTop(root));
+        ViewGroup.LayoutParams rootParams = root.getLayoutParams();
+        if (rootParams != null && rootParams.height != desiredHeight) {
+            rootParams.height = desiredHeight;
+            root.setLayoutParams(rootParams);
+        }
         if (root.getMeasuredWidth() > 0 && root.getMeasuredHeight() != desiredHeight) {
             overwriteMeasured(root, root.getMeasuredWidth(), desiredHeight);
         }
@@ -2870,9 +2960,9 @@ public final class SystemUiHooks {
     }
 
     private static void applyLoadedConfig(FusionConfig loaded) {
+        RuntimeConfigDiff changes = RuntimeConfigDiff.between(configApplied ? currentConfig : null, loaded);
         ControlCenterConfig previousControlCenter = currentConfig.controlCenter;
-        boolean controlCenterChanged = controlCenterChanged(previousControlCenter,
-                loaded.controlCenter);
+        boolean controlCenterChanged = changes.controlCenter();
         boolean layoutPlanChanged = previousControlCenter == null
                 || !previousControlCenter.layoutPlan.equals(loaded.controlCenter.layoutPlan);
         boolean restoreNativePanels = (previousControlCenter.hasLayoutPlanOverride()
@@ -2901,14 +2991,27 @@ public final class SystemUiHooks {
                     + " compact=" + controlCenterPlanSummary(loaded.controlCenter, true), null);
         }
         currentConfig = loaded;
-        currentPlan = StatusBarLayoutPlan.from(currentConfig);
-        SystemMenuHooks.updateConfig(loaded.controlCenter);
-        NotificationSurfaceHooks.refresh();
-        reportFeature(FusionActivationStatus.FEATURE_STATUS_BAR, FusionActivationStatus.WAITING,
-                "status_bar_refresh_pending");
-        reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
+        configApplied = true;
+        if (changes.controlCenterHeader) {
+            int failures = ControlCenterHeaderVisibility.refresh(loaded.controlCenter);
+            if (failures > 0) log(Log.WARN,
+                    "control-center header refresh failures=" + failures, null);
+        }
+        if (changes.statusBar) {
+            currentPlan = StatusBarLayoutPlan.from(currentConfig);
+            int windowFailures = StatusBarWindowHeightController.refreshAll(currentConfig);
+            if (windowFailures > 0) log(Log.WARN,
+                    "status-bar window height refresh failures=" + windowFailures, null);
+        }
+        if (changes.systemMenus) SystemMenuHooks.updateConfig(loaded.controlCenter);
+        else SystemMenuHooks.confirmConfig(loaded.controlCenter);
+        if (changes.notificationSurfaces) NotificationSurfaceHooks.refresh();
+        else NotificationSurfaceHooks.reportApplication();
+        if (changes.statusBar) reportFeature(FusionActivationStatus.FEATURE_STATUS_BAR,
+                FusionActivationStatus.WAITING, "status_bar_refresh_pending");
+        if (controlCenterChanged) reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
                 FusionActivationStatus.WAITING, "control_center_mount_pending");
-        if (controlCenterChanged) ControlCenterMaterials.refresh(loaded.controlCenter);
+        if (changes.controlCenterMaterials) ControlCenterMaterials.refresh(loaded.controlCenter);
         if (controlCenterChanged) {
             ControlCenterLayoutPlan nextPlan = ControlCenterLayoutPlan.decode(
                     loaded.controlCenter.layoutPlan);
@@ -2937,14 +3040,14 @@ public final class SystemUiHooks {
                 || loaded.controlCenter.tileScale == 100)) {
             restoreControlCenterIconSizes();
         }
-        try {
+        if (changes.statusClock) try {
             StatusClockController.onConfigChanged(currentConfig);
         } catch (Throwable error) {
             log(Log.WARN, "custom clock config refresh failed", error);
             reportFeature(FusionActivationStatus.FEATURE_STATUS_BAR,
                     FusionActivationStatus.DEGRADED, "status_clock_refresh_failed");
         }
-        try {
+        if (changes.notificationClock) try {
             NotificationCenterClockController.onConfigChanged(currentConfig);
             reportNotificationApplication();
         } catch (Throwable error) {
@@ -2952,34 +3055,64 @@ public final class SystemUiHooks {
             reportFeature(FusionActivationStatus.FEATURE_NOTIFICATION_CLOCK,
                     FusionActivationStatus.DEGRADED, "notification_clock_refresh_failed");
         }
-        refreshNotificationTopPadding();
-        SPAN_MEASURE_LOGGED.set(false);
-        scheduleStatusBarRefresh(currentStatusRoot.get());
-        if (currentStatusRoot.get() == null) reportStatusBarApplication();
-        if (controlCenterChanged) {
+        else reportNotificationApplication();
+        if (changes.notificationClock) refreshNotificationTopPadding();
+        if (changes.statusBar) {
+            SPAN_MEASURE_LOGGED.set(false);
+            scheduleStatusBarRefresh(currentStatusRoot.get());
+        }
+        if (!changes.statusBar || currentStatusRoot.get() == null) reportStatusBarApplication();
+        if (changes.controlCenterLayout) {
             recreateCompactCardIfNeeded(previousControlCenter, loaded.controlCenter);
             refreshControlCenterTiles();
             if (restoreNativePanels) redistributeNativeControlCenterPanels();
         }
         if (!loaded.controlCenter.enabled) {
-            reportFeature(RuntimeApplicationPolicy.controlCenterAvailability(false,
-                    CONTROL_CENTER_PLUGIN_HOOKED.get()));
-        } else if (!CONTROL_CENTER_PLUGIN_HOOKED.get()) {
-            reportFeature(RuntimeApplicationPolicy.controlCenterAvailability(true, false));
-        } else if (!controlCenterChanged) {
+            reportFeature(RuntimeApplicationPolicy.controlCenterAvailability(false, false));
+        } else if (reportMissingControlCenterCapability()) {
+            scheduleControlCenterPluginRetry();
+        } else if (!changes.controlCenterLayout) {
             if (loaded.controlCenter.hasLayoutPlanOverride()) {
                 ControlCenterRuntimeGrid.refreshApplication(loaded.controlCenter);
             } else if (nativeControlCenterAppliedSettings == previousControlCenter) {
                 nativeControlCenterAppliedSettings = loaded.controlCenter;
                 reportControlCenterApplication(loaded.controlCenter,
                         FusionActivationStatus.APPLIED, "native_control_center_bound");
+            } else if (!controlCenterChanged) {
+                confirmFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER);
             }
         }
     }
 
     private static void reportFeature(String feature, String state, String reason) {
+        FEATURE_STATES.put(feature, new RuntimeApplicationPolicy.Result(feature, state, reason));
         if (configLifecycle != null)
             configLifecycle.report(currentConfig.revision, feature, state, reason);
+    }
+
+    private static void confirmFeature(String feature) {
+        RuntimeApplicationPolicy.Result previous = FEATURE_STATES.get(feature);
+        if (previous != null) reportFeature(previous);
+        else reportFeature(feature, FusionActivationStatus.WAITING, "surface_mount_pending");
+    }
+
+    static void reportSystemSurfaceApplication(ControlCenterConfig settings,
+            RuntimeApplicationPolicy.Result result) {
+        if (settings == currentConfig.controlCenter) reportFeature(result);
+    }
+
+    private static boolean reportMissingControlCenterCapability() {
+        ControlCenterPluginHookInstaller.Result result = CONTROL_CENTER_PLUGIN_CAPABILITIES.activeResult();
+        if (result == null) {
+            reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
+                    FusionActivationStatus.WAITING, "control_center_loader_pending");
+            return true;
+        }
+        String missing = result.missingRequiredCapability(currentConfig.controlCenter);
+        if (missing.isEmpty()) return false;
+        reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
+                FusionActivationStatus.DEGRADED, missing);
+        return true;
     }
 
     private static void reportFeature(RuntimeApplicationPolicy.Result result) {
@@ -3004,7 +3137,8 @@ public final class SystemUiHooks {
     }
 
     static void reportControlCenterApplication(ControlCenterConfig settings, String state, String reason) {
-        if (settings == currentConfig.controlCenter)
+        if (settings == currentConfig.controlCenter && (!FusionActivationStatus.APPLIED.equals(state)
+                || !settings.enabled || !reportMissingControlCenterCapability()))
             reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER, state, reason);
     }
 
@@ -3052,6 +3186,8 @@ public final class SystemUiHooks {
                 || oldSettings.surface != newSettings.surface
                 || oldSettings.borderEnabled != newSettings.borderEnabled
                 || oldSettings.borderWidthDp != newSettings.borderWidthDp
+                || oldSettings.hideDate != newSettings.hideDate
+                || oldSettings.hideCarrier != newSettings.hideCarrier
                 || !oldSettings.layout.equals(newSettings.layout)
                 || !oldSettings.layoutPlan.equals(newSettings.layoutPlan)
                 || !oldSettings.componentOrder.equals(newSettings.componentOrder)

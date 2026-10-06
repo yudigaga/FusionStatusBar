@@ -2,17 +2,24 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
+import android.graphics.Outline;
+import android.graphics.Path;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.Window;
 import android.widget.FrameLayout;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -30,6 +37,7 @@ final class SystemMenuHooks {
     static final String POWER_SLIDER = "com.android.systemui.miui.globalactions.SliderView";
     static final String VOLUME_CONTROLLER = "com.android.systemui.miui.volume.VolumePanelViewController";
     static final String VOLUME_COLUMN = "com.android.systemui.miui.volume.VolumeColumn";
+    static final String VOLUME_PROGRESS_VIEW = "com.android.systemui.miui.volume.MiuiVolumeSeekBarProgressView";
     static final String VOLUME_COLUMN_RES = "com.android.systemui.miui.volume.VolumeColumnRes";
     static final String VOLUME_DIALOG_RES = "com.android.systemui.miui.volume.MiuiVolumeDialogRes";
     private static final String VOLUME_MOTION = "com.android.systemui.miui.volume.MiuiVolumeDialogMotion";
@@ -42,9 +50,15 @@ final class SystemMenuHooks {
     private static final Map<Object, String> POWER_DIAGNOSTICS = new WeakHashMap<>();
     private static final Map<Object, Boolean> VOLUME_MENUS = new WeakHashMap<>();
     private static final Map<View, PowerGeometry> POWER_GEOMETRY = new WeakHashMap<>();
+    private static final Map<View, ProgressOutline> VOLUME_PROGRESS = new WeakHashMap<>();
     private static final Set<View> VOLUME_SURFACES = Collections.newSetFromMap(new WeakHashMap<>());
     private static final ThreadLocal<Boolean> REFRESHING = new ThreadLocal<>();
     private static volatile ControlCenterConfig config = ControlCenterConfig.defaults();
+    private static volatile Reporter reporter = (settings, result) -> { };
+    private static volatile boolean powerHooksAvailable;
+    private static volatile boolean volumeHooksAvailable;
+
+    interface Reporter { void report(ControlCenterConfig settings, RuntimeApplicationPolicy.Result result); }
     private static Consumer<Context> bootstrap = ignored -> { };
     private static Supplier<ControlCenterConfig> current = () -> config;
 
@@ -52,6 +66,8 @@ final class SystemMenuHooks {
     interface ClassResolver { Class<?> resolve(String name, ClassLoader loader); }
 
     private SystemMenuHooks() { }
+
+    static void setReporter(Reporter value) { reporter = value == null ? (s, r) -> { } : value; }
 
     static int install(ClassLoader loader, Registrar registrar) {
         return install(loader, registrar, (name, target) -> {
@@ -130,6 +146,18 @@ final class SystemMenuHooks {
                         return result;
                     });
         }
+        for (String name : new String[] {
+                "setRoundRect", "setRoundRectTimerProgressHorizontal",
+                "setRoundRectTimerProgressVertical"}) {
+            count += hook(loader, registrar, resolver, VOLUME_PROGRESS_VIEW, name,
+                    new Class<?>[] {int.class}, chain -> {
+                        Object result = chain.proceed();
+                        if (chain.getThisObject() instanceof View view) {
+                            safely(() -> refreshVolumeProgressOutline(view), "volume progress mask");
+                        }
+                        return result;
+                    });
+        }
         for (String name : new String[] {"updateExpandBgState", "updateExpandBgSize"}) {
             count += hook(loader, registrar, resolver, VOLUME_MOTION, name, new Class<?>[0], chain -> {
                 Object result = chain.proceed();
@@ -162,6 +190,8 @@ final class SystemMenuHooks {
             return result;
         });
         Class<?> powerType = resolver.resolve(POWER_DIALOG, loader);
+        powerHooksAvailable = count > 0 && powerType != null;
+        volumeHooksAvailable = volumeHooksAvailable || count > 0 && resolver.resolve(VOLUME_CONTROLLER, loader) != null;
         if (powerType != null) Log.i(TAG, "power menu capability singleton="
                 + (RuntimeReflection.field(powerType, "mSliderView") != null)
                 + " array=" + (RuntimeReflection.field(powerType, "mSliderViews") != null)
@@ -210,10 +240,27 @@ final class SystemMenuHooks {
             if (!next.systemSurfaces.volumeDialog) {
                 for (View view : new ArrayList<>(VOLUME_SURFACES)) SystemSurfaceStyle.restore(view);
                 VOLUME_SURFACES.clear();
+                for (View view : new ArrayList<>(VOLUME_PROGRESS.keySet())) restoreVolumeProgress(view);
             }
         };
         if (Looper.myLooper() == Looper.getMainLooper()) refresh.run();
         else MAIN.post(refresh);
+    }
+
+    static void confirmConfig(ControlCenterConfig next) {
+        if (next != null) config = next;
+        reportApplication();
+    }
+
+    static void reportApplication() {
+        boolean powerMounted = !POWER_MENUS.isEmpty();
+        boolean volumeMounted = !VOLUME_MENUS.isEmpty();
+        reporter.report(config, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_POWER_MENU, config.systemSurfaces.powerMenu,
+                powerHooksAvailable, powerMounted && config.systemSurfaces.powerMenu, powerMounted));
+        reporter.report(config, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_VOLUME_DIALOG, config.systemSurfaces.volumeDialog,
+                volumeHooksAvailable, volumeMounted && config.systemSurfaces.volumeDialog, volumeMounted));
     }
 
     private static Object afterPower(XposedInterface.Chain chain) throws Throwable {
@@ -272,6 +319,8 @@ final class SystemMenuHooks {
                 + " nativeTracks=" + sliders.size() + " moduleTracks=" + (added ? 2 : 0);
         if (!diagnostic.equals(POWER_DIAGNOSTICS.put(dialog, diagnostic)))
             Log.i(TAG, "power menu mounted " + diagnostic);
+        reporter.report(config, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_POWER_MENU, enabled, powerHooksAvailable, enabled, true));
         Object windowValue = field(dialog, "mWindow");
         if (root != null && windowValue instanceof Window window)
             SystemSurfaceStyle.applyBackdrop(root, window, config, enabled);
@@ -337,13 +386,128 @@ final class SystemMenuHooks {
         applyColumn(field(controller, "mTempColumn"));
         View ringer = viewField(controller, "mRingerModeLayout");
         applyRingerSurfaces(ringer, enabled, 0, new int[1]);
+        reporter.report(config, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_VOLUME_DIALOG, enabled, volumeHooksAvailable, enabled, true));
     }
 
     private static void applyColumn(Object column) throws Exception {
         if (column == null || !booleanField(column, "isNeedShowDialog", true)) return;
         boolean enabled = config.systemSurfaces.volumeDialog;
         style(viewField(column, "slider"), enabled, true);
-        style(viewField(column, "progressViewBg"), enabled, true);
+        View track = viewField(column, "progressViewBg");
+        View progress = viewField(column, "progressView");
+        style(track, enabled, true);
+        if (progress != null && track != null && enabled) {
+            float density = progress.getResources().getDisplayMetrics().density;
+            insetVolumeProgress(progress, track, config.borderEnabled
+                    ? config.borderWidthDp * density : 0f);
+        } else if (progress != null) {
+            restoreVolumeProgress(progress);
+        }
+    }
+
+    private static void insetVolumeProgress(View progress, View track, float borderWidthPx) {
+        ProgressOutline state = VOLUME_PROGRESS.get(progress);
+        if (state == null) {
+            state = new ProgressOutline(progress.getOutlineProvider(), progress.getClipToOutline());
+            VOLUME_PROGRESS.put(progress, state);
+        } else if (progress.getOutlineProvider() != state.provider) {
+            state.capture(progress.getOutlineProvider(), progress.getClipToOutline());
+        }
+        state.track = new WeakReference<>(track);
+        state.inset = Math.max(0f, borderWidthPx);
+        applyVolumeProgressOutline(progress, state);
+    }
+
+    private static void refreshVolumeProgressOutline(View progress) {
+        if (!config.systemSurfaces.volumeDialog) return;
+        ProgressOutline state = VOLUME_PROGRESS.get(progress);
+        View track = state == null ? null : state.track.get();
+        if (track == null) return;
+        float density = progress.getResources().getDisplayMetrics().density;
+        insetVolumeProgress(progress, track, config.borderEnabled
+                ? config.borderWidthDp * density : 0f);
+    }
+
+    private static void applyVolumeProgressOutline(View progress, ProgressOutline state) {
+        progress.setOutlineProvider(state.provider);
+        progress.setClipToOutline(true);
+        progress.invalidateOutline();
+    }
+
+    private static void restoreVolumeProgress(View progress) {
+        ProgressOutline state = VOLUME_PROGRESS.remove(progress);
+        if (state == null) return;
+        progress.setOutlineProvider(state.originalProvider);
+        progress.setClipToOutline(state.originalClip);
+        progress.invalidateOutline();
+    }
+
+    private static final class ProgressOutline {
+        ViewOutlineProvider originalProvider;
+        boolean originalClip;
+        final ViewOutlineProvider provider;
+        WeakReference<View> track = new WeakReference<>(null);
+        float inset;
+
+        ProgressOutline(ViewOutlineProvider originalProvider, boolean originalClip) {
+            this.originalProvider = originalProvider;
+            this.originalClip = originalClip;
+            provider = new ViewOutlineProvider() {
+                private final Path path = new Path();
+                private final RectF trackBounds = new RectF();
+                private final RectF levelBounds = new RectF();
+                private final Matrix transform = new Matrix();
+
+                @Override public void getOutline(View view, Outline outline) {
+                    ViewOutlineProvider source = ProgressOutline.this.originalProvider;
+                    if (source == null) {
+                        outline.setEmpty();
+                        return;
+                    }
+                    Outline original = new Outline();
+                    source.getOutline(view, original);
+                    Rect bounds = new Rect();
+                    boolean rect = original.getRect(bounds);
+                    float radius = original.getRadius();
+                    if (!rect) {
+                        Object progress = null;
+                        try { progress = field(view, "mProgress"); }
+                        catch (Exception ignored) { }
+                        if (radius < 0f || !(progress instanceof Number amount)) {
+                            outline.set(original);
+                            return;
+                        }
+                        int size = Math.max(0, Math.min(view.getHeight(), amount.intValue()));
+                        if (booleanField(view, "mIsTimerProgress", false))
+                            bounds.set(0, 0, size, view.getHeight());
+                        else
+                            bounds.set(0, view.getHeight() - size, view.getWidth(), view.getHeight());
+                    }
+                    View host = track.get();
+                    trackBounds.set(0, 0, host == null ? view.getWidth() : host.getWidth(),
+                            host == null ? view.getHeight() : host.getHeight());
+                    if (host != null && host != view) {
+                        transform.reset();
+                        host.transformMatrixToGlobal(transform);
+                        view.transformMatrixToLocal(transform);
+                        transform.mapRect(trackBounds);
+                    }
+                    levelBounds.set(bounds);
+                    float density = view.getResources().getDisplayMetrics().density;
+                    SliderFillGeometry.intersect(path, trackBounds,
+                            config.cornerRadius * density, inset, levelBounds);
+                    if (path.isEmpty()) outline.setEmpty();
+                    else outline.setPath(path);
+                    outline.setAlpha(original.getAlpha());
+                }
+            };
+        }
+
+        void capture(ViewOutlineProvider nextProvider, boolean nextClip) {
+            originalProvider = nextProvider;
+            originalClip = nextClip;
+        }
     }
 
     private static void style(View view, boolean enabled, boolean track) {

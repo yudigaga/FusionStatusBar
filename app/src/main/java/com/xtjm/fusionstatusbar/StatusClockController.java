@@ -35,6 +35,8 @@ final class StatusClockController {
     private static Context appContext;
     private static String nativeText = "";
     private static String renderedText;
+    private static float nativeTextSizePx;
+    private static float lastAppliedTextSizePx = -1f;
     private static String weatherText = "";
     private static long lastWeatherQuery;
     private static boolean weatherLoading;
@@ -67,13 +69,26 @@ final class StatusClockController {
             clockRef = new WeakReference<>(clock);
             nativeText = observed;
             renderedText = null;
+            nativeTextSizePx = clock.getTextSize();
+            lastAppliedTextSizePx = -1f;
         } else if (!observed.equals(renderedText)) {
             nativeText = observed;
+        }
+        if (previous == clock && lastAppliedTextSizePx >= 0f
+                && Math.abs(clock.getTextSize() - lastAppliedTextSizePx) > 0.5f) {
+            nativeTextSizePx = clock.getTextSize();
+        } else if (previous == clock && config.statusClockSizeSp == 0) {
+            nativeTextSizePx = clock.getTextSize();
+        }
+        if (previous == clock && config.statusClockSizeSp > 0
+                && next.statusClockSizeSp == 0) {
+            restoreNativeTextSize(clock);
         }
         config = next;
         Context application = clock.getContext().getApplicationContext();
         appContext = application != null ? application : clock.getContext();
         render(clock);
+        applyTextSize(clock);
         scheduleSeconds();
         refreshWeather(false);
     }
@@ -84,10 +99,15 @@ final class StatusClockController {
             return;
         }
         boolean weatherEnabledNow = next.showWeather && !config.showWeather;
-        config = next;
         TextView clock = clockRef.get();
+        if (clock != null && config.statusClockSizeSp > 0
+                && next.statusClockSizeSp == 0) {
+            restoreNativeTextSize(clock);
+        }
+        config = next;
         if (clock != null) {
             render(clock);
+            applyTextSize(clock);
         }
         scheduleSeconds();
         refreshWeather(weatherEnabledNow);
@@ -117,6 +137,23 @@ final class StatusClockController {
                 Log.w("FusionStatusBar", "custom clock render failed", error);
             }
         }
+    }
+
+    private static void applyTextSize(TextView clock) {
+        if (config.statusClockSizeSp > 0) {
+            clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    config.statusClockSizeSp);
+            lastAppliedTextSizePx = clock.getTextSize();
+        } else {
+            restoreNativeTextSize(clock);
+        }
+    }
+
+    private static void restoreNativeTextSize(TextView clock) {
+        if (nativeTextSizePx > 0f && Math.abs(clock.getTextSize() - nativeTextSizePx) > 0.5f) {
+            clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, nativeTextSizePx);
+        }
+        lastAppliedTextSizePx = -1f;
     }
 
     private static void renderSafely(TextView clock) {

@@ -1,5 +1,7 @@
 ﻿param(
     [string]$Serial = 'emulator-5580',
+    [string]$Package = 'io.github.yudigaga.fusionstatusbar',
+    [string]$ActivityClass = 'com.xtjm.fusionstatusbar.MainActivity',
     [string]$PageTab = '状态栏',
     [string]$ItemText = '状态栏监测',
     [int]$Iterations = 10,
@@ -15,6 +17,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 if ($Serial -notmatch '^[A-Za-z0-9._:-]+$') { throw 'Serial contains unsupported characters.' }
+if ($Package -notmatch '^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$') { throw 'Package is not a valid Android application ID.' }
+if ($ActivityClass -notmatch '^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$') { throw 'ActivityClass must be a fully qualified class name.' }
+$Activity = "$Package/$ActivityClass"
 if (-not $AllowPhysicalDevice -and $Serial -notmatch '^emulator-\d+$') {
     throw 'This harness requires an emulator serial by default. Pass -AllowPhysicalDevice only for an explicitly authorized target run.'
 }
@@ -88,7 +93,7 @@ function Tap-Node($Node) {
 function Get-FocusedAppWindow {
     $windows = Invoke-TargetAdb @('shell', 'dumpsys', 'window') | Out-String
     $focus = [regex]::Match($windows, 'mCurrentFocus=Window\{([^}\r\n]+)\}')
-    if (-not $focus.Success -or $focus.Groups[1].Value -notmatch '\bcom\.xtjm\.fusionstatusbar/') {
+    if (-not $focus.Success -or $focus.Groups[1].Value -notmatch ("\b" + [regex]::Escape($Package) + "/")) {
         throw 'The target focus is not on a fusion-statusbar app window.'
     }
     return ($focus.Groups[1].Value -split '\s+')[0]
@@ -165,7 +170,7 @@ function Write-MeasurementText([string]$FileName, [string]$Content) {
         (New-Object System.Text.UTF8Encoding($false)))
 }
 
-[void](Invoke-TargetAdb @('shell', 'am', 'start', '-n', 'io.github.yudigaga.fusionstatusbar/com.xtjm.fusionstatusbar.MainActivity'))
+[void](Invoke-TargetAdb @('shell', 'am', 'start', '-n', $Activity))
 Start-Sleep -Seconds 3
 $nodes = Get-UiNodes
 Tap-Node (Find-UiNode $nodes $PageTab -Description)
@@ -174,7 +179,7 @@ $nodes = Get-UiNodes
 $itemNode = Find-UiNode $nodes $ItemText
 $itemCenter = Get-NodeCenter $itemNode
 $activityWindow = Get-FocusedAppWindow
-$appMetadata = Get-PackageMetadata 'io.github.yudigaga.fusionstatusbar'
+$appMetadata = Get-PackageMetadata $Package
 $systemUiMetadata = Get-PackageMetadata 'com.android.systemui'
 $getpropText = (Invoke-TargetAdb @('shell', 'getprop') | Out-String)
 $displayText = (Invoke-TargetAdb @('shell', 'dumpsys', 'display') | Out-String)
@@ -187,6 +192,8 @@ $refreshSettings = [ordered]@{
 $metadata = [ordered]@{
     capturedUtc = [DateTime]::UtcNow.ToString('o')
     serial = $Serial
+    package = $Package
+    activity = $Activity
     targetModel = $targetModel
     targetAndroid = $targetBuild
     app = $appMetadata
@@ -205,12 +212,12 @@ Write-MeasurementText "$OutputName.metadata.json" ($metadata | ConvertTo-Json -D
 Open-CloseDialog $itemCenter $activityWindow
 Open-CloseDialog $itemCenter $activityWindow
 Start-Sleep -Seconds 1
-[void](Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', 'io.github.yudigaga.fusionstatusbar', 'reset'))
+[void](Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', $Package, 'reset'))
 # Stop tracing even when a tap, focus check, or adb command fails.
 $measurementStartedUtc = [DateTime]::UtcNow.ToString('o')
 try {
     [void](Invoke-TargetAdb @('shell', 'atrace', '--async_start', '-b', "$TraceBufferKb", '-a',
-        'io.github.yudigaga.fusionstatusbar', 'gfx', 'view', 'wm'))
+        $Package, 'gfx', 'view', 'wm'))
     for ($i = 0; $i -lt $Iterations; $i++) { Open-CloseDialog $itemCenter $activityWindow }
 } finally {
     [void](Invoke-TargetAdb @('shell', 'atrace', '--async_stop', '-o', $remoteTrace))
@@ -218,17 +225,17 @@ try {
 $measurementEndedUtc = [DateTime]::UtcNow.ToString('o')
 $traceFile = Join-Path $traceDirectory "$OutputName.trace"
 [void](Invoke-TargetAdb @('pull', $remoteTrace, $traceFile))
-$stats = Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', 'io.github.yudigaga.fusionstatusbar')
+$stats = Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo', $Package)
 Write-MeasurementText "$OutputName.gfxinfo.txt" ($stats | Out-String)
 Write-MeasurementText "$OutputName.framestats.txt" (Invoke-TargetAdb @('shell', 'dumpsys', 'gfxinfo',
-    'io.github.yudigaga.fusionstatusbar', 'framestats') | Out-String)
+    $Package, 'framestats') | Out-String)
 # Post-measurement snapshots cannot explain CPU/PSS at a particular slow frame.
 # Keep these commands outside the traced open/close loop.
 $cpuCapturedUtc = [DateTime]::UtcNow.ToString('o')
 Write-MeasurementText "$OutputName.cpuinfo.txt" (Invoke-TargetAdb @('shell', 'dumpsys', 'cpuinfo') | Out-String)
 $memoryCapturedUtc = [DateTime]::UtcNow.ToString('o')
 Write-MeasurementText "$OutputName.meminfo.txt" (Invoke-TargetAdb @('shell', 'dumpsys', 'meminfo',
-    'io.github.yudigaga.fusionstatusbar') | Out-String)
+    $Package) | Out-String)
 $summary = @($stats | Select-String 'Total frames rendered:|Janky frames:|50th percentile:|90th percentile:|95th percentile:|99th percentile:|Number Slow UI thread:|Number Frame deadline missed:')
 $frameLine = $summary | Where-Object { $_.Line -match '^Total frames rendered:' } | Select-Object -First 1
 $jankLine = $summary | Where-Object { $_.Line -match '^Janky frames:' } | Select-Object -First 1
@@ -269,6 +276,8 @@ $result = [ordered]@{
     measurementStartedUtc = $measurementStartedUtc
     measurementEndedUtc = $measurementEndedUtc
     serial = $Serial
+    package = $Package
+    activity = $Activity
     page = $PageTab
     item = $ItemText
     iterations = $Iterations

@@ -22,9 +22,7 @@ import android.view.ViewOutlineProvider;
 import android.widget.FrameLayout;
 
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -39,19 +37,10 @@ import java.util.WeakHashMap;
 /** Places the tile portion of the OEM panel in one full-span, independently bound grid. */
 final class ControlCenterRuntimeGrid {
     private static final String TAG = "FusionControlGrid";
-    private static final String QS_LIST =
-            "miui.systemui.controlcenter.panel.main.qs.QSListController";
-    private static final String QS_CARDS =
-            "miui.systemui.controlcenter.panel.main.qs.QSCardsController";
-    private static final String COMPACT_CARD =
-            "miui.systemui.controlcenter.panel.main.qs.CompactQSCardController";
-    private static final String COMPACT_LIST =
-            "miui.systemui.controlcenter.panel.main.qs.CompactQSListController";
-    private static final String LIST_ITEM =
-            "miui.systemui.controlcenter.panel.main.recyclerview.MainPanelListItem";
     private static final int TILE_VIEW_TYPE = 8453;
     private static final int MAX_RENDER_ROWS = 128;
     private static final Map<Object, WeakReference<GridState>> STATES = new WeakHashMap<>();
+    private static final Object MODULE_FIVE_G_COMPONENT = new Object();
 
     private ControlCenterRuntimeGrid() {
     }
@@ -65,6 +54,17 @@ final class ControlCenterRuntimeGrid {
     static boolean isActive(Object adapter) {
         GridState state = stateFor(adapter);
         return state != null && !state.disposed && !state.failed;
+    }
+
+    /** OEM bind, icon and background hooks call this after installing their new state. */
+    static void markMaterialsDirty(View source) {
+        for (View current = source; current != null;
+                current = current.getParent() instanceof View parent ? parent : null) {
+            if (current instanceof GridView grid) {
+                grid.markSlotDirty(source);
+                return;
+            }
+        }
     }
 
     /** Reads the live controller style, which updates before either adapter's cached style. */
@@ -124,23 +124,16 @@ final class ControlCenterRuntimeGrid {
     static boolean apply(Object adapter, ControlCenterConfig settings, ClassLoader pluginLoader) {
         if (adapter == null) return false;
         if (settings == null || pluginLoader == null) return abort(adapter);
-        Object provider = readField(adapter, "mainPanelController");
-        Object controller;
+        ControlCenterHostAdapter.State hostState;
         LinkedHashMap<Object, List<Object>> currentSnapshot = null;
         LinkedHashMap<String, ControlCenterAppTileSource.Lease> pendingAppTiles = new LinkedHashMap<>();
         try {
-            controller = provider == null ? null : call(provider, "get");
+            hostState = ControlCenterHostAdapter.readState(adapter);
         } catch (ReflectiveOperationException error) {
             return abort(adapter);
         }
-        Object currentMode;
-        Object currentStyle;
-        try {
-            currentMode = controller == null ? null : call(controller, "getMode");
-            currentStyle = controller == null ? null : call(controller, "getStyle");
-        } catch (ReflectiveOperationException error) {
-            return abort(adapter);
-        }
+        Object currentMode = hostState.mode;
+        Object currentStyle = hostState.style;
         boolean horizontal = "HORIZONTAL".equals(String.valueOf(currentStyle));
         if (!settings.enabled || settings.layoutPlan.isEmpty()
                 || !"NORMAL".equals(String.valueOf(currentMode))) {
@@ -152,32 +145,19 @@ final class ControlCenterRuntimeGrid {
             return false;
         }
         try {
-            Object value = readField(adapter, "contentMap");
-            if (!(value instanceof LinkedHashMap<?, ?> nativeMap)) return abort(adapter);
-            currentSnapshot = copyContent(nativeMap);
-            Object listOwner = readField(adapter, "qsListController");
-            if (listOwner == null || !QS_LIST.equals(listOwner.getClass().getName())) {
+            ControlCenterHostAdapter.Panel host;
+            try {
+                host = ControlCenterHostAdapter.capture(hostState, pluginLoader);
+            } catch (ControlCenterHostAdapter.Unavailable unavailable) {
+                currentSnapshot = unavailable.original;
                 return abort(adapter, currentSnapshot);
             }
-            Class<?> itemInterface = Class.forName(LIST_ITEM, false, pluginLoader);
-            if (!itemInterface.isInterface()
-                    || method(listOwner.getClass(), "createViewHolder", 2) == null
-                    || method(listOwner.getClass(), "onBindViewHolder", 2) == null) {
-                return abort(adapter, currentSnapshot);
-            }
-            Object factory = readField(listOwner, "recordFactory");
-            if (factory == null || method(factory.getClass(), "create", 2) == null) {
-                return abort(adapter, currentSnapshot);
-            }
-
-            LinkedHashMap<Object, List<Object>> original = currentSnapshot;
-            boolean nativeCompact = "COMPACT".equals(String.valueOf(currentStyle));
-            if (!original.containsKey(listOwner)
-                    && !horizontal && !(nativeCompact && hasOwner(original, COMPACT_CARD))) {
-                return abort(adapter, original);
-            }
-            LinkedHashMap<Object, List<Object>> sources = horizontal
-                    ? horizontalSources(controller, original) : original;
+            LinkedHashMap<Object, List<Object>> original = host.original;
+            currentSnapshot = original;
+            Object listOwner = host.listOwner;
+            Class<?> itemInterface = host.itemInterface;
+            boolean nativeCompact = host.compact;
+            LinkedHashMap<Object, List<Object>> sources = host.sources;
             LinkedHashMap<String, Object> sourceTiles = collectTiles(sources, listOwner,
                     settings);
             ControlCenterLayoutPlan plan = ControlCenterLayoutPlan.fromConfig(settings, new ArrayList<>(sourceTiles.keySet()));
@@ -185,8 +165,7 @@ final class ControlCenterRuntimeGrid {
             ControlCenterLayoutPlan.Mode mode = plan.mode(compact);
             if (horizontal) {
                 mode = ControlCenterLandscapeLayout.forPanel(settings, mode,
-                        isRightAdapter(adapter, controller, original, listOwner),
-                        rightTileSpecs(sources), componentSides(sources, itemInterface));
+                        host.isRightAdapter(), host.rightTileSpecs(), host.componentSides());
             }
             GridState previous = stateFor(adapter);
             ControlCenterAppTileSource.acquire(mode.items, sourceTiles,
@@ -202,7 +181,7 @@ final class ControlCenterRuntimeGrid {
                         }
                     }, spec -> createApplicationTile(listOwner, spec));
             LinkedHashMap<String, ComponentSource> sourceComponents =
-                    collectComponents(sources, itemInterface);
+                    collectComponents(sources, itemInterface, settings);
             ArrayList<String> availableSpecs = new ArrayList<>(sourceTiles.keySet());
             for (String spec : sourceComponents.keySet()) {
                 if (!availableSpecs.contains(spec)) availableSpecs.add(spec);
@@ -211,7 +190,10 @@ final class ControlCenterRuntimeGrid {
                     + " style=" + currentStyle
                     + " plan=" + (settings.layoutPlan.isEmpty() ? "empty" : "present")
                     + " nativeTiles=" + sourceTiles.size()
-                    + " nativeComponents=" + sourceComponents.size());
+                    + " nativeComponents=" + (sourceComponents.size()
+                            - (sourceComponents.containsKey(ControlCenterComponentSpec.FIVE_G) ? 1 : 0))
+                    + " moduleComponents="
+                    + (sourceComponents.containsKey(ControlCenterComponentSpec.FIVE_G) ? 1 : 0));
             // Components can be absent in a particular native style or during startup.
             // Resolve against this adapter's sources without discarding the whole saved plan.
             ControlCenterLayoutPlan.Resolved resolved = horizontal
@@ -282,16 +264,21 @@ final class ControlCenterRuntimeGrid {
                         + " items=" + items.size() + " rows=" + lastRow
                         + " layout=" + summary);
             }
-            GridState next = reused ? previous : new GridState(adapter, listOwner, factory, itemInterface,
+            GridState next = reused ? previous : new GridState(adapter, host, itemInterface,
                             settings, compact, resolved.mode.columns, items, sourceTiles,
                             boundComponents, 0, lastRow);
-            next.original = original;
+            next.hostPanel = host;
             next.materialSettings = settings;
             next.unavailable = !resolved.unavailableSpecs.isEmpty();
             try {
-                install(nativeMap, original, listOwner, next.item, sourceComponents);
+                java.util.Set<Object> relocatedComponents = Collections.newSetFromMap(
+                        new IdentityHashMap<>());
+                for (ComponentSource source : sourceComponents.values()) {
+                    relocatedComponents.add(source.item);
+                }
+                host.project(next.item, relocatedComponents);
             } catch (Throwable error) {
-                RuntimeCleanup.run("restore failed grid map", () -> restoreMap(nativeMap, original));
+                RuntimeCleanup.run("restore failed grid map", () -> host.restoreSnapshot(original, false));
                 if (previous != next) next.dispose();
                 throw error;
             }
@@ -346,7 +333,7 @@ final class ControlCenterRuntimeGrid {
                 RuntimeCleanup.run("restore native panel", () -> previous.restoreNative(true));
             } else {
                 RuntimeCleanup.run("restore current panel",
-                        () -> restoreCurrent(adapter, currentSnapshot, true));
+                        () -> previous.restoreSnapshot(currentSnapshot, true));
             }
             synchronized (STATES) {
                 STATES.remove(adapter);
@@ -354,22 +341,6 @@ final class ControlCenterRuntimeGrid {
             previous.dispose();
         }
         return false;
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void restoreCurrent(Object adapter,
-            LinkedHashMap<Object, List<Object>> snapshot, boolean notify) {
-        Object value = readField(adapter, "contentMap");
-        if (!(value instanceof Map map)) return;
-        map.clear();
-        map.putAll(snapshot);
-        if (notify) {
-            try {
-                call(adapter, "notifyDataSetChanged");
-            } catch (ReflectiveOperationException error) {
-                trace(Log.WARN, "Current native panel restored without notify", error);
-            }
-        }
     }
 
     static void clear(Object adapter) {
@@ -433,92 +404,6 @@ final class ControlCenterRuntimeGrid {
         SystemUiHooks.runtimeGridLog(priority, message, error);
     }
 
-    private static LinkedHashMap<Object, List<Object>> copyContent(Map<?, ?> source) {
-        LinkedHashMap<Object, List<Object>> copy = new LinkedHashMap<>();
-        for (Map.Entry<?, ?> entry : source.entrySet()) {
-            if (!(entry.getValue() instanceof List<?> list)) {
-                throw new IllegalStateException("Unexpected panel content");
-            }
-            copy.put(entry.getKey(), new ArrayList<>(list));
-        }
-        return copy;
-    }
-
-    private static boolean hasOwner(Map<?, ?> content, String className) {
-        for (Object owner : content.keySet()) {
-            if (owner != null && className.equals(owner.getClass().getName())) return true;
-        }
-        return false;
-    }
-
-    private static Object providerValue(Object value) throws ReflectiveOperationException {
-        Object provided = value == null ? null : callOptional(value, "get");
-        return provided == null ? value : provided;
-    }
-
-    private static LinkedHashMap<Object, List<Object>> horizontalSources(Object controller,
-            LinkedHashMap<Object, List<Object>> current) throws ReflectiveOperationException {
-        LinkedHashMap<Object, List<Object>> sources = new LinkedHashMap<>();
-        Object distributor = providerValue(readField(controller, "distributor"));
-        // Owners expose native inventories even after the other adapter has installed a proxy.
-        // Reading the other contentMap would otherwise make application depend on bind order.
-        for (String field : new String[] {"leftPanelContent", "rightPanelContent"}) {
-            Object owners = readField(distributor, field);
-            if (!(owners instanceof Iterable<?> list)) continue;
-            for (Object owner : list) {
-                Object records = owner == null ? null : callOptional(owner, "getListItems");
-                if (records instanceof List<?> items) sources.put(owner, new ArrayList<>(items));
-            }
-        }
-        for (Map.Entry<Object, List<Object>> entry : current.entrySet()) {
-            sources.putIfAbsent(entry.getKey(), entry.getValue());
-        }
-        return sources;
-    }
-
-    private static boolean isRightAdapter(Object adapter, Object controller,
-            Map<Object, List<Object>> nativeMap, Object listOwner) throws ReflectiveOperationException {
-        Object distributor = providerValue(readField(controller, "distributor"));
-        if (distributor != null) {
-            if (callOptional(distributor, "getRightAdapter") == adapter) return true;
-            if (callOptional(distributor, "getLeftAdapter") == adapter) return false;
-        }
-        return !nativeMap.containsKey(listOwner) && hasOwner(nativeMap, QS_CARDS);
-    }
-
-    private static java.util.Set<String> rightTileSpecs(Map<Object, List<Object>> sources)
-            throws ReflectiveOperationException {
-        java.util.Set<String> specs = new java.util.LinkedHashSet<>();
-        specs.add("wifi");
-        specs.add("cell");
-        for (Map.Entry<Object, List<Object>> entry : sources.entrySet()) {
-            if (entry.getKey() == null || !QS_CARDS.equals(entry.getKey().getClass().getName())) continue;
-            for (Object record : entry.getValue()) {
-                Object value = callOptional(record, "getSpec");
-                if (value instanceof String spec) {
-                    specs.add(ControlCenterConfig.canonicalSpec(spec.toLowerCase(Locale.ROOT)));
-                }
-            }
-        }
-        return specs;
-    }
-
-    private static Map<String, Boolean> componentSides(Map<Object, List<Object>> sources,
-            Class<?> itemInterface) throws ReflectiveOperationException {
-        Map<String, Boolean> sides = new LinkedHashMap<>();
-        for (Map.Entry<Object, List<Object>> entry : sources.entrySet()) {
-            Object side = callOptional(entry.getKey(), "getRightOrLeft");
-            if (!(side instanceof Boolean right)) continue;
-            for (Object item : entry.getValue()) {
-                if (item != null && itemInterface.isInstance(item)) {
-                    String spec = componentSpec(item);
-                    if (!spec.isEmpty()) sides.put(spec, right);
-                }
-            }
-        }
-        return sides;
-    }
-
     private static LinkedHashMap<String, Object> collectTiles(
             LinkedHashMap<Object, List<Object>> original, Object listOwner,
             ControlCenterConfig settings) throws ReflectiveOperationException {
@@ -553,7 +438,8 @@ final class ControlCenterRuntimeGrid {
 
     /** Collect native non-tile list items without changing the adapter's source lists. */
     private static LinkedHashMap<String, ComponentSource> collectComponents(
-            LinkedHashMap<Object, List<Object>> original, Class<?> itemInterface)
+            LinkedHashMap<Object, List<Object>> original, Class<?> itemInterface,
+            ControlCenterConfig settings)
             throws ReflectiveOperationException {
         LinkedHashMap<String, ComponentSource> components = new LinkedHashMap<>();
         for (Map.Entry<Object, List<Object>> entry : original.entrySet()) {
@@ -566,23 +452,17 @@ final class ControlCenterRuntimeGrid {
                 components.putIfAbsent(spec, new ComponentSource(owner, item));
             }
         }
+        if (settings.isHidden(ControlCenterComponentSpec.FIVE_G)) {
+            components.remove(ControlCenterComponentSpec.FIVE_G);
+        } else {
+            components.putIfAbsent(ControlCenterComponentSpec.FIVE_G,
+                    ComponentSource.moduleOwned());
+        }
         return components;
     }
 
-    private static String componentSpec(Object item) throws ReflectiveOperationException {
-        try {
-            Object type = call(item, "getType");
-            if (type instanceof Number) {
-                String spec = ControlCenterComponentSpec.fromType(((Number) type).intValue());
-                if (ControlCenterComponentSpec.isSpecial(spec)) return spec.toLowerCase(Locale.ROOT);
-            }
-        } catch (NoSuchMethodException ignored) {
-            // Fall back to the controller class name used by some plugin revisions.
-        }
-        String spec = ControlCenterComponentSpec.fromControllerName(
-                item.getClass().getName());
-        return ControlCenterComponentSpec.isSpecial(spec)
-                ? spec.toLowerCase(Locale.ROOT) : "";
+    static String componentSpec(Object item) throws ReflectiveOperationException {
+        return ControlCenterHostAdapter.componentSpec(item);
     }
 
     private static void collectRecords(List<?> records, Map<String, Object> tiles,
@@ -603,57 +483,8 @@ final class ControlCenterRuntimeGrid {
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void install(Map<?, ?> target, LinkedHashMap<Object, List<Object>> nativeMap,
-            Object listOwner, Object gridItem,
-            Map<String, ComponentSource> sourceComponents) {
-        LinkedHashMap<Object, List<Object>> ordered = new LinkedHashMap<>();
-        java.util.Set<Object> relocatedComponents =
-                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        for (ComponentSource source : sourceComponents.values()) {
-            relocatedComponents.add(source.item);
-        }
-        boolean inserted = false;
-        for (Map.Entry<Object, List<Object>> entry : nativeMap.entrySet()) {
-            Object owner = entry.getKey();
-            String name = owner.getClass().getName();
-            if (QS_LIST.equals(name) || QS_CARDS.equals(name)
-                    || COMPACT_CARD.equals(name) || COMPACT_LIST.equals(name)) {
-                if (!inserted) {
-                    ordered.put(listOwner, Collections.singletonList(gridItem));
-                    inserted = true;
-                }
-                if (owner != listOwner) ordered.put(owner, Collections.emptyList());
-            } else {
-                ArrayList<Object> retained = new ArrayList<>();
-                for (Object contentItem : entry.getValue()) {
-                    if (!relocatedComponents.contains(contentItem)) retained.add(contentItem);
-                }
-                if (!inserted && retained.size() != entry.getValue().size()) {
-                    ordered.put(listOwner, Collections.singletonList(gridItem));
-                    inserted = true;
-                }
-                ordered.put(owner, retained);
-            }
-        }
-        if (!inserted) throw new IllegalStateException("QS list owner disappeared");
-        Map raw = target;
-        raw.clear();
-        raw.putAll(ordered);
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void restoreMap(Map<?, ?> target,
-            LinkedHashMap<Object, List<Object>> original) {
-        Map raw = target;
-        raw.clear();
-        raw.putAll(original);
-    }
-
     private static final class GridState implements InvocationHandler {
         final WeakReference<Object> adapter;
-        final Object listOwner;
-        final Object cardsOwner;
         final int columns;
         final int spacingDp;
         final int radiusDp;
@@ -670,11 +501,12 @@ final class ControlCenterRuntimeGrid {
         final int firstRow;
         final int rowCount;
         final Object item;
-        LinkedHashMap<Object, List<Object>> original;
+        ControlCenterHostAdapter.Panel hostPanel;
         Object outerHolder;
         ViewGroup outerView;
         GridView grid;
         View.OnLayoutChangeListener outerLayoutListener;
+        final ArrayList<Runnable> mountTasks = new ArrayList<>();
         ArrayList<Child> originalChildren;
         ArrayList<TileBinding> bindings;
         Drawable oldBackground;
@@ -689,30 +521,15 @@ final class ControlCenterRuntimeGrid {
         boolean disposed;
         boolean failed;
 
-        GridState(Object adapter, Object listOwner, Object factory, Class<?> itemInterface,
+        GridState(Object adapter, ControlCenterHostAdapter.Panel hostPanel,
+                Class<?> itemInterface,
                 ControlCenterConfig settings, boolean compact, int columns,
                 List<ControlCenterLayoutPlan.Item> items, Map<String, Object> sourceTiles,
                 Map<String, ComponentSource> sourceComponents, int firstRow, int rowCount)
                 throws ReflectiveOperationException {
             this.adapter = new WeakReference<>(adapter);
+            this.hostPanel = hostPanel;
             this.materialSettings = settings;
-            this.listOwner = listOwner;
-            Object cardsProvider = readField(listOwner, "qsCardsController");
-            Object cardsController = cardsProvider;
-            if (cardsProvider != null) {
-                try {
-                    Object candidate = call(cardsProvider, "get");
-                    if (candidate != null && method(candidate.getClass(),
-                            "createViewHolder", 2) != null) {
-                        cardsController = candidate;
-                    }
-                } catch (ReflectiveOperationException ignored) {
-                    // Older plugin revisions expose the controller directly.
-                }
-            }
-            this.cardsOwner = cardsController != null
-                    && method(cardsController.getClass(), "createViewHolder", 2) != null
-                    ? cardsController : null;
             this.columns = columns;
             this.spacingDp = settings.spacing;
             this.radiusDp = settings.cornerRadius;
@@ -733,16 +550,13 @@ final class ControlCenterRuntimeGrid {
                 for (String spec : requiredSpecs) {
                     Object tile = sourceTiles.get(spec);
                     if (tile == null) throw new IllegalStateException("Missing grid tile " + spec);
-                    boolean card = cardsOwner != null && usesCardView(items, spec);
-                    Object record = call(factory, "create", tile, card);
-                    if (record == null || !"QSRecord".equals(record.getClass().getSimpleName())) {
-                        throw new IllegalStateException("QSRecord factory returned no record");
-                    }
+                    boolean card = hostPanel.hasCardsOwner() && usesCardView(items, spec);
+                    Object record = hostPanel.createRecord(tile, card);
                     records.put(spec, record);
-                    call(record, "setAdded", true);
                 }
             for (Map.Entry<String, ComponentSource> entry : sourceComponents.entrySet()) {
-                if (entry.getValue().owner == null || entry.getValue().item == null) {
+                if (!entry.getValue().moduleOwned
+                        && (entry.getValue().owner == null || entry.getValue().item == null)) {
                     throw new IllegalStateException("Component source is incomplete "
                             + entry.getKey());
                 }
@@ -896,24 +710,10 @@ final class ControlCenterRuntimeGrid {
                 throws ReflectiveOperationException {
             Object record = records.get(spec);
             if (record == null) throw new IllegalStateException("Missing record " + spec);
-            Object owner = cardsOwner != null && usesCardView(items, spec) ? cardsOwner : listOwner;
-            Object holder = call(owner, "createViewHolder", target, call(record, "getType"));
-            Object value = readField(holder, "itemView");
-            if (!(value instanceof View view)) {
-                throw new IllegalStateException("Native tile view missing");
-            }
-            if (view.getParent() instanceof ViewGroup parent) parent.removeView(view);
-            call(holder, "init");
-            call(holder, "setOwner", owner);
-            call(holder, "setItem$miui_controlcenter_release", record);
-            call(record, "setHolder", holder);
-            created.add(new TileBinding(record, holder));
-            if (owner == listOwner) {
-                call(listOwner, "onBindViewHolder", holder, record);
-            } else {
-                call(record, "onBindViewHolder");
-            }
-            return view;
+            ControlCenterHostAdapter.HolderBinding binding = hostPanel.bindTile(target, record,
+                    hostPanel.hasCardsOwner() && usesCardView(items, spec));
+            created.add(new TileBinding(binding.record, binding.holder));
+            return binding.view;
         }
 
         private void addGroup(GridView target, List<TileBinding> created, ControlCenterLayoutPlan.Item placement) {
@@ -939,37 +739,28 @@ final class ControlCenterRuntimeGrid {
             ComponentSource source = sourceComponents.get(placement.firstSpec);
             if (source == null) throw new IllegalStateException(
                     "Missing component " + placement.firstSpec);
-            // A component controller owns state outside its item view. In
-            // particular, DeviceCenterEntryController reuses one nested
-            // LayoutManager, which cannot be attached to a second RecyclerView
-            // while the native holder is still bound. Detach that old holder
-            // before creating the replacement used by the custom grid.
-            Object existingHolder = callOptional(source.item, "getHolder");
-            if (existingHolder != null) {
-                callOptional(source.item, "onUnbindViewHolder");
+            if (source.moduleOwned) {
+                if (!ControlCenterComponentSpec.FIVE_G.equals(placement.firstSpec)) {
+                    throw new IllegalStateException("Unknown module component " + placement.firstSpec);
+                }
+                ControlCenter5GTileView view = new ControlCenter5GTileView(target.getContext());
+                view.setShape(placement.shape, placement.cornerRadius);
+                created.add(TileBinding.moduleView(view));
+                target.addTile(view, placement, -1);
+                ControlCenterMaterials.registerRoot(view, materialSettings);
+                return;
             }
-            Object type = call(source.item, "getType");
-            if (!(type instanceof Number)) throw new IllegalStateException(
-                    "Component type unavailable " + placement.firstSpec);
-            Object holder = call(source.owner, "createViewHolder", target,
-                    ((Number) type).intValue());
-            if (holder == null) throw new IllegalStateException(
-                    "Component owner returned no holder " + placement.firstSpec);
-            Object value = readField(holder, "itemView");
-            if (!(value instanceof View view)) throw new IllegalStateException(
-                    "Native component view missing " + placement.firstSpec);
-            if (view.getParent() instanceof ViewGroup parent) parent.removeView(view);
-            call(holder, "init");
-            call(holder, "setOwner", source.owner);
-            call(holder, "setItem$miui_controlcenter_release", source.item);
-            call(source.item, "setHolder", holder);
-            TileBinding binding = TileBinding.component(source.owner, source.item, holder);
+            ControlCenterHostAdapter.HolderBinding nativeBinding =
+                    hostPanel.bindComponent(target, source.owner, source.item);
+            View view = nativeBinding.view;
+            TileBinding binding = TileBinding.component(nativeBinding.owner,
+                    nativeBinding.record, nativeBinding.holder);
             created.add(binding);
-            // MainPanelContent's two-argument bind is an interface default method;
-            // invoke the concrete MainPanelListItem bind that component controllers expose.
-            callOptional(source.item, "onBindViewHolder");
-            binding.sliderLayout = ControlCenterSliderLayout.create(holder, placement,
-                    ControlCenterGridGeometry.radiusPx(target.getContext(), radiusDp));
+            binding.sliderLayout = ControlCenterSliderLayout.create(nativeBinding.holder, placement,
+                    ControlCenterGridGeometry.radiusPx(target.getContext(), radiusDp),
+                    materialSettings.enabled && materialSettings.borderEnabled
+                            ? Math.max(1f, materialSettings.borderWidthDp
+                                    * target.getResources().getDisplayMetrics().density) : 0f);
             target.addTile(view, placement, -1, binding.sliderLayout);
             ControlCenterMaterials.registerRoot(view, materialSettings);
             if (binding.sliderLayout != null) {
@@ -1017,18 +808,29 @@ final class ControlCenterRuntimeGrid {
             };
             view.addOnLayoutChangeListener(outerLayoutListener);
             enforceOuterHeight(view, nextGrid);
-            view.post(() -> {
+            scheduleMountTask(view, () -> {
                 if (outerView == view && grid == nextGrid)
                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
-            });
-            view.postDelayed(() -> {
+            }, 0L);
+            scheduleMountTask(view, () -> {
                 if (outerView == view && grid == nextGrid)
                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
             }, 64L);
-            view.postDelayed(() -> {
+            scheduleMountTask(view, () -> {
                 if (outerView == view && grid == nextGrid)
                     guardPresentation(() -> normalizePresentation("settled"));
             }, 160L);
+        }
+
+        private void scheduleMountTask(View view, Runnable action, long delay) {
+            Runnable task = new Runnable() {
+                @Override public void run() {
+                    mountTasks.remove(this);
+                    if (outerView == view && !disposed && !failed) action.run();
+                }
+            };
+            mountTasks.add(task);
+            view.postDelayed(task, delay);
         }
 
         private void guardPresentation(Runnable change) {
@@ -1121,6 +923,7 @@ final class ControlCenterRuntimeGrid {
             try {
                 Object frameCallback = readField(ownerAdapter, "frameCallback");
                 for (TileBinding binding : bindings) {
+                    if (binding.moduleOwned) continue;
                     if (binding.presentation == null) {
                         binding.presentation = new HolderPresentation(binding.holder);
                     } else {
@@ -1147,6 +950,7 @@ final class ControlCenterRuntimeGrid {
         private void detach() {
             if (bindings == null) return;
             for (TileBinding binding : bindings) {
+                if (binding.moduleOwned) continue;
                 RuntimeCleanup.run("tile detach callback", () -> {
                     if (binding.owner != null) {
                         if (ownsComponentHolder(binding)) callOptional(binding.record, "onViewDetachedFromWindow");
@@ -1163,6 +967,11 @@ final class ControlCenterRuntimeGrid {
         }
 
         private void unbind() {
+            if (outerView != null) {
+                for (Runnable task : new ArrayList<>(mountTasks))
+                    RuntimeCleanup.run("cancel grid mount task", () -> outerView.removeCallbacks(task));
+            }
+            mountTasks.clear();
             RuntimeCleanup.run("detach bindings", this::detach);
             if (grid != null) RuntimeCleanup.run("release grid material ownership", grid::releaseMaterials);
             if (bindings != null) {
@@ -1211,6 +1020,12 @@ final class ControlCenterRuntimeGrid {
 
         private void releaseBindings(List<TileBinding> values) {
             for (TileBinding binding : values) {
+                if (binding.moduleOwned) {
+                    RuntimeCleanup.run("release module 5G tile", binding.moduleView::release);
+                    continue;
+                }
+                if (binding.groupEntry != null)
+                    RuntimeCleanup.run("restore group member surface", binding.groupEntry::release);
                 if (binding.sliderLayout != null)
                     RuntimeCleanup.run("restore slider", binding.sliderLayout::restore);
                 if (binding.owner == null) {
@@ -1236,6 +1051,7 @@ final class ControlCenterRuntimeGrid {
         }
 
         private boolean ownsComponentHolder(TileBinding binding) throws ReflectiveOperationException {
+            if (binding.moduleOwned) return false;
             return binding.owner == null || callOptional(binding.record, "getHolder") == binding.holder;
         }
 
@@ -1250,33 +1066,22 @@ final class ControlCenterRuntimeGrid {
             });
         }
 
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        private void restoreSnapshot(LinkedHashMap<Object, List<Object>> snapshot, boolean notify) {
+            if (hostPanel == null) return;
+            ControlCenterHostAdapter.RestoreResult result = hostPanel.restoreSnapshot(snapshot, notify);
+            if (result == ControlCenterHostAdapter.RestoreResult.RESTORED_WITHOUT_NOTIFY) {
+                Log.w(TAG, "Current native panel restored without notify");
+            }
+        }
+
         private void restoreNative(boolean notify) {
-            Object ownerAdapter = adapter.get();
-            if (ownerAdapter == null || original == null) return;
-            Object value = readField(ownerAdapter, "contentMap");
-            if (!(value instanceof Map map)) return;
-            boolean active = false;
-            for (Object items : map.values()) {
-                if (items instanceof List<?> list && list.contains(item)) {
-                    active = true;
-                    break;
-                }
-            }
-            if (!active && !map.isEmpty()) {
-                // A later SystemUI distribution may have replaced the proxy item.
-                // Keep the newer native distribution instead of resurrecting stale data.
+            if (hostPanel == null) return;
+            ControlCenterHostAdapter.RestoreResult result = hostPanel.restoreProxy(item, notify);
+            if (result == ControlCenterHostAdapter.RestoreResult.SUPERSEDED) {
+                // A later SystemUI distribution replaced the proxy; keep its native map.
                 Log.w(TAG, "runtime grid proxy missing; keeping current native panel");
-                return;
-            }
-            map.clear();
-            map.putAll(original);
-            if (notify) {
-                try {
-                    call(ownerAdapter, "notifyDataSetChanged");
-                } catch (ReflectiveOperationException error) {
-                    Log.w(TAG, "Native panel restored without notify", error);
-                }
+            } else if (result == ControlCenterHostAdapter.RestoreResult.RESTORED_WITHOUT_NOTIFY) {
+                Log.w(TAG, "Native panel restored without notify");
             }
         }
 
@@ -1290,8 +1095,16 @@ final class ControlCenterRuntimeGrid {
 
         private void releaseRecords() {
             for (Object record : records.values()) {
-                RuntimeCleanup.run("stop record listening", () -> call(record, "setListening", false));
-                RuntimeCleanup.run("remove record callback", () -> call(record, "removeCallback"));
+                RuntimeCleanup.run("stop record listening",
+                        () -> {
+                            if (hostPanel != null) hostPanel.setRecordListening(record, false);
+                            else call(record, "setListening", false);
+                        });
+                RuntimeCleanup.run("remove record callback",
+                        () -> {
+                            if (hostPanel != null) hostPanel.removeRecordCallback(record);
+                            else call(record, "removeCallback");
+                        });
             }
             records.clear();
         }
@@ -1301,22 +1114,35 @@ final class ControlCenterRuntimeGrid {
         final Object owner;
         final Object record;
         final Object holder;
+        final boolean moduleOwned;
+        final ControlCenter5GTileView moduleView;
         HolderPresentation presentation;
         ControlCenterSliderLayout sliderLayout;
         ControlCenterGroupEntry groupEntry;
 
         TileBinding(Object record, Object holder) {
-            this(null, record, holder);
+            this(null, record, holder, false, null);
         }
 
         private TileBinding(Object owner, Object record, Object holder) {
+            this(owner, record, holder, false, null);
+        }
+
+        private TileBinding(Object owner, Object record, Object holder, boolean moduleOwned,
+                ControlCenter5GTileView moduleView) {
             this.owner = owner;
             this.record = record;
             this.holder = holder;
+            this.moduleOwned = moduleOwned;
+            this.moduleView = moduleView;
         }
 
         static TileBinding component(Object owner, Object item, Object holder) {
             return new TileBinding(owner, item, holder);
+        }
+
+        static TileBinding moduleView(ControlCenter5GTileView view) {
+            return new TileBinding(null, null, null, true, view);
         }
     }
 
@@ -1363,10 +1189,20 @@ final class ControlCenterRuntimeGrid {
     private static final class ComponentSource {
         final Object owner;
         final Object item;
+        final boolean moduleOwned;
 
         ComponentSource(Object owner, Object item) {
+            this(owner, item, false);
+        }
+
+        ComponentSource(Object owner, Object item, boolean moduleOwned) {
             this.owner = owner;
             this.item = item;
+            this.moduleOwned = moduleOwned;
+        }
+
+        static ComponentSource moduleOwned() {
+            return new ComponentSource(MODULE_FIVE_G_COMPONENT, MODULE_FIVE_G_COMPONENT, true);
         }
     }
 
@@ -1392,17 +1228,28 @@ final class ControlCenterRuntimeGrid {
         private final int rowCount;
         private final int rowHeight;
         private final ArrayList<Slot> slots = new ArrayList<>();
+        private final Map<View, Slot> slotsByView = new IdentityHashMap<>();
         private final Map<View, Path> pairClips = new IdentityHashMap<>();
         private final Map<View, Path> slotClips = new IdentityHashMap<>();
         private final Map<String, Decoration> decorations = new LinkedHashMap<>();
         private final Map<View, ActiveTileBackground> activeTileBackgrounds = new IdentityHashMap<>();
-        private final Map<View, WeakReference<Drawable>> componentBackgrounds = new WeakHashMap<>();
         private final Matrix surfaceMatrix = new Matrix();
         private final RectF surfaceBounds = new RectF();
         private ControlCenterConfig materialSettings = ControlCenterConfig.defaults();
         private int lastMeasuredWidth = -1;
         private int lastMeasuredHeight = -1;
         private ControlCenterLayoutPlan.Mode editorMode;
+        private boolean materialsReleased;
+        private boolean syncingMaterials;
+        private int materialProbeStage;
+        private final Runnable materialProbe = new Runnable() {
+            @Override public void run() {
+                if (materialsReleased) return;
+                markAllMaterialsDirty();
+                invalidate();
+                if (++materialProbeStage < 3) postDelayed(this, materialProbeStage == 1 ? 96L : 160L);
+            }
+        };
 
         GridView(android.content.Context context, int columns, int spacingDp,
                 int radiusDp, int firstRow, int rowCount) {
@@ -1457,10 +1304,63 @@ final class ControlCenterRuntimeGrid {
         int captureSpacing() { return Math.round(gap / getResources().getDisplayMetrics().density); }
 
         void releaseMaterials() {
+            materialsReleased = true;
+            removeCallbacks(materialProbe);
             for (Slot slot : slots) {
                 if (slot.view.getParent() == this)
-                    ControlCenterMaterials.releaseGridSurface(slot.view, materialSettings);
+                    RuntimeCleanup.run("release slot material ownership",
+                            () -> ControlCenterMaterials.releaseGridSurface(slot.view, materialSettings));
+                ActiveTileBackground background = activeTileBackgrounds.remove(slot.view);
+                if (background != null && slot.view.getBackground() == background)
+                    RuntimeCleanup.run("restore fallback tile background",
+                            () -> slot.view.setBackground(background.nativeBackground));
             }
+        }
+
+        private void markSlotDirty(View source) {
+            if (materialsReleased || syncingMaterials) return;
+            if (source == this) markAllMaterialsDirty();
+            else for (View current = source; current != null && current != this;
+                    current = current.getParent() instanceof View parent ? parent : null) {
+                Slot slot = slotsByView.get(current);
+                if (slot != null) { slot.materialDirty = true; break; }
+            }
+            invalidate();
+        }
+
+        private void markAllMaterialsDirty() {
+            for (Slot slot : slots) slot.materialDirty = true;
+        }
+
+        private void scheduleMaterialProbes() {
+            removeCallbacks(materialProbe);
+            materialProbeStage = 0;
+            // OEM attachment/theme work can arrive after the first material pass.
+            // Probe at 64, 160 and 320 ms, then stop until another lifecycle event.
+            if (!materialsReleased) postDelayed(materialProbe, 64L);
+        }
+
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            if (materialsReleased) return;
+            markAllMaterialsDirty();
+            scheduleMaterialProbes();
+        }
+
+        @Override protected void onDetachedFromWindow() {
+            removeCallbacks(materialProbe);
+            super.onDetachedFromWindow();
+        }
+
+        @Override public void invalidate() {
+            super.invalidate();
+        }
+
+        @Override protected void onConfigurationChanged(Configuration configuration) {
+            super.onConfigurationChanged(configuration);
+            markAllMaterialsDirty();
+            scheduleMaterialProbes();
+            invalidate();
         }
 
         boolean managesDecoration(View view) {
@@ -1476,8 +1376,11 @@ final class ControlCenterRuntimeGrid {
         }
 
         void applyMaterials(ControlCenterConfig settings) {
+            materialsReleased = false;
             materialSettings = settings;
+            syncingMaterials = true;
             for (Slot slot : slots) {
+                slot.materialDirty = false;
                 ControlCenterMaterials.registerRoot(slot.view, settings);
                 if (slot.item.type == ControlCenterLayoutPlan.Type.COMPONENT)
                     syncComponentSurface(slot);
@@ -1523,10 +1426,13 @@ final class ControlCenterRuntimeGrid {
                 });
             }
             updateDecorations(settings);
+            syncingMaterials = false;
+            scheduleMaterialProbes();
         }
 
         void updateDecorations(ControlCenterConfig settings) {
             materialSettings = settings;
+            markAllMaterialsDirty();
             for (Slot slot : slots) {
                 if (slot.item.type != ControlCenterLayoutPlan.Type.TILE
                         && slot.item.type != ControlCenterLayoutPlan.Type.PAIR) continue;
@@ -1551,8 +1457,12 @@ final class ControlCenterRuntimeGrid {
 
         @Override
         protected void dispatchDraw(Canvas canvas) {
-            syncNativeSurfaceDrawables();
-            syncActiveTileBackgrounds();
+            if (!materialsReleased) {
+                syncingMaterials = true;
+                syncNativeSurfaceDrawables();
+                syncActiveTileBackgrounds();
+                syncingMaterials = false;
+            }
             for (Decoration decoration : decorations.values()) positionNativeDecoration(decoration);
             diagnoseDecorationSurfaces();
             super.dispatchDraw(canvas);
@@ -1586,14 +1496,29 @@ final class ControlCenterRuntimeGrid {
                 // Components can install a fresh background when attached, after
                 // the initial material pass completed during holder creation.
                 if (slot.item.type == ControlCenterLayoutPlan.Type.COMPONENT) {
-                    if (componentBackgroundChanged(slot.view, 0))
-                        ControlCenterMaterials.registerRoot(slot.view, materialSettings);
+                    if (slot.materialRootBackground != slot.view.getBackground())
+                        slot.materialDirty = true;
+                    if (!slot.materialDirty) continue;
+                    ControlCenterMaterials.registerRoot(slot.view, materialSettings);
                     syncComponentSurface(slot);
+                    slot.materialRootBackground = slot.view.getBackground();
+                    slot.materialDirty = false;
                     continue;
                 }
                 if (slot.item.type != ControlCenterLayoutPlan.Type.TILE
                         && slot.item.type != ControlCenterLayoutPlan.Type.PAIR) continue;
                 View view = slot.view;
+                if ((slot.item.type == ControlCenterLayoutPlan.Type.TILE
+                        || slot.item.type == ControlCenterLayoutPlan.Type.PAIR)
+                        && slot.item.shape != ControlCenterLayoutPlan.Shape.CIRCLE) {
+                    boolean active = isActiveTile(slot.item);
+                    if (!slot.materialActiveKnown || slot.materialActive != active) {
+                        slot.materialActiveKnown = true;
+                        slot.materialActive = active;
+                        slot.materialDirty = true;
+                    }
+                }
+                if (!slot.materialDirty) continue;
                 if (nativeTile(view) && (slot.item.shape == ControlCenterLayoutPlan.Shape.CIRCLE
                         || materialSettings.enabled && slot.item.type == ControlCenterLayoutPlan.Type.TILE)) {
                     ControlCenterMaterials.registerRoot(view, materialSettings);
@@ -1604,6 +1529,7 @@ final class ControlCenterRuntimeGrid {
                     ControlCenterMaterials.syncCardView(view, slot.item.withShape(slot.item.shape,
                             slot.item.cornerRadius > 0 ? slot.item.cornerRadius : materialSettings.cornerRadius));
                 }
+                slot.materialDirty = false;
             }
         }
 
@@ -1652,24 +1578,22 @@ final class ControlCenterRuntimeGrid {
             };
         }
 
-        private boolean componentBackgroundChanged(View view, int depth) {
-            if (depth > 16) return false;
-            WeakReference<Drawable> previous = componentBackgrounds.get(view);
-            Drawable background = view.getBackground();
-            boolean changed = previous == null || previous.get() != background;
-            if (changed) componentBackgrounds.put(view, new WeakReference<>(background));
-            if (view instanceof ViewGroup group) {
-                for (int i = 0; i < group.getChildCount(); i++)
-                    changed |= componentBackgroundChanged(group.getChildAt(i), depth + 1);
-            }
-            return changed;
-        }
-
         private void syncActiveTileBackgrounds() {
             for (Decoration decoration : decorations.values()) {
                 if (decoration.item.shape != ControlCenterLayoutPlan.Shape.CIRCLE) continue;
                 View tile = tileSlot(decoration.item);
                 if (tile == null) continue;
+                Slot tileSlot = slotsByView.get(tile);
+                boolean active = isActiveTile(decoration.item);
+                ActiveTileBackground wrapper = activeTileBackgrounds.get(tile);
+                if (tileSlot != null) {
+                    boolean stateChanged = !tileSlot.materialActiveKnown
+                            || tileSlot.materialActive != active;
+                    tileSlot.materialActiveKnown = true;
+                    tileSlot.materialActive = active;
+                    if (!tileSlot.materialDirty && !stateChanged && (active || wrapper == null)) continue;
+                    tileSlot.materialDirty = true;
+                }
                 if (ControlCenterMaterials.syncTileView(tile, materialSettings)) {
                     // The OEM ImageView owns the visible background. Do not add
                     // a second surface to the padded QSTileItemView wrapper.
@@ -1678,20 +1602,21 @@ final class ControlCenterRuntimeGrid {
                         tile.setBackground(stale.nativeBackground);
                     continue;
                 }
-                ActiveTileBackground wrapper = activeTileBackgrounds.get(tile);
-                boolean active = isActiveTile(decoration.item);
                 if (active) {
                     if (tile.getBackground() instanceof ActiveTileBackground current) {
                         current.setActive(true);
+                        if (tileSlot != null) tileSlot.materialDirty = false;
                         continue;
                     }
                     Drawable nativeBackground = tile.getBackground();
                     wrapper = new ActiveTileBackground(nativeBackground);
                     activeTileBackgrounds.put(tile, wrapper);
                     tile.setBackground(wrapper);
+                    if (tileSlot != null) tileSlot.materialDirty = false;
                 } else if (wrapper != null && tile.getBackground() == wrapper) {
                     tile.setBackground(wrapper.nativeBackground);
                     activeTileBackgrounds.remove(tile);
+                    if (tileSlot != null) tileSlot.materialDirty = false;
                 }
             }
         }
@@ -1735,12 +1660,16 @@ final class ControlCenterRuntimeGrid {
                 configureShape(shape, placement);
                 background.setBackground(shape);
                 background.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                slots.add(new Slot(background, placement, -1));
+                Slot backingSlot = new Slot(background, placement, -1);
+                slots.add(backingSlot);
+                slotsByView.put(background, backingSlot);
                 slotClips.put(background, new Path());
                 addView(background, new MarginLayoutParams(LayoutParams.MATCH_PARENT,
                         LayoutParams.MATCH_PARENT));
             }
-            slots.add(new Slot(child, placement, half, sliderLayout));
+            Slot childSlot = new Slot(child, placement, half, sliderLayout);
+            slots.add(childSlot);
+            slotsByView.put(child, childSlot);
             // Ordinary singleton tiles arrive with half == 0 too; half is only
             // a split indicator when the placement itself is a pair.
             if (nativeCircle(child, placement)) {
@@ -2011,6 +1940,10 @@ final class ControlCenterRuntimeGrid {
 
     private static final class Slot {
         boolean materialDiagnosed;
+        boolean materialDirty = true;
+        boolean materialActive;
+        boolean materialActiveKnown;
+        Drawable materialRootBackground;
         final View view;
         final ControlCenterLayoutPlan.Item item;
         final int half;
@@ -2044,13 +1977,18 @@ final class ControlCenterRuntimeGrid {
     private static final class ActiveTileBackground extends Drawable {
         final Drawable nativeBackground;
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private boolean active = true;
 
         ActiveTileBackground(Drawable nativeBackground) {
             this.nativeBackground = nativeBackground;
             fill.setColor(ControlCenterCardView.ACTIVE_SURFACE);
         }
 
-        void setActive(boolean active) { invalidateSelf(); }
+        void setActive(boolean active) {
+            if (this.active == active) return;
+            this.active = active;
+            invalidateSelf();
+        }
 
         @Override public void draw(Canvas canvas) {
             android.graphics.Rect bounds = getBounds();
@@ -2092,40 +2030,21 @@ final class ControlCenterRuntimeGrid {
     }
 
     static Object readField(Object target, String name) {
-        if (target == null) return null;
-        try {
-            Field field = RuntimeReflection.field(target.getClass(), name);
-            return field == null ? null : field.get(target);
-        } catch (IllegalAccessException | RuntimeException error) { return null; }
+        return ControlCenterHostAdapter.readField(target, name);
     }
 
     private static Method method(Class<?> type, String name, int count) {
-        return RuntimeReflection.withCount(type, name, count);
+        return ControlCenterHostAdapter.method(type, name, count);
     }
 
-    private static Object call(Object target, String name, Object... args)
+    static Object call(Object target, String name, Object... args)
             throws ReflectiveOperationException {
-        if (target == null) throw new NoSuchMethodException(name + " on null");
-        Method candidate = RuntimeReflection.compatible(target.getClass(), name, args);
-        if (candidate != null) {
-            try {
-                return candidate.invoke(target, args);
-            } catch (InvocationTargetException error) {
-                Throwable cause = error.getCause();
-                if (cause instanceof ReflectiveOperationException reflection) throw reflection;
-                throw new IllegalStateException(cause);
-            }
-        }
-        throw new NoSuchMethodException(target.getClass().getName() + '#' + name);
+        return ControlCenterHostAdapter.call(target, name, args);
     }
 
     static Object callOptional(Object target, String name, Object... args)
             throws ReflectiveOperationException {
-        try {
-            return call(target, name, args);
-        } catch (NoSuchMethodException ignored) {
-            return null;
-        }
+        return ControlCenterHostAdapter.callOptional(target, name, args);
     }
 
 }

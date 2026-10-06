@@ -5,15 +5,9 @@
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
-- 正式版：[v0.3.173](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.173)
-- 更新说明：[0.3.152-0.3.173 综合更新](docs/release-v0.3.173.md)
 - UI 设计参考：[Miuix](https://github.com/compose-miuix-ui/miuix)，感谢开源项目提供设计灵感。
-
-## 安装与迁移
-
-- 从 0.3.150 起，模块包名为 `io.github.yudigaga.fusionstatusbar`，Android 会将其视为独立应用，旧包 `com.xtjm.fusionstatusbar` 的配置不会自动迁移。
-- 如需保留配置，先在旧版设置中选择“导出配置备份”，安装新版后选择“导入配置备份”。确认新版配置后，再卸载旧版。
-- 在 LSPosed 中关闭旧包的模块，只启用新版；作用域选择 `com.android.systemui`，设备存在 `miui.systemui.plugin` 时也将其勾选，然后重启系统界面。不要同时启用新旧两个模块。
+- 最新正式版：[FusionStatusBar 0.3.182](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.182)
+- [0.3.182 更新说明](docs/release-v0.3.182.md)
 
 ## 构建
 
@@ -26,13 +20,17 @@
 .\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
 ```
 
-本地 debug 构建检查与归档：
+完整本地验证与归档（Debug、Release、单测、lint、版本元数据和源码快照）：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\release.ps1 -JavaHome $env:JAVA_HOME -AndroidSdk $env:ANDROID_HOME -GitPath git
 ```
 
-脚本会核验测试、lint 检查兼容性、APK 签名、Manifest/Xposed/Hook 版本一致性，并把 APK、报告、源码指纹和 `release.json` 放在 `artifacts/releases/v<version>/`。该脚本产出 debug APK；对外发布需另行构建 release 变体并使用专用密钥签名。已有发布目录不会覆盖。脚本不安装 APK、不连接设备、不重启 SystemUI。
+正式归档要求工作区干净、`HEAD` 与 `-SourceRef` 一致，并使用本机签名凭据。开发过程可以显式加 `-AllowDirty`，脚本会在 `release.json` 中标记 `sourceDirty=true`，同时保存 `source.zip`、`tracked.patch`、文件哈希和构建输入；默认绝不覆盖已存在的版本目录。只验证而不签名时使用 `-VerifyOnly`，CI 使用同一入口，不需要签名凭据。脚本不安装 APK、不连接设备、不重启 SystemUI。
+
+脚本会核验两种变体的测试、lint、Manifest/Xposed/Hook 版本一致性；Release 本地归档还会执行 zip alignment 和证书指纹核验。APK、报告、源码快照和 `release.json` 放在 `artifacts/releases/v<version>/`。`tools/validate-build.py` 是无 Android 工具依赖的结构化校验器，Python 回归测试位于 `tools/tests/`。
+
+GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug/Release 测试、lint 和无签名构建验证；它只上传验证证据，不发布 APK。
 
 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
 
@@ -53,7 +51,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\release.ps1 -JavaHom
 
 ## 验证范围
 
-按用户要求不进行实体手机安装、LSPosed 注入检查或 HyperOS 实机验收。设置弹窗另有 API 36 模拟器窗口轨迹和帧统计，后者不能证明目标手机流畅度。Robolectric 的行为、生命周期和像素测试不能代替实机检查；以每版发布清单和验证记录为准。
+发布脚本不自动安装 APK、不重启 SystemUI，也不把构建成功当作 ROM 验收。设备安装、LSPosed 注入、HyperOS 视觉和性能证据单独记录在版本验证文档中；Robolectric 的行为、生命周期和像素测试不能代替实机检查。0.3.174 曾有目标设备安装、版本和哈希证据；0.3.182 的 SystemUI 注入回执、GPU 视觉和性能对照尚未完成。
 
 测试覆盖编辑、布局、配置协议和异常路径。OEM 反射相关 lint 警告需逐项判断；新增错误和自定义 lint 兼容问题阻止发布。`tools/lint-policy.json` 按文件记录已审阅的高风险警告，新增项或数量增加会阻止发布。
 
@@ -67,6 +65,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\index-evidence.ps1
 
 - [优化计划](docs/optimization-plan-20261001.md)
 - [本轮实施记录](docs/optimization-implementation-20261001.md)
+- [后续优化实施计划](docs/optimization-plan-20261005.md)
+- [2026-10-05 实施记录](docs/optimization-implementation-20261005.md)
 - [设置弹窗修正与 Miuix 参考](docs/settings-sheet-v0.3.132.md)
 - [冷启动旧设置页闪现修正](docs/cold-start-ui-v0.3.133.md)
 - [启动协调器职责拆分](docs/startup-coordinator-v0.3.134.md)

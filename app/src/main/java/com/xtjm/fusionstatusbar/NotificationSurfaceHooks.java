@@ -32,12 +32,18 @@ final class NotificationSurfaceHooks {
     private static final Map<View, WeakReference<BackgroundState>> BACKGROUNDS = new WeakHashMap<>();
     private static Supplier<FusionConfig> current = FusionConfig::defaults;
     private static Consumer<Context> start = ignored -> { };
+    private static volatile Reporter reporter = (settings, result) -> { };
+    private static volatile boolean hooksAvailable;
+
+    interface Reporter { void report(ControlCenterConfig settings, RuntimeApplicationPolicy.Result result); }
 
     interface Registrar {
         boolean install(String id, Method method, XposedInterface.Hooker hooker);
     }
 
     private NotificationSurfaceHooks() { }
+
+    static void setReporter(Reporter value) { reporter = value == null ? (s, r) -> { } : value; }
 
     static int install(ClassLoader loader, Registrar registrar, Supplier<FusionConfig> config,
             Consumer<Context> ensureStarted) {
@@ -85,11 +91,27 @@ final class NotificationSurfaceHooks {
                 return result;
             });
         }
+        hooksAvailable = installed > 0;
         return installed;
     }
 
     static void refresh() {
         for (View row : new ArrayList<>(ROWS.keySet())) if (row != null) safelyApply(row);
+        reportApplication();
+    }
+
+    static void reportApplication() {
+        FusionConfig value;
+        try { value = current.get(); } catch (RuntimeException error) { return; }
+        boolean enabled = value.controlCenter.systemSurfaces.notifications
+                || value.controlCenter.systemSurfaces.headsUp;
+        boolean mounted = !ROWS.isEmpty();
+        reporter.report(value.controlCenter, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_NOTIFICATION_SURFACE, enabled, hooksAvailable,
+                mounted && enabled, mounted));
+        reporter.report(value.controlCenter, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_HEADS_UP, value.controlCenter.systemSurfaces.headsUp,
+                hooksAvailable, mounted && value.controlCenter.systemSurfaces.headsUp, mounted));
     }
 
     static void applyRow(View row, FusionConfig config) {
@@ -125,6 +147,9 @@ final class NotificationSurfaceHooks {
             BACKGROUNDS.remove(background);
         }
         background.invalidate();
+        reporter.report(config.controlCenter, RuntimeApplicationPolicy.systemSurface(
+                FusionActivationStatus.FEATURE_NOTIFICATION_SURFACE, enabled, hooksAvailable,
+                enabled, true));
     }
 
     static boolean isHeadsUp(View row) {

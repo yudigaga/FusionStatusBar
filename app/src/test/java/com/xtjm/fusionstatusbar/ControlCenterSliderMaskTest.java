@@ -2,7 +2,9 @@ package com.xtjm.fusionstatusbar;
 
 import android.app.Activity;
 import android.graphics.Outline;
+import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
@@ -15,11 +17,13 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.GraphicsMode;
 
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, manifest = Config.NONE)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ControlCenterSliderMaskTest {
     @Test
     public void verticalTrackUsesPlacementMaskAndPreservesProgressAmount() throws Exception {
@@ -33,7 +37,7 @@ public class ControlCenterSliderMaskTest {
         assertRoundRect(holder.binding.toggleSliderInner, new Rect(0, 0, 200, 600), 24f);
         assertRoundRect(holder.binding.progressBg, new Rect(0, 0, 200, 600), 24f);
         assertEquals(24f, background(holder.binding.progressBg).getCornerRadius(), 0f);
-        assertRoundRect(holder.binding.progress, new Rect(0, 450, 200, 600), 8f);
+        assertFillBounds(holder.binding.progress, new Rect(0, 450, 200, 600));
         assertEquals(25, holder.slider.getProgress());
         assertEquals(270f, holder.slider.getRotation(), 0f);
         layout.restore();
@@ -48,13 +52,13 @@ public class ControlCenterSliderMaskTest {
         holder.layout(160, 600);
         holder.slider.setProgress(50);
         assertRoundRect(holder.binding.toggleSliderInner, new Rect(0, 0, 160, 600), 80f);
-        assertRoundRect(holder.binding.progress, new Rect(0, 300, 160, 600), 8f);
+        assertFillBounds(holder.binding.progress, new Rect(0, 300, 160, 600));
 
         layout.measure(220, 620);
         holder.layout(220, 620);
         assertRoundRect(holder.binding.toggleSliderInner, new Rect(0, 0, 220, 620), 110f);
         assertEquals(110f, background(holder.binding.progressBg).getCornerRadius(), 0f);
-        assertRoundRect(holder.binding.progress, new Rect(0, 310, 220, 620), 8f);
+        assertFillBounds(holder.binding.progress, new Rect(0, 310, 220, 620));
         layout.restore();
     }
 
@@ -67,7 +71,7 @@ public class ControlCenterSliderMaskTest {
         holder.layout(200, 600);
         holder.slider.setProgress(100);
         assertRoundRect(holder.binding.toggleSliderInner, new Rect(0, 0, 200, 600), 4f);
-        assertRoundRect(holder.binding.progress, new Rect(0, 0, 200, 600), 4f);
+        assertFillBounds(holder.binding.progress, new Rect(0, 0, 200, 600));
         assertEquals(4f, background(holder.binding.progress).getCornerRadius(), 0f);
         layout.restore();
     }
@@ -92,7 +96,7 @@ public class ControlCenterSliderMaskTest {
         assertRoundRect(holder.binding.toggleSliderInner, new Rect(0, 0, 600, 200), 18f);
         assertRoundRect(holder.binding.progressBg, new Rect(0, 0, 600, 200), 18f);
         assertEquals(18f, nextTrack.getCornerRadius(), 0f);
-        assertRoundRect(holder.binding.progress, new Rect(0, 0, 300, 200), 8f);
+        assertFillBounds(holder.binding.progress, new Rect(0, 0, 300, 200));
         layout.restore();
         assertEquals(72f, nextTrack.getCornerRadius(), 0f);
     }
@@ -140,6 +144,31 @@ public class ControlCenterSliderMaskTest {
     }
 
     @Test
+    public void fillInsetsFromTheOutlineForVerticalAndHorizontalTracks() throws Exception {
+        Holder vertical = new Holder();
+        ControlCenterSliderLayout verticalLayout = ControlCenterSliderLayout.create(vertical,
+                item(1, 3), 24f, 5f);
+        verticalLayout.measure(200, 600);
+        vertical.layout(200, 600);
+        vertical.slider.setProgress(25);
+        assertFillBounds(vertical.binding.progress, new Rect(5, 447, 195, 595));
+        vertical.slider.setProgress(100);
+        assertFillBounds(vertical.binding.progress, new Rect(5, 5, 195, 595));
+        verticalLayout.restore();
+
+        Holder horizontal = new Holder();
+        ControlCenterSliderLayout horizontalLayout = ControlCenterSliderLayout.create(horizontal,
+                item(3, 1), 24f, 5f);
+        horizontalLayout.measure(600, 200);
+        horizontal.layout(600, 200);
+        horizontal.slider.setProgress(50);
+        assertFillBounds(horizontal.binding.progress, new Rect(5, 5, 300, 195));
+        horizontal.slider.setProgress(100);
+        assertFillBounds(horizontal.binding.progress, new Rect(5, 5, 595, 195));
+        horizontalLayout.restore();
+    }
+
+    @Test
     public void reattachKeepsTrackingTheNewViewTreeObserver() throws Exception {
         Holder holder = new Holder();
         ControlCenterSliderLayout layout = ControlCenterSliderLayout.create(holder,
@@ -174,6 +203,18 @@ public class ControlCenterSliderMaskTest {
 
     private static GradientDrawable background(View view) {
         return (GradientDrawable) view.getBackground();
+    }
+
+    private static void assertFillBounds(View view, Rect expected) throws Exception {
+        Outline outline = new Outline();
+        view.getOutlineProvider().getOutline(view, outline);
+        java.lang.reflect.Field field = Outline.class.getDeclaredField("mPath");
+        field.setAccessible(true);
+        RectF bounds = new RectF();
+        ((Path) field.get(outline)).computeBounds(bounds, true);
+        Rect actual = new Rect();
+        bounds.roundOut(actual);
+        assertEquals(expected, actual);
     }
 
     private static GradientDrawable shape(float radius) {

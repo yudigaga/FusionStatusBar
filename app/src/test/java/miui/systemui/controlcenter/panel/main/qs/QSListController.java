@@ -26,13 +26,16 @@ public final class QSListController {
     public static final class QSRecord implements MainPanelListItem {
         private final String spec;
         private Object holder;
+        public boolean added;
+        public boolean listening;
+        public int removedCallbacks;
         public QSRecord(String spec) { this.spec = spec; }
         public String getSpec() { return spec; }
         public Object getTile() { return spec; }
-        public void setAdded(boolean value) { }
+        public void setAdded(boolean value) { added = value; }
         public int getType() { return 8453; }
-        public void setListening(boolean value) { }
-        public void removeCallback() { }
+        public void setListening(boolean value) { listening = value; }
+        public void removeCallback() { removedCallbacks++; }
         public Object getHolder() { return holder; }
         public void setHolder(Object holder) { this.holder = holder; }
         public void onBindViewHolder() { }

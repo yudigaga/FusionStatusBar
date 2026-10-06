@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -166,6 +167,20 @@ public class ControlCenterCardVisualTest {
         assertTrue(Color.red(bitmap.getPixel(24 + volume.getLeft() + volume.getWidth() / 2,
                 24 + volume.getTop() + volume.getHeight() / 2)) > 240);
         export(bitmap, "captured-state");
+    }
+
+    @Test public void fiveGCanvasPreviewUsesTheRuntimeLabelAndEnabledFill() {
+        ControlCenterCardView card = new ControlCenterCardView(context);
+        card.bind(new ControlCenterCardView.Model(ControlCenterComponentSpec.FIVE_G, "",
+                "5G", null, true, true, false, false,
+                ControlCenterLayoutPlan.Shape.CIRCLE, 0, 100));
+
+        View surface = ((FrameLayout) card.getChildAt(0)).getChildAt(0);
+        assertTrue(surface instanceof TextView);
+        assertEquals("5G", ((TextView) surface).getText());
+        assertEquals(0xfff8f9fb, ((GradientDrawable) card.getChildAt(0).getBackground())
+                .getColor().getDefaultColor());
+        assertEquals(0xff3482f6, ((TextView) surface).getCurrentTextColor());
     }
 
     private int surfaceColor(View host) {
