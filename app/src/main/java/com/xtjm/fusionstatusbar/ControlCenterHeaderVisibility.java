@@ -85,14 +85,14 @@ final class ControlCenterHeaderVisibility {
                 new String[] {"mDateView", "dateView", "mDateTextView", "dateTextView",
                         "mDateText", "dateText", "mDate"},
                 "date");
-        if (date != null) date.setVisibility(View.GONE);
+        if (date != null && date.getVisibility() == View.VISIBLE) date.setVisibility(View.INVISIBLE);
     }
 
     private static void applyCarrier(Object controller, boolean hidden) {
         if (!hidden) return;
         Object carrierLayout = readField(controller, "carrierLayout");
         if (carrierLayout instanceof View view) {
-            view.setVisibility(View.GONE);
+            if (view.getVisibility() == View.VISIBLE) view.setVisibility(View.INVISIBLE);
             return;
         }
         TextView carrier = findTextView(controller,
@@ -101,7 +101,7 @@ final class ControlCenterHeaderVisibility {
                         "carrierName", "mCarrierLabel", "carrierLabel", "mOperatorName",
                         "operatorName"},
                 "carrier");
-        if (carrier != null) carrier.setVisibility(View.GONE);
+        if (carrier != null && carrier.getVisibility() == View.VISIBLE) carrier.setVisibility(View.INVISIBLE);
     }
 
     private static TextView findTextView(Object controller, String[] fieldNames,

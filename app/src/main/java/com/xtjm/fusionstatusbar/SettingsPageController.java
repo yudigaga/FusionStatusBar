@@ -33,6 +33,7 @@ final class SettingsPageController {
 
     void showFusion() {
         show("融合图标", content -> {
+            FusionConfig initial = model.current();
             section(content, "显示");
             toggle(content, "显示无线网络图标", "关闭后仅保留移动网络状态", model.current().wifiIcon,
                     value -> edit(current -> current.withWifiIcon(value)));
@@ -41,6 +42,30 @@ final class SettingsPageController {
                     value -> edit(current -> current.withIconScale(value)));
             slider(content, "整体粗细", "圆环和内部图形同步变粗或变细", 50, 150, model.current().strokeScale, "%",
                     value -> edit(current -> current.withStrokeScale(value)));
+            section(content, "内容位置");
+            String[] labels = {"顶部", "中间", "底部"};
+            String[] titles = {"电量百分比位置", "Wi-Fi / 5G 位置", "双排信号位置"};
+            SettingsChoiceSelector[] selectors = new SettingsChoiceSelector[3];
+            for (int part = 0; part < selectors.length; part++) {
+                final int index = part;
+                selectors[part] = choice(content, titles[part], labels,
+                        initial.fusionContent.positionFor(part), value -> {
+                            edit(current -> current.withFusionContentPosition(index, value));
+                            for (int other = 0; other < selectors.length; other++) {
+                                selectors[other].setSelection(model.current().fusionContent.positionFor(other));
+                            }
+                        });
+            }
+            section(content, "内容大小");
+            slider(content, "电量百分比大小", "电量数值", 50, 150,
+                    initial.fusionContent.batteryScale, "%",
+                    value -> edit(current -> current.withFusionContentScale(FusionContentConfig.BATTERY, value)));
+            slider(content, "Wi-Fi / 5G 大小", "无线网络图形与移动网络文字", 50, 150,
+                    initial.fusionContent.networkScale, "%",
+                    value -> edit(current -> current.withFusionContentScale(FusionContentConfig.NETWORK, value)));
+            slider(content, "双排信号大小", "两排信号同步缩放", 50, 150,
+                    initial.fusionContent.signalScale, "%",
+                    value -> edit(current -> current.withFusionContentScale(FusionContentConfig.SIGNAL, value)));
         });
     }
 

@@ -1,0 +1,81 @@
+{
+    "schemaVersion":  2,
+    "versionName":  "0.3.187",
+    "versionCode":  201,
+    "packageName":  "io.github.yudigaga.fusionstatusbar",
+    "namespace":  "com.xtjm.fusionstatusbar",
+    "buildMode":  "local_dirty_signed",
+    "sourceCommit":  "55b90ae1145ace25e095ea423b6e0b7f6157516a",
+    "sourceRef":  "HEAD",
+    "sourceTags":  [
+
+                   ],
+    "sourceDirty":  true,
+    "sourceArchiveSha256":  "4f8a80fbcd475954dc30caf961dd4b011c07914df6aa4111cfa9299e915edfa5",
+    "sourceIndexSha256":  "8417ad4256d87d5882765e128ab496e8b1f5c7d2a2dc28e1d4ad368970814a2d",
+    "sourcePatchSha256":  "920305a98b33d5c0221186b455bc37f1f9aa2fbd3e759bae74a46e1d854a421c",
+    "sourceSnapshot":  "source.zip",
+    "variants":  {
+                     "debug":  {
+                                   "apk":  "fusion-statusbar-v0.3.187-debug.apk",
+                                   "apkSha256":  "5826954108cfb67431b119df48173f07b0f2ecada9e2bc36beaa640a20d8db99",
+                                   "apkSize":  1462360,
+                                   "debuggable":  true,
+                                   "signing":  "debug",
+                                   "signingCertificateSha256":  "4e06d06e242802a8b8e77f696079ddd78e3d615d0cf73b781f3a187abb51f980",
+                                   "zipAlignment":  "not_performed",
+                                   "tests":  {
+                                                 "total":  1006,
+                                                 "failures":  0,
+                                                 "errors":  0,
+                                                 "skipped":  0
+                                             },
+                                   "lint":  {
+                                                "errors":  0,
+                                                "warnings":  66,
+                                                "customChecksCompatible":  true,
+                                                "highRiskPolicy":  "passed"
+                                            }
+                               },
+                     "release":  {
+                                     "apk":  "fusion-statusbar-v0.3.187-release.apk",
+                                     "apkSha256":  "05a3fa5e9f3c75a6dbca9615c3be709a28099d3e3d5b6c2154cb295fc4e8e90e",
+                                     "apkSize":  1232046,
+                                     "debuggable":  false,
+                                     "signing":  "official",
+                                     "signingCertificateSha256":  "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+                                     "zipAlignment":  "passed",
+                                     "tests":  {
+                                                   "total":  1006,
+                                                   "failures":  0,
+                                                   "errors":  0,
+                                                   "skipped":  0
+                                               },
+                                     "lint":  {
+                                                  "errors":  0,
+                                                  "warnings":  66,
+                                                  "customChecksCompatible":  true,
+                                                  "highRiskPolicy":  "passed"
+                                              }
+                                 }
+                 },
+    "createdUtc":  "2026-10-06T20:25:52.2309237Z",
+    "toolchain":  {
+                      "jdk":  "openjdk 17.0.20.1 2026-08-18\r\nOpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)\r\nOpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)",
+                      "gradle":  "8.11.1",
+                      "agp":  "8.9.3",
+                      "compileSdk":  35,
+                      "targetSdk":  35,
+                      "buildTools":  "36.0.0",
+                      "dependencyLocks":  [
+                                              {
+                                                  "path":  "app/gradle.lockfile",
+                                                  "sha256":  "8fbdbf32d8f183f9db8e036f652588eb8408cb39aac151896c8ab6e3f913d0b5"
+                                              }
+                                          ]
+                  },
+    "validationInput":  "existing_build_outputs",
+    "installation":  "not_performed",
+    "systemUiInjection":  "not_performed",
+    "romValidation":  "not_performed"
+}

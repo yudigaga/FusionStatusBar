@@ -98,6 +98,29 @@ public class ControlCenterRuntimeAnimationTest {
         assertEquals(0, host.requests);
     }
 
+    @Test public void collapseFramesDoNotFightNativeHeightUpdates() throws Exception {
+        holder.frame(0.3f, 0.8f, 100f);
+        host.getLayoutParams().height = 64;
+        host.requests = 0;
+        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
+                ControlCenterRuntimeGrid.GridView.class}, host, grid);
+        assertEquals("Native collapse must not be forced back to the full grid height", 64,
+                host.getLayoutParams().height);
+        assertEquals("Closing frames must not schedule another traversal", 0, host.requests);
+    }
+
+    @Test public void delayedMountWorkCannotResetComponentVisibilityDuringCollapse() {
+        View component = new View(activity.get());
+        grid.addTile(component, ControlCenterLayoutPlan.Item.component(
+                ControlCenterComponentSpec.MEDIA, 0, 0, 2, 2), -1);
+        holder.frame(0.2f, 0.75f, 120f);
+        component.setVisibility(View.INVISIBLE);
+        component.setAlpha(0.2f);
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250));
+        assertEquals(View.INVISIBLE, component.getVisibility());
+        assertEquals(0.2f, component.getAlpha(), 0f);
+    }
+
     @Test public void unbindRestoresHierarchyWithoutReplayingOldAnimationValues() throws Exception {
         holder.frame(0.15f, 0.7f, 92f);
         invoke("unbind", new Class<?>[0]);

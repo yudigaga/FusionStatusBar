@@ -505,6 +505,7 @@ final class ControlCenterRuntimeGrid {
         Object outerHolder;
         ViewGroup outerView;
         GridView grid;
+        ControlCenterScaleViewport gridViewport;
         View.OnLayoutChangeListener outerLayoutListener;
         final ArrayList<Runnable> mountTasks = new ArrayList<>();
         ArrayList<Child> originalChildren;
@@ -579,6 +580,7 @@ final class ControlCenterRuntimeGrid {
                     || materialSettings.surface != settings.surface
                     || materialSettings.borderEnabled != settings.borderEnabled
                     || materialSettings.borderWidthDp != settings.borderWidthDp
+                    || materialSettings.tileScale != settings.tileScale
                     || spacingDp != settings.spacing || radiusDp != settings.cornerRadius
                     || !layoutPlan.equals(settings.layoutPlan)
                     || items.size() != nextItems.size()
@@ -798,8 +800,10 @@ final class ControlCenterRuntimeGrid {
             view.setClickable(false);
             view.setLongClickable(false);
             view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            view.addView(nextGrid, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, nextGrid.contentHeight()));
+            gridViewport = new ControlCenterScaleViewport(view.getContext(), nextGrid,
+                    nextGrid::scalePercent);
+            view.addView(gridViewport, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, nextGrid.renderedHeight()));
             outerLayoutListener = (changedView, left, top, right, bottom,
                     oldLeft, oldTop, oldRight, oldBottom) -> {
                 if (outerView == changedView && grid == nextGrid) {
@@ -807,7 +811,7 @@ final class ControlCenterRuntimeGrid {
                 }
             };
             view.addOnLayoutChangeListener(outerLayoutListener);
-            enforceOuterHeight(view, nextGrid);
+            pinOuterHeight(view, nextGrid);
             scheduleMountTask(view, () -> {
                 if (outerView == view && grid == nextGrid)
                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
@@ -816,10 +820,6 @@ final class ControlCenterRuntimeGrid {
                 if (outerView == view && grid == nextGrid)
                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
             }, 64L);
-            scheduleMountTask(view, () -> {
-                if (outerView == view && grid == nextGrid)
-                    guardPresentation(() -> normalizePresentation("settled"));
-            }, 160L);
         }
 
         private void scheduleMountTask(View view, Runnable action, long delay) {
@@ -843,8 +843,15 @@ final class ControlCenterRuntimeGrid {
         }
 
         private void enforceOuterHeight(ViewGroup view, GridView child) {
+            if (view.getVisibility() != View.VISIBLE || view.getAlpha() < 0.999f
+                    || Math.abs(view.getScaleX() - 1f) > 0.001f
+                    || Math.abs(view.getScaleY() - 1f) > 0.001f) return;
+            pinOuterHeight(view, child);
+        }
+
+        private void pinOuterHeight(ViewGroup view, GridView child) {
             ViewGroup.LayoutParams params = view.getLayoutParams();
-            int target = child.contentHeight();
+            int target = child.renderedHeight();
             if (params != null && params.height != target) {
                 params.height = target;
                 view.setLayoutParams(params);
@@ -982,8 +989,8 @@ final class ControlCenterRuntimeGrid {
                     RuntimeCleanup.run("remove grid layout listener",
                             () -> outerView.removeOnLayoutChangeListener(outerLayoutListener));
                 }
-                if (grid != null && grid.getParent() == outerView)
-                    RuntimeCleanup.run("remove grid", () -> outerView.removeView(grid));
+                if (gridViewport != null && gridViewport.getParent() == outerView)
+                    RuntimeCleanup.run("remove grid", () -> outerView.removeView(gridViewport));
                 if (originalChildren != null) {
                     for (Child child : originalChildren) {
                         if (child.view.getParent() == null) {
@@ -1013,6 +1020,7 @@ final class ControlCenterRuntimeGrid {
             }
             outerView = null;
             grid = null;
+            gridViewport = null;
             outerLayoutListener = null;
             bindings = null;
             originalChildren = null;
@@ -1294,6 +1302,10 @@ final class ControlCenterRuntimeGrid {
             return ControlCenterGridGeometry.contentHeightPx(rowCount, rowHeight, gap);
         }
 
+        int scalePercent() { return materialSettings.enabled ? materialSettings.tileScale : 100; }
+
+        int renderedHeight() { return Math.max(1, Math.round(contentHeight() * scalePercent() / 100f)); }
+
         ControlCenterLayoutPlan.Mode captureMode() {
             if (editorMode != null) return editorMode;
             LinkedHashMap<String, ControlCenterLayoutPlan.Item> items = new LinkedHashMap<>();
@@ -1431,6 +1443,8 @@ final class ControlCenterRuntimeGrid {
         }
 
         void updateDecorations(ControlCenterConfig settings) {
+            boolean contentScaleChanged = materialSettings.tileScale != settings.tileScale
+                    || materialSettings.enabled != settings.enabled;
             materialSettings = settings;
             markAllMaterialsDirty();
             for (Slot slot : slots) {
@@ -1453,6 +1467,7 @@ final class ControlCenterRuntimeGrid {
                         && settings.borderEnabled, settings.borderWidthDp,
                         settings.surface.neutralForeground() == 0xff202124);
             }
+            if (contentScaleChanged) requestLayout();
         }
 
         @Override
@@ -1672,7 +1687,7 @@ final class ControlCenterRuntimeGrid {
             slotsByView.put(child, childSlot);
             // Ordinary singleton tiles arrive with half == 0 too; half is only
             // a split indicator when the placement itself is a pair.
-            if (nativeCircle(child, placement)) {
+            if (nativeCircle(child, placement) || moduleCircle(child, placement)) {
                 // The OEM holder includes margins around a smaller, lower icon.
                 // The inner surface owns clipping; a second slot circle cuts it.
                 child.setClipToOutline(false);
@@ -1704,6 +1719,11 @@ final class ControlCenterRuntimeGrid {
             return item.type == ControlCenterLayoutPlan.Type.TILE
                     && item.shape == ControlCenterLayoutPlan.Shape.CIRCLE
                     && nativeTile(view);
+        }
+
+        private static boolean moduleCircle(View view, ControlCenterLayoutPlan.Item item) {
+            return view instanceof ControlCenter5GTileView
+                    && item.shape == ControlCenterLayoutPlan.Shape.CIRCLE;
         }
 
         private void configureShape(GradientDrawable drawable,
@@ -1814,6 +1834,43 @@ final class ControlCenterRuntimeGrid {
             }
             for (Decoration decoration : decorations.values()) {
                 layoutDecoration(decoration, unit);
+            }
+            alignModuleCircles(unit);
+        }
+
+        private void alignModuleCircles(int unit) {
+            Slot reference = null;
+            View nativeSurface = null;
+            for (Slot slot : slots) {
+                if (!nativeCircle(slot.view, slot.item) || slot.item.width != 1
+                        || slot.item.height != 1) continue;
+                View surface = ControlCenterMaterials.tileSurface(slot.view);
+                if (surface == null || surface.getWidth() <= 0 || surface.getHeight() <= 0) continue;
+                reference = slot;
+                nativeSurface = surface;
+                break;
+            }
+            if (reference == null) return;
+            Rect nativeBounds = fullBounds(reference.item, unit);
+            surfaceBounds.set(0, 0, nativeSurface.getWidth(), nativeSurface.getHeight());
+            surfaceMatrix.reset();
+            nativeSurface.transformMatrixToGlobal(surfaceMatrix);
+            transformMatrixToLocal(surfaceMatrix);
+            surfaceMatrix.mapRect(surfaceBounds);
+            float insetX = (surfaceBounds.left - nativeBounds.x) / nativeBounds.width;
+            float insetY = (surfaceBounds.top - nativeBounds.y) / nativeBounds.height;
+            float widthRatio = surfaceBounds.width() / nativeBounds.width;
+            float heightRatio = surfaceBounds.height() / nativeBounds.height;
+            for (Slot slot : slots) {
+                if (!moduleCircle(slot.view, slot.item)) continue;
+                Rect bounds = fullBounds(slot.item, unit);
+                int width = Math.max(1, Math.round(bounds.width * widthRatio));
+                int height = Math.max(1, Math.round(bounds.height * heightRatio));
+                int left = bounds.x + Math.round(bounds.width * insetX);
+                int top = bounds.y + Math.round(bounds.height * insetY);
+                slot.view.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                slot.view.layout(left, top, left + width, top + height);
             }
         }
 

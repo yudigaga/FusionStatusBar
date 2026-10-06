@@ -42,6 +42,44 @@ public class SettingsPageControllerTest {
     }
     @After public void close() { dialogs.close(); activity.pause().stop().destroy(); }
 
+    @Test public void fusionContentChoicesSwapPositionsAndUpdateBothVisibleSelections() {
+        pages.showFusion();
+        SettingsChoiceSelector network = (SettingsChoiceSelector) find("Wi-Fi / 5G 位置");
+        SettingsChoiceSelector battery = (SettingsChoiceSelector) find("电量百分比位置");
+        SettingsChoiceSelector signal = (SettingsChoiceSelector) find("双排信号位置");
+        network.performClick();
+        network.optionView(FusionContentConfig.TOP).performClick();
+        assertEquals(FusionContentConfig.TOP, config.fusionContent.networkPosition);
+        assertEquals(FusionContentConfig.MIDDLE, config.fusionContent.batteryPosition);
+        assertEquals(FusionContentConfig.TOP, network.selectedIndex());
+        assertEquals(FusionContentConfig.MIDDLE, battery.selectedIndex());
+        signal.performClick();
+        signal.optionView(FusionContentConfig.TOP).performClick();
+        assertEquals(FusionContentConfig.TOP, config.fusionContent.signalPosition);
+        assertEquals(FusionContentConfig.BOTTOM, network.selectedIndex());
+        assertEquals(FusionContentConfig.MIDDLE, battery.selectedIndex());
+        assertEquals(2, modelUpdates);
+    }
+
+    @Test public void fusionContentSizeControlsRemainIndependentWhenChangingOverallSize() {
+        pages.showFusion();
+        SeekBar network = (SeekBar) find("Wi-Fi / 5G 大小");
+        SeekBar battery = (SeekBar) find("电量百分比大小");
+        SeekBar signal = (SeekBar) find("双排信号大小");
+        SeekBar overall = (SeekBar) find("整体大小");
+        Shadows.shadowOf(network).getOnSeekBarChangeListener().onProgressChanged(network, 125 - 50, true);
+        Shadows.shadowOf(battery).getOnSeekBarChangeListener().onProgressChanged(battery, 75 - 50, true);
+        Shadows.shadowOf(signal).getOnSeekBarChangeListener().onProgressChanged(signal, 90 - 50, true);
+        Shadows.shadowOf(overall).getOnSeekBarChangeListener().onProgressChanged(overall, 140 - 50, true);
+        assertEquals(140, config.iconScale);
+        assertEquals(125, config.fusionContent.networkScale);
+        assertEquals(75, config.fusionContent.batteryScale);
+        assertEquals(90, config.fusionContent.signalScale);
+        assertEquals(0, config.fusionContent.batteryPosition);
+        assertEquals(1, config.fusionContent.networkPosition);
+        assertEquals(2, config.fusionContent.signalPosition);
+    }
+
     @Test public void clockFormatRejectsInvalidTextAndPreservesOtherSettings() {
         pages.showClock();
         Switch custom = (Switch) find("自定义时间格式");

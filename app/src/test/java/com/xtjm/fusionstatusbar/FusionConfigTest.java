@@ -170,7 +170,7 @@ public class FusionConfigTest {
 
     @Test
     public void configurationSchemaHasAnExplicitCurrentVersion() {
-        assertEquals(5, FusionConfig.CONFIG_SCHEMA_VERSION);
+        assertEquals(6, FusionConfig.CONFIG_SCHEMA_VERSION);
     }
 
     @Test

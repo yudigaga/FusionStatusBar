@@ -10,6 +10,21 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {33, 34, 35})
 public class RuntimeConfigDiffTest {
+    @Test public void fusionContentOrderAndSizeRefreshOnlyTheStatusBar() {
+        for (FusionConfig changed : new FusionConfig[] {
+                FusionConfig.defaults().withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP),
+                FusionConfig.defaults().withFusionContentScale(FusionContentConfig.NETWORK, 125)}) {
+            RuntimeConfigDiff diff = RuntimeConfigDiff.between(FusionConfig.defaults(), changed);
+            assertTrue(diff.statusBar);
+            assertFalse(diff.statusClock);
+            assertFalse(diff.notificationClock);
+            assertFalse(diff.controlCenter());
+            assertFalse(diff.controlCenterHeader);
+            assertFalse(diff.systemMenus);
+            assertFalse(diff.notificationSurfaces);
+        }
+    }
+
     @Test public void identicalConfigDoesNotInvalidateAnySurface() {
         RuntimeConfigDiff diff = RuntimeConfigDiff.between(FusionConfig.defaults(),
                 FusionConfig.defaults().withRevision(19));

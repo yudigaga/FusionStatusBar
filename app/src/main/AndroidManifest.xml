@@ -21,9 +21,19 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>
         </activity>
+        <activity-alias
+            android:name="com.xtjm.fusionstatusbar.LauncherActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity="com.xtjm.fusionstatusbar.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <provider
             android:name="com.xtjm.fusionstatusbar.FusionConfigProvider"
             android:authorities="${applicationId}.config"

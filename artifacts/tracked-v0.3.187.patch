@@ -1,0 +1,1420 @@
+diff --git a/README.md b/README.md
+index af5ff6a..d94322f 100644
+--- a/README.md
++++ b/README.md
+@@ -8,6 +8,8 @@
+ - UI 设计参考：[Miuix](https://github.com/compose-miuix-ui/miuix)，感谢开源项目提供设计灵感。
+ - 最新正式版：[FusionStatusBar 0.3.182](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.182)
+ - [0.3.182 更新说明](docs/release-v0.3.182.md)
++- 当前修复版：0.3.187（构建验证和实机状态见版本记录）
++- [0.3.187 更新与验证记录](docs/release-v0.3.187.md)
+ 
+ ## 构建
+ 
+diff --git a/app/build.gradle b/app/build.gradle
+index 3fa89fc..5da4818 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -8,8 +8,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 196
+-        versionName "0.3.182"
++        versionCode 201
++        versionName "0.3.187"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index f54044f..cb3337c 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -21,9 +21,19 @@
+             android:exported="true">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+-                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+             </intent-filter>
+         </activity>
++        <activity-alias
++            android:name="com.xtjm.fusionstatusbar.LauncherActivity"
++            android:enabled="true"
++            android:exported="true"
++            android:targetActivity="com.xtjm.fusionstatusbar.MainActivity">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <category android:name="android.intent.category.LAUNCHER" />
++            </intent-filter>
++        </activity-alias>
+         <provider
+             android:name="com.xtjm.fusionstatusbar.FusionConfigProvider"
+             android:authorities="${applicationId}.config"
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridEditor.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridEditor.java
+index 543e2b5..c8c2166 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridEditor.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridEditor.java
+@@ -105,6 +105,7 @@ final class ControlCenterGridEditor extends ViewGroup {
+     private final ArrayList<Cell> cells = new ArrayList<>();
+     private final ArrayList<EditorItemHost> hosts = new ArrayList<>();
+     private int columns = 4, rows = 1, gap, rowHeight, radius, cellWidth;
++    private int regionScale = 100;
+     private int cardStrength = 100, tileStrength = 100;
+     private ControlCenterSurface surface = ControlCenterSurface.DEFAULT;
+     private boolean globalBorderEnabled;
+@@ -181,6 +182,7 @@ final class ControlCenterGridEditor extends ViewGroup {
+         cells.clear();
+         rows = 1;
+         if (next != null) for (Cell cell : next) if (cell != null) cells.add(cell);
++        regionScale = cells.isEmpty() ? 100 : cells.get(0).tileScale;
+         cells.sort(java.util.Comparator.comparingInt(cell -> cell.zIndex));
+         for (int i = 0; i < cells.size(); i++) {
+             Cell cell = cells.get(i);
+@@ -207,6 +209,8 @@ final class ControlCenterGridEditor extends ViewGroup {
+         invalidate();
+     }
+ 
++    int scalePercent() { return regionScale; }
++
+     /** Ends transient editing only; never mutates the draft. Also used on canvas/lifecycle changes. */
+     void finishEditing() {
+         cancelGesture();
+@@ -314,7 +318,7 @@ final class ControlCenterGridEditor extends ViewGroup {
+                     next.firstLabel, next.secondLabel, next.horizontalPair,
+                     capturedActive(next.firstStyle, next.firstSpec), capturedActive(next.secondStyle, next.secondSpec),
+                     next.width > next.height, next.shape,
+-                    next.cornerRadius > 0 ? dp(next.cornerRadius) : radius, next.tileScale,
++                    next.cornerRadius > 0 ? dp(next.cornerRadius) : radius, 100,
+                     next.firstStyle, next.secondStyle));
+             card.setMaterialStrength(cardStrength, tileStrength);
+             card.setSurface(surface);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibility.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibility.java
+index 312c19c..d8bc631 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibility.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibility.java
+@@ -85,14 +85,14 @@ final class ControlCenterHeaderVisibility {
+                 new String[] {"mDateView", "dateView", "mDateTextView", "dateTextView",
+                         "mDateText", "dateText", "mDate"},
+                 "date");
+-        if (date != null) date.setVisibility(View.GONE);
++        if (date != null && date.getVisibility() == View.VISIBLE) date.setVisibility(View.INVISIBLE);
+     }
+ 
+     private static void applyCarrier(Object controller, boolean hidden) {
+         if (!hidden) return;
+         Object carrierLayout = readField(controller, "carrierLayout");
+         if (carrierLayout instanceof View view) {
+-            view.setVisibility(View.GONE);
++            if (view.getVisibility() == View.VISIBLE) view.setVisibility(View.INVISIBLE);
+             return;
+         }
+         TextView carrier = findTextView(controller,
+@@ -101,7 +101,7 @@ final class ControlCenterHeaderVisibility {
+                         "carrierName", "mCarrierLabel", "carrierLabel", "mOperatorName",
+                         "operatorName"},
+                 "carrier");
+-        if (carrier != null) carrier.setVisibility(View.GONE);
++        if (carrier != null && carrier.getVisibility() == View.VISIBLE) carrier.setVisibility(View.INVISIBLE);
+     }
+ 
+     private static TextView findTextView(Object controller, String[] fieldNames,
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index 78b6a64..c06ebcc 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -505,6 +505,7 @@ final class ControlCenterRuntimeGrid {
+         Object outerHolder;
+         ViewGroup outerView;
+         GridView grid;
++        ControlCenterScaleViewport gridViewport;
+         View.OnLayoutChangeListener outerLayoutListener;
+         final ArrayList<Runnable> mountTasks = new ArrayList<>();
+         ArrayList<Child> originalChildren;
+@@ -579,6 +580,7 @@ final class ControlCenterRuntimeGrid {
+                     || materialSettings.surface != settings.surface
+                     || materialSettings.borderEnabled != settings.borderEnabled
+                     || materialSettings.borderWidthDp != settings.borderWidthDp
++                    || materialSettings.tileScale != settings.tileScale
+                     || spacingDp != settings.spacing || radiusDp != settings.cornerRadius
+                     || !layoutPlan.equals(settings.layoutPlan)
+                     || items.size() != nextItems.size()
+@@ -798,8 +800,10 @@ final class ControlCenterRuntimeGrid {
+             view.setClickable(false);
+             view.setLongClickable(false);
+             view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+-            view.addView(nextGrid, new FrameLayout.LayoutParams(
+-                    ViewGroup.LayoutParams.MATCH_PARENT, nextGrid.contentHeight()));
++            gridViewport = new ControlCenterScaleViewport(view.getContext(), nextGrid,
++                    nextGrid::scalePercent);
++            view.addView(gridViewport, new FrameLayout.LayoutParams(
++                    ViewGroup.LayoutParams.MATCH_PARENT, nextGrid.renderedHeight()));
+             outerLayoutListener = (changedView, left, top, right, bottom,
+                     oldLeft, oldTop, oldRight, oldBottom) -> {
+                 if (outerView == changedView && grid == nextGrid) {
+@@ -807,7 +811,7 @@ final class ControlCenterRuntimeGrid {
+                 }
+             };
+             view.addOnLayoutChangeListener(outerLayoutListener);
+-            enforceOuterHeight(view, nextGrid);
++            pinOuterHeight(view, nextGrid);
+             scheduleMountTask(view, () -> {
+                 if (outerView == view && grid == nextGrid)
+                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
+@@ -816,10 +820,6 @@ final class ControlCenterRuntimeGrid {
+                 if (outerView == view && grid == nextGrid)
+                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
+             }, 64L);
+-            scheduleMountTask(view, () -> {
+-                if (outerView == view && grid == nextGrid)
+-                    guardPresentation(() -> normalizePresentation("settled"));
+-            }, 160L);
+         }
+ 
+         private void scheduleMountTask(View view, Runnable action, long delay) {
+@@ -843,8 +843,15 @@ final class ControlCenterRuntimeGrid {
+         }
+ 
+         private void enforceOuterHeight(ViewGroup view, GridView child) {
++            if (view.getVisibility() != View.VISIBLE || view.getAlpha() < 0.999f
++                    || Math.abs(view.getScaleX() - 1f) > 0.001f
++                    || Math.abs(view.getScaleY() - 1f) > 0.001f) return;
++            pinOuterHeight(view, child);
++        }
++
++        private void pinOuterHeight(ViewGroup view, GridView child) {
+             ViewGroup.LayoutParams params = view.getLayoutParams();
+-            int target = child.contentHeight();
++            int target = child.renderedHeight();
+             if (params != null && params.height != target) {
+                 params.height = target;
+                 view.setLayoutParams(params);
+@@ -982,8 +989,8 @@ final class ControlCenterRuntimeGrid {
+                     RuntimeCleanup.run("remove grid layout listener",
+                             () -> outerView.removeOnLayoutChangeListener(outerLayoutListener));
+                 }
+-                if (grid != null && grid.getParent() == outerView)
+-                    RuntimeCleanup.run("remove grid", () -> outerView.removeView(grid));
++                if (gridViewport != null && gridViewport.getParent() == outerView)
++                    RuntimeCleanup.run("remove grid", () -> outerView.removeView(gridViewport));
+                 if (originalChildren != null) {
+                     for (Child child : originalChildren) {
+                         if (child.view.getParent() == null) {
+@@ -1013,6 +1020,7 @@ final class ControlCenterRuntimeGrid {
+             }
+             outerView = null;
+             grid = null;
++            gridViewport = null;
+             outerLayoutListener = null;
+             bindings = null;
+             originalChildren = null;
+@@ -1294,6 +1302,10 @@ final class ControlCenterRuntimeGrid {
+             return ControlCenterGridGeometry.contentHeightPx(rowCount, rowHeight, gap);
+         }
+ 
++        int scalePercent() { return materialSettings.enabled ? materialSettings.tileScale : 100; }
++
++        int renderedHeight() { return Math.max(1, Math.round(contentHeight() * scalePercent() / 100f)); }
++
+         ControlCenterLayoutPlan.Mode captureMode() {
+             if (editorMode != null) return editorMode;
+             LinkedHashMap<String, ControlCenterLayoutPlan.Item> items = new LinkedHashMap<>();
+@@ -1431,6 +1443,8 @@ final class ControlCenterRuntimeGrid {
+         }
+ 
+         void updateDecorations(ControlCenterConfig settings) {
++            boolean contentScaleChanged = materialSettings.tileScale != settings.tileScale
++                    || materialSettings.enabled != settings.enabled;
+             materialSettings = settings;
+             markAllMaterialsDirty();
+             for (Slot slot : slots) {
+@@ -1453,6 +1467,7 @@ final class ControlCenterRuntimeGrid {
+                         && settings.borderEnabled, settings.borderWidthDp,
+                         settings.surface.neutralForeground() == 0xff202124);
+             }
++            if (contentScaleChanged) requestLayout();
+         }
+ 
+         @Override
+@@ -1672,7 +1687,7 @@ final class ControlCenterRuntimeGrid {
+             slotsByView.put(child, childSlot);
+             // Ordinary singleton tiles arrive with half == 0 too; half is only
+             // a split indicator when the placement itself is a pair.
+-            if (nativeCircle(child, placement)) {
++            if (nativeCircle(child, placement) || moduleCircle(child, placement)) {
+                 // The OEM holder includes margins around a smaller, lower icon.
+                 // The inner surface owns clipping; a second slot circle cuts it.
+                 child.setClipToOutline(false);
+@@ -1706,6 +1721,11 @@ final class ControlCenterRuntimeGrid {
+                     && nativeTile(view);
+         }
+ 
++        private static boolean moduleCircle(View view, ControlCenterLayoutPlan.Item item) {
++            return view instanceof ControlCenter5GTileView
++                    && item.shape == ControlCenterLayoutPlan.Shape.CIRCLE;
++        }
++
+         private void configureShape(GradientDrawable drawable,
+                 ControlCenterLayoutPlan.Item item) {
+             if (item.shape == ControlCenterLayoutPlan.Shape.CIRCLE) {
+@@ -1815,6 +1835,43 @@ final class ControlCenterRuntimeGrid {
+             for (Decoration decoration : decorations.values()) {
+                 layoutDecoration(decoration, unit);
+             }
++            alignModuleCircles(unit);
++        }
++
++        private void alignModuleCircles(int unit) {
++            Slot reference = null;
++            View nativeSurface = null;
++            for (Slot slot : slots) {
++                if (!nativeCircle(slot.view, slot.item) || slot.item.width != 1
++                        || slot.item.height != 1) continue;
++                View surface = ControlCenterMaterials.tileSurface(slot.view);
++                if (surface == null || surface.getWidth() <= 0 || surface.getHeight() <= 0) continue;
++                reference = slot;
++                nativeSurface = surface;
++                break;
++            }
++            if (reference == null) return;
++            Rect nativeBounds = fullBounds(reference.item, unit);
++            surfaceBounds.set(0, 0, nativeSurface.getWidth(), nativeSurface.getHeight());
++            surfaceMatrix.reset();
++            nativeSurface.transformMatrixToGlobal(surfaceMatrix);
++            transformMatrixToLocal(surfaceMatrix);
++            surfaceMatrix.mapRect(surfaceBounds);
++            float insetX = (surfaceBounds.left - nativeBounds.x) / nativeBounds.width;
++            float insetY = (surfaceBounds.top - nativeBounds.y) / nativeBounds.height;
++            float widthRatio = surfaceBounds.width() / nativeBounds.width;
++            float heightRatio = surfaceBounds.height() / nativeBounds.height;
++            for (Slot slot : slots) {
++                if (!moduleCircle(slot.view, slot.item)) continue;
++                Rect bounds = fullBounds(slot.item, unit);
++                int width = Math.max(1, Math.round(bounds.width * widthRatio));
++                int height = Math.max(1, Math.round(bounds.height * heightRatio));
++                int left = bounds.x + Math.round(bounds.width * insetX);
++                int top = bounds.y + Math.round(bounds.height * insetY);
++                slot.view.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
++                        MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
++                slot.view.layout(left, top, left + width, top + height);
++            }
+         }
+ 
+         private void layoutDecoration(Decoration decoration, int unit) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSettingsPage.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSettingsPage.java
+index d4f020e..fe58397 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSettingsPage.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSettingsPage.java
+@@ -444,7 +444,7 @@ final class ControlCenterSettingsPage {
+                     });
+             host.setPageSliderEnabled(borderWidthRow[0], settings.borderEnabled);
+             host.addPageHint(content, "以下设置同时应用于标准布局和紧凑布局。项目尺寸、形状和独立圆角请在画布中点击项目调整。");
+-            host.addPageSlider(content, "内容缩放", "缩放项目内部图标和内容；项目宽高由画布网格决定",
++            host.addPageSlider(content, "内容缩放", "统一缩放组件外框、内容、间距和占用高度",
+                     70, 130, settings.tileScale, "%", value -> update(host, draft().withTileScale(value)));
+             host.addPageSlider(content, "默认圆角", "用于矩形项目；单项目设置的独立圆角优先，圆角为 0 时使用此默认值",
+                     0, 32, settings.cornerRadius, " dp", value -> update(host, draft().withCornerRadius(value)));
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterWallpaperWorkspace.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterWallpaperWorkspace.java
+index d1f6a20..102e8d6 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterWallpaperWorkspace.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterWallpaperWorkspace.java
+@@ -97,7 +97,8 @@ final class ControlCenterWallpaperWorkspace {
+         ScrollView scroll = new ScrollView(activity);
+         scroll.setClipToPadding(false);
+         scroll.setClipChildren(false);
+-        scroll.addView(editor, new ScrollView.LayoutParams(-1, -2));
++        scroll.addView(new ControlCenterScaleViewport(activity, editor, editor::scalePercent),
++                new ScrollView.LayoutParams(-1, -2));
+         workspace.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+         LinearLayout actions = new LinearLayout(activity);
+         addButton(actions, "撤销", undo);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java
+index bbaf2e7..cc4a9b2 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java
+@@ -25,7 +25,7 @@ public final class FusionConfig {
+     static final String KEY_PREVIEW_CATALOG = "preview_tile_catalog";
+     static final String KEY_PREVIEW_URI = "preview_uri";
+     static final String KEY_SCHEMA_VERSION = "config_schema_version";
+-    static final int CONFIG_SCHEMA_VERSION = 5;
++    static final int CONFIG_SCHEMA_VERSION = 6;
+ 
+     public static final int SIDE_LEFT = 0;
+     public static final int SIDE_RIGHT = 1;
+@@ -70,6 +70,7 @@ public final class FusionConfig {
+     final TelemetryConfig telemetry;
+     final NotificationClockConfig notificationClock;
+     final ControlCenterConfig controlCenter;
++    final FusionContentConfig fusionContent;
+     public final boolean wifiIcon;
+     public final int statusBarHeight;
+     public final int statusClockSizeSp;
+@@ -120,7 +121,8 @@ public final class FusionConfig {
+                 statusBarHeight, clockSide, clockRow, notificationSide, notificationRow,
+                 systemSide, systemRow, fusionSide, fusionRow, systemIconScale,
+                 notificationIconScale, spanOffsetX, spanOffsetY, customClock, clockPattern,
+-                showWeather, telemetry, notificationClock, controlCenter, 0, 0L);
++                showWeather, telemetry, notificationClock, controlCenter, 0, 0L,
++                FusionContentConfig.defaults());
+     }
+ 
+     private FusionConfig(int iconScale, int strokeScale, boolean doubleRow, int doubleRowSide,
+@@ -130,7 +132,7 @@ public final class FusionConfig {
+             int spanOffsetX, int spanOffsetY, boolean customClock, String clockPattern,
+             boolean showWeather, TelemetryConfig telemetry,
+             NotificationClockConfig notificationClock, ControlCenterConfig controlCenter,
+-            int statusClockSizeSp, long revision) {
++            int statusClockSizeSp, long revision, FusionContentConfig fusionContent) {
+         this.revision = Math.max(0L, revision);
+         this.iconScale = clampScale(iconScale);
+         this.strokeScale = clampScale(strokeScale);
+@@ -149,6 +151,7 @@ public final class FusionConfig {
+                 ? NotificationClockConfig.defaults() : notificationClock;
+         this.controlCenter = controlCenter == null
+                 ? ControlCenterConfig.defaults() : controlCenter;
++        this.fusionContent = fusionContent == null ? FusionContentConfig.defaults() : fusionContent;
+         this.wifiIcon = wifiIcon;
+         this.statusBarHeight = clampStatusBarHeight(statusBarHeight);
+         this.statusClockSizeSp = clampStatusClockSize(statusClockSizeSp);
+@@ -338,6 +341,7 @@ public final class FusionConfig {
+                 values.getBoolean(KEY_SHOW_WEATHER, fallback.showWeather),
+                 TelemetryConfig.fromBundle(values), NotificationClockConfig.fromBundle(values),
+                 ControlCenterConfig.fromBundle(values))
++                .withFusionContent(FusionContentConfig.fromBundle(values))
+                 .withStatusClockSizeSp(values.getInt(KEY_STATUS_CLOCK_SIZE,
+                         fallback.statusClockSizeSp)).withRevision(
+                         values.getLong(KEY_REVISION, 0L));
+@@ -360,6 +364,7 @@ public final class FusionConfig {
+         telemetry.writeTo(values);
+         notificationClock.writeTo(values);
+         controlCenter.writeTo(values);
++        fusionContent.writeTo(values);
+         values.putBoolean(KEY_WIFI_ICON, wifiIcon);
+         values.putInt(KEY_STATUSBAR_HEIGHT, statusBarHeight);
+         values.putInt(KEY_STATUS_CLOCK_SIZE, statusClockSizeSp);
+@@ -384,7 +389,7 @@ public final class FusionConfig {
+                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
+                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
+                 source.telemetry, source.notificationClock, source.controlCenter,
+-                source.statusClockSizeSp, revision);
++                source.statusClockSizeSp, revision, source.fusionContent);
+     }
+ 
+     private FusionConfig(FusionConfig source, int statusClockSizeSp) {
+@@ -395,12 +400,37 @@ public final class FusionConfig {
+                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
+                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
+                 source.telemetry, source.notificationClock, source.controlCenter,
+-                statusClockSizeSp, source.revision);
++                statusClockSizeSp, source.revision, source.fusionContent);
+     }
+ 
+     private FusionConfig preserveStatusClockSize(FusionConfig changed) {
+-        return changed.statusClockSizeSp == statusClockSizeSp
++        FusionConfig result = changed.statusClockSizeSp == statusClockSizeSp
+                 ? changed : new FusionConfig(changed, statusClockSizeSp);
++        return result.fusionContent.sameAs(fusionContent)
++                ? result : result.withFusionContent(fusionContent);
++    }
++
++    private FusionConfig(FusionConfig source, FusionContentConfig fusionContent) {
++        this(source.iconScale, source.strokeScale, source.doubleRow, source.doubleRowSide,
++                source.spanRows, source.wifiIcon, source.statusBarHeight, source.clockSide,
++                source.clockRow, source.notificationSide, source.notificationRow,
++                source.systemSide, source.systemRow, source.fusionSide, source.fusionRow,
++                source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
++                source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
++                source.telemetry, source.notificationClock, source.controlCenter,
++                source.statusClockSizeSp, source.revision, fusionContent);
++    }
++
++    FusionConfig withFusionContent(FusionContentConfig value) {
++        return new FusionConfig(this, value);
++    }
++
++    FusionConfig withFusionContentPosition(int part, int position) {
++        return withFusionContent(fusionContent.withPosition(part, position));
++    }
++
++    FusionConfig withFusionContentScale(int part, int scale) {
++        return withFusionContent(fusionContent.withScale(part, scale));
+     }
+ 
+     FusionConfig withRevision(long revision) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java
+index 0f77f32..c36ca87 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java
+@@ -12,6 +12,21 @@ final class FusionIconGeometry {
+     static final float SIGNAL_DOT_SPACING = 34f;
+     static final float SIGNAL_DOT_CURVE = 9f;
+     static final float WIFI_ANCHOR_Y = RING_CENTER_Y + 9.5f;
++    static final float BATTERY_CONTENT_Y = 62f;
++
++    static final class ContentLayout {
++        private final float[] centers;
++        private final float[] halfHeights;
++
++        ContentLayout(float[] centers, float[] halfHeights) {
++            this.centers = centers;
++            this.halfHeights = halfHeights;
++        }
++
++        float centerY(int part) { return centers[part]; }
++        float top(int part) { return centerY(part) - halfHeights[part]; }
++        float bottom(int part) { return centerY(part) + halfHeights[part]; }
++    }
+ 
+     private FusionIconGeometry() {
+     }
+@@ -37,4 +52,33 @@ final class FusionIconGeometry {
+         return rowCenter + (index == 0 || index == 3
+                 ? -SIGNAL_DOT_CURVE : SIGNAL_DOT_CURVE);
+     }
++
++    static float contentSourceY(int part, int strokeScale) {
++        if (part == FusionContentConfig.BATTERY) return BATTERY_CONTENT_Y;
++        if (part == FusionContentConfig.NETWORK) return RING_CENTER_Y;
++        return (innerSignalRowY(strokeScale) + outerSignalRowY(strokeScale)) / 2f;
++    }
++
++    static ContentLayout contentLayout(FusionContentConfig config, int strokeScale) {
++        float[] halfHeights = {
++                31f * config.batteryScale / 100f,
++                43f * config.networkScale / 100f,
++                ((outerSignalRowY(strokeScale) - innerSignalRowY(strokeScale)) / 2f
++                        + SIGNAL_DOT_CURVE + stroke(8.5f, strokeScale))
++                        * config.signalScale / 100f
++        };
++        float[] slots = {BATTERY_CONTENT_Y, RING_CENTER_Y,
++                contentSourceY(FusionContentConfig.SIGNAL, strokeScale)};
++        float[] centers = new float[3];
++        // Keep each part's size independent; only constrain its own anchor at the frame edges.
++        for (int part = 0; part < 3; part++) {
++            centers[part] = Math.max(halfHeights[part] + 1f,
++                    Math.min(DESIGN_H - halfHeights[part] - 1f, slots[config.positionFor(part)]));
++        }
++        return new ContentLayout(centers, halfHeights);
++    }
++
++    static boolean flipContent(int part, FusionContentConfig config) {
++        return part == FusionContentConfig.SIGNAL && config.signalPosition == FusionContentConfig.TOP;
++    }
+ }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
+index bcdde5d..3e5fafc 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
+@@ -35,11 +35,14 @@ public class FusionIconView extends View {
+     private int batteryPercent = -1;
+     private boolean charging;
+     private boolean showWifi;
++    private int wifiLevel;
+     private String networkLabel = "";
+     private int signalLevel;
+     private int signalLevel2;
+     private int tint = Color.WHITE;
+     private FusionConfig displayConfig = FusionConfig.defaults();
++    private FusionIconGeometry.ContentLayout contentLayout = FusionIconGeometry.contentLayout(
++            displayConfig.fusionContent, displayConfig.strokeScale);
+     private ContentObserver configObserver;
+ 
+     public FusionIconView(Context context) {
+@@ -64,15 +67,21 @@ public class FusionIconView extends View {
+     }
+ 
+     public void showSample(int battery, boolean wifi, String label, int level, int color) {
+-        showSample(battery, wifi, label, level, level, color);
++        showSample(battery, wifi, label, wifi ? 4 : 0, level, level, color);
+     }
+ 
+     public void showSample(
+             int battery, boolean wifi, String label, int level1, int level2, int color) {
++        showSample(battery, wifi, label, wifi ? 4 : 0, level1, level2, color);
++    }
++
++    void showSample(int battery, boolean wifi, String label, int wifiStrength,
++            int level1, int level2, int color) {
+         preview = true;
+         StatusMonitor.removeListener(listener);
+         batteryPercent = battery;
+         showWifi = wifi;
++        wifiLevel = clamp(wifiStrength);
+         networkLabel = label == null ? "" : label;
+         signalLevel = clamp(level1);
+         signalLevel2 = clamp(level2);
+@@ -96,6 +105,8 @@ public class FusionIconView extends View {
+ 
+     void setDisplayConfig(FusionConfig config) {
+         displayConfig = config == null ? FusionConfig.defaults() : config;
++        contentLayout = FusionIconGeometry.contentLayout(
++                displayConfig.fusionContent, displayConfig.strokeScale);
+         int weight = Math.max(400, Math.min(900,
+                 700 + (displayConfig.strokeScale - 100) * 5));
+         text.setTypeface(Typeface.create(BASE_TYPEFACE, weight, false));
+@@ -192,10 +203,26 @@ public class FusionIconView extends View {
+         canvas.translate((width - DESIGN_W * scale) / 2f, (height - DESIGN_H * scale) / 2f);
+         canvas.scale(scale, scale);
+         drawBattery(canvas);
++        saveContentTransform(canvas, FusionContentConfig.BATTERY);
+         drawPercent(canvas);
++        canvas.restore();
++        saveContentTransform(canvas, FusionContentConfig.NETWORK);
+         drawCenter(canvas);
++        canvas.restore();
++        saveContentTransform(canvas, FusionContentConfig.SIGNAL);
+         drawSignals(canvas);
+         canvas.restore();
++        canvas.restore();
++    }
++
++    private void saveContentTransform(Canvas canvas, int part) {
++        canvas.save();
++        float size = displayConfig.fusionContent.scaleFor(part) / 100f;
++        boolean flip = FusionIconGeometry.flipContent(part, displayConfig.fusionContent);
++        canvas.translate(FusionIconGeometry.RING_CENTER_X, contentLayout.centerY(part));
++        canvas.scale(size, flip ? -size : size);
++        canvas.translate(-FusionIconGeometry.RING_CENTER_X,
++                -FusionIconGeometry.contentSourceY(part, displayConfig.strokeScale));
+     }
+ 
+     private void drawBattery(Canvas canvas) {
+@@ -234,7 +261,7 @@ public class FusionIconView extends View {
+             return;
+         }
+         float centerX = 135.5f;
+-        float centerY = 62f;
++        float centerY = FusionIconGeometry.BATTERY_CONTENT_Y;
+         String value = Integer.toString(Math.max(0, Math.min(100, batteryPercent)));
+         text.setColor(renderTint());
+         text.setTextSize(BATTERY_TEXT_SIZE);
+@@ -252,20 +279,24 @@ public class FusionIconView extends View {
+     private void drawCenter(Canvas canvas) {
+         float centerX = 135.5f;
+         if (showWifi) {
+-            float cx = centerX;
+-            float cy = WIFI_ANCHOR_Y;
+             if (!displayConfig.wifiIcon) {
+                 return;
+             }
+-            fill.setStyle(Paint.Style.FILL);
+-            fill.setColor(renderTint());
+-            canvas.drawCircle(cx, cy + 17f, stroke(11f), fill);
++            float cx = centerX;
++            float cy = WIFI_ANCHOR_Y;
++            int strength = clamp(wifiLevel);
+             body.setColor(renderTint());
+             body.setStyle(Paint.Style.STROKE);
+             body.setStrokeCap(Paint.Cap.ROUND);
+-            body.setStrokeWidth(stroke(14f));
+-            canvas.drawArc(cx - 34f, cy - 21f, cx + 34f, cy + 47f, 220f, 100f, false, body);
+-            canvas.drawArc(cx - 53f, cy - 40f, cx + 53f, cy + 66f, 220f, 100f, false, body);
++            body.setStrokeWidth(stroke(8f));
++            int outerArcAlpha = strength >= 4 ? 255 : strength == 3 ? 160 : 52;
++            drawWifiArc(canvas, cx, cy, 53f, outerArcAlpha);
++            drawWifiArc(canvas, cx, cy, 34f, strength >= 2 ? 255 : 52);
++            fill.setStyle(Paint.Style.FILL);
++            fill.setColor(renderTint());
++            fill.setAlpha(strength >= 1 ? 255 : 52);
++            canvas.drawCircle(cx, cy + 17f, stroke(11f), fill);
++            fill.setAlpha(255);
+             return;
+         }
+         if (networkLabel == null || networkLabel.isEmpty()) {
+@@ -282,6 +313,14 @@ public class FusionIconView extends View {
+         canvas.drawText(networkLabel, centerX, y, text);
+     }
+ 
++    private void drawWifiArc(Canvas canvas, float centerX, float centerY,
++            float radius, int alpha) {
++        body.setAlpha(alpha);
++        canvas.drawArc(centerX - radius, centerY - radius + 13f,
++                centerX + radius, centerY + radius + 13f, 220f, 100f, false, body);
++        body.setAlpha(255);
++    }
++
+     private void drawSignals(Canvas canvas) {
+         float innerRowY = FusionIconGeometry.innerSignalRowY(displayConfig.strokeScale);
+         float outerRowY = FusionIconGeometry.outerSignalRowY(displayConfig.strokeScale);
+@@ -327,6 +366,7 @@ public class FusionIconView extends View {
+         batteryPercent = snapshot.batteryPercent;
+         charging = snapshot.charging;
+         showWifi = snapshot.showWifi;
++        wifiLevel = clamp(snapshot.wifiLevel);
+         networkLabel = snapshot.networkLabel;
+         signalLevel = snapshot.signalLevel;
+         signalLevel2 = snapshot.signalLevel2;
+@@ -340,7 +380,7 @@ public class FusionIconView extends View {
+             builder.append("\u7535\u91cf ").append(batteryPercent);
+         }
+         if (showWifi) {
+-            appendPart(builder, "Wi-Fi");
++            appendPart(builder, "Wi-Fi " + clamp(wifiLevel) + "/4");
+         } else if (networkLabel != null && !networkLabel.isEmpty()) {
+             appendPart(builder, networkLabel);
+         }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+index 32d1f9f..239adfe 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+@@ -17,6 +17,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
+     private android.database.ContentObserver activationObserver;
+     private android.widget.TextView activationSummary;
+     private android.widget.TextView activationTitle;
++    private android.widget.Switch hideLauncherIconSwitch;
+     private android.widget.TextView clockSettingsSummary;
+     private com.xtjm.fusionstatusbar.FusionConfig config;
+     private android.widget.LinearLayout controlCenterActivePreview;
+@@ -487,6 +488,17 @@ public final class MainActivity extends android.app.Activity implements ControlC
+         activationText.addView(this.activationSummary, matchWrap());
+         activationRow.addView(activationText, activationTextParams);
+         linearLayoutCard.addView(activationRow, matchWrap());
++        addDivider(linearLayoutCard);
++        android.widget.LinearLayout modulePreferences = new android.widget.LinearLayout(this);
++        modulePreferences.setOrientation(LinearLayout.VERTICAL);
++        modulePreferences.setPadding(dp(20), dp(4), dp(18), dp(8));
++        linearLayoutCard.addView(modulePreferences, matchWrap());
++        hideLauncherIconSwitch = addSwitch(modulePreferences, getString(R.string.hide_launcher_icon),
++                getString(R.string.hide_launcher_icon_summary), LauncherIconVisibility.isHidden(this),
++                this::setLauncherIconHidden);
++        android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
++                .getParent()).getChildAt(0);
++        launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+         linearLayoutNewPage.addView(sectionTitle("设备信息"));
+         android.widget.LinearLayout deviceCard = card();
+         linearLayoutNewPage.addView(deviceCard, matchWrap());
+@@ -2745,6 +2757,21 @@ public final class MainActivity extends android.app.Activity implements ControlC
+         }
+     }
+ 
++    private void setLauncherIconHidden(boolean hidden) {
++        try {
++            LauncherIconVisibility.setHidden(this, hidden);
++        } catch (RuntimeException failure) {
++            boolean previousUpdating = updating;
++            updating = true;
++            try {
++                hideLauncherIconSwitch.setChecked(!hidden);
++            } finally {
++                updating = previousUpdating;
++            }
++            Toast.makeText(this, R.string.hide_launcher_icon_failed, Toast.LENGTH_LONG).show();
++        }
++    }
++
+     /* JADX INFO: Access modifiers changed from: private */
+     public android.view.View addSlider(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, final int minimum, int maximum, int value, final java.lang.String suffix, final com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate update) {
+         android.widget.LinearLayout row = new android.widget.LinearLayout(this);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigDiff.java b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigDiff.java
+index 7fb43d4..4daffcc 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigDiff.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigDiff.java
+@@ -46,6 +46,7 @@ final class RuntimeConfigDiff {
+                 || previous.systemRow != next.systemRow || previous.fusionSide != next.fusionSide
+                 || previous.fusionRow != next.fusionRow || previous.systemIconScale != next.systemIconScale
+                 || previous.notificationIconScale != next.notificationIconScale
++                || !previous.fusionContent.sameAs(next.fusionContent)
+                 || !sameTelemetry(previous.telemetry, next.telemetry);
+         ControlCenterConfig old = previous.controlCenter;
+         ControlCenterConfig value = next.controlCenter;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SettingsPageController.java b/app/src/main/java/com/xtjm/fusionstatusbar/SettingsPageController.java
+index 9dfa1d9..194db48 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SettingsPageController.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SettingsPageController.java
+@@ -33,6 +33,7 @@ final class SettingsPageController {
+ 
+     void showFusion() {
+         show("融合图标", content -> {
++            FusionConfig initial = model.current();
+             section(content, "显示");
+             toggle(content, "显示无线网络图标", "关闭后仅保留移动网络状态", model.current().wifiIcon,
+                     value -> edit(current -> current.withWifiIcon(value)));
+@@ -41,6 +42,30 @@ final class SettingsPageController {
+                     value -> edit(current -> current.withIconScale(value)));
+             slider(content, "整体粗细", "圆环和内部图形同步变粗或变细", 50, 150, model.current().strokeScale, "%",
+                     value -> edit(current -> current.withStrokeScale(value)));
++            section(content, "内容位置");
++            String[] labels = {"顶部", "中间", "底部"};
++            String[] titles = {"电量百分比位置", "Wi-Fi / 5G 位置", "双排信号位置"};
++            SettingsChoiceSelector[] selectors = new SettingsChoiceSelector[3];
++            for (int part = 0; part < selectors.length; part++) {
++                final int index = part;
++                selectors[part] = choice(content, titles[part], labels,
++                        initial.fusionContent.positionFor(part), value -> {
++                            edit(current -> current.withFusionContentPosition(index, value));
++                            for (int other = 0; other < selectors.length; other++) {
++                                selectors[other].setSelection(model.current().fusionContent.positionFor(other));
++                            }
++                        });
++            }
++            section(content, "内容大小");
++            slider(content, "电量百分比大小", "电量数值", 50, 150,
++                    initial.fusionContent.batteryScale, "%",
++                    value -> edit(current -> current.withFusionContentScale(FusionContentConfig.BATTERY, value)));
++            slider(content, "Wi-Fi / 5G 大小", "无线网络图形与移动网络文字", 50, 150,
++                    initial.fusionContent.networkScale, "%",
++                    value -> edit(current -> current.withFusionContentScale(FusionContentConfig.NETWORK, value)));
++            slider(content, "双排信号大小", "两排信号同步缩放", 50, 150,
++                    initial.fusionContent.signalScale, "%",
++                    value -> edit(current -> current.withFusionContentScale(FusionContentConfig.SIGNAL, value)));
+         });
+     }
+ 
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java b/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java
+index 582f0e1..fc404e0 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java
+@@ -27,6 +27,7 @@ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.concurrent.Executor;
++import java.lang.reflect.Method;
+ 
+ /** Process-wide battery, transport and signal state shared by every fused icon. */
+ public final class StatusMonitor {
+@@ -40,24 +41,31 @@ public final class StatusMonitor {
+         public final String networkLabel;
+         public final int signalLevel;
+         public final int signalLevel2;
++        public final int wifiLevel;
+         public final boolean charging;
+ 
+         Snapshot(int batteryPercent, boolean showWifi, String networkLabel, int signalLevel) {
+-            this(batteryPercent, showWifi, networkLabel, signalLevel, 0, false);
++            this(batteryPercent, showWifi, networkLabel, signalLevel, 0, 0, false);
+         }
+ 
+         Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
+                 int signalLevel, int signalLevel2) {
+-            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2, false);
++            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2, 0, false);
+         }
+ 
+         Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
+                 int signalLevel, int signalLevel2, boolean charging) {
++            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2, 0, charging);
++        }
++
++        Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
++                int signalLevel, int signalLevel2, int wifiLevel, boolean charging) {
+             this.batteryPercent = batteryPercent;
+             this.showWifi = showWifi;
+             this.networkLabel = networkLabel == null ? "" : networkLabel;
+             this.signalLevel = signalLevel;
+             this.signalLevel2 = signalLevel2;
++            this.wifiLevel = wifiLevel;
+             this.charging = charging;
+         }
+     }
+@@ -89,6 +97,7 @@ public final class StatusMonitor {
+     private static boolean wifiConnected;
+     private static boolean mobileConnected;
+     private static int wifiLevel;
++    private static int renderedWifiLevel;
+     private static int mobileLevel;
+     private static int signalLevel2;
+     private static String mobileLabel = "";
+@@ -154,7 +163,7 @@ public final class StatusMonitor {
+     public static Snapshot snapshot() {
+         synchronized (LOCK) {
+             return new Snapshot(batteryPercent, showWifi, networkLabel, signalLevel,
+-                    signalLevel2, charging);
++                    signalLevel2, renderedWifiLevel, charging);
+         }
+     }
+ 
+@@ -419,7 +428,7 @@ public final class StatusMonitor {
+         try {
+             SignalStrength strength = telephony.getSignalStrength();
+             if (strength != null) {
+-                setMobileLevel(subscription, strength.getLevel());
++                setMobileLevel(subscription, mobileLevelFromSignalStrength(strength));
+             }
+             setMobileLabel(subscription, NetworkLabel.fromNetworkType(telephony.getDataNetworkType()));
+         } catch (SecurityException error) {
+@@ -531,6 +540,7 @@ public final class StatusMonitor {
+ 
+         int nextSignalLevel = signalLevelAtLocked(0);
+         int nextSignalLevel2 = signalLevelAtLocked(1);
++        int nextWifiLevel = wifiConnected ? clamp(wifiLevel) : 0;
+         boolean hasRealSubscription = false;
+         for (Integer subscription : subscriptionOrder) {
+             if (subscription != null
+@@ -540,18 +550,20 @@ public final class StatusMonitor {
+             }
+         }
+         if (!hasRealSubscription) {
+-            nextSignalLevel = wifiConnected ? clamp(wifiLevel) : clamp(mobileLevel);
++            nextSignalLevel = clamp(mobileLevel);
+             nextSignalLevel2 = 0;
+         }
+ 
+         if (nextWifi == showWifi && nextLabel.equals(networkLabel)
+-                && nextSignalLevel == signalLevel && nextSignalLevel2 == signalLevel2) {
++                && nextSignalLevel == signalLevel && nextSignalLevel2 == signalLevel2
++                && nextWifiLevel == renderedWifiLevel) {
+             return;
+         }
+         showWifi = nextWifi;
+         networkLabel = nextLabel;
+         signalLevel = nextSignalLevel;
+         signalLevel2 = nextSignalLevel2;
++        renderedWifiLevel = nextWifiLevel;
+         dirty = true;
+     }
+ 
+@@ -700,7 +712,7 @@ public final class StatusMonitor {
+         @Override
+         public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+             if (active && signalStrength != null) {
+-                setMobileLevel(subscription, signalStrength.getLevel());
++                setMobileLevel(subscription, mobileLevelFromSignalStrength(signalStrength));
+             }
+         }
+ 
+@@ -713,4 +725,37 @@ public final class StatusMonitor {
+                     displayInfo.getOverrideNetworkType(), displayInfo.getNetworkType()));
+         }
+     }
++
++    /** This module targets MIUI/HyperOS; use the same OEM level as the native signal controller. */
++    static int mobileLevelFromSignalStrength(Object signalStrength) {
++        if (signalStrength == null) return 0;
++        try {
++            Method method = findMethod(signalStrength.getClass(), "getMiuiLevel");
++            if (method != null) {
++                Object value = method.invoke(signalStrength);
++                if (value instanceof Number number) {
++                    int level = number.intValue();
++                    if (level >= 0 && level <= 4) return level;
++                }
++            }
++        } catch (ReflectiveOperationException | RuntimeException ignored) {
++            // A missing OEM method is an unavailable reading, never a generic substitute.
++        }
++        return 0;
++    }
++
++    private static Method findMethod(Class<?> type, String name) {
++        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
++            try {
++                Method method = current.getDeclaredMethod(name);
++                method.setAccessible(true);
++                return method;
++            } catch (NoSuchMethodException ignored) {
++                // Search inherited platform/OEM implementations.
++            } catch (RuntimeException ignored) {
++                return null;
++            }
++        }
++        return null;
++    }
+ }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index ca06d4c..7d746b6 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -154,8 +154,6 @@ public final class SystemUiHooks {
+     private static final Map<View, Integer> CONTROL_CENTER_BASE_HEIGHTS = new WeakHashMap<>();
+     private static final Map<View, Integer> CONTROL_CENTER_BASE_ICON_WIDTHS =
+             new WeakHashMap<>();
+-    private static final Map<View, IconDimensionBaseline> CONTROL_CENTER_ICON_DIMENSIONS =
+-            new WeakHashMap<>();
+     private static final Map<LinearLayout, CompactCardBaseline> CONTROL_CENTER_COMPACT_LAYOUTS =
+             new WeakHashMap<>();
+     private static final Map<View, TileVisualBaseline> CONTROL_CENTER_TILE_VISUALS =
+@@ -389,6 +387,11 @@ public final class SystemUiHooks {
+         if (source == null || classLoader == null) return;
+         if (module == null) module = source;
+         int hooks = hookControlCenterPlugin(classLoader);
++        ControlCenterAnimationHooks.Result animationHooks = ControlCenterAnimationHooks.install(
++                classLoader, SystemUiHooks::findClass, SystemUiHooks::hookMethod,
++                () -> currentConfig.controlCenter);
++        log(Log.INFO, "plugin animation hooks=" + animationHooks.installed
++                + " unavailable=" + animationHooks.unavailable, null);
+         CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(classLoader);
+         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
+                 SystemUiHooks::ensureConfigObserver);
+@@ -1654,7 +1657,6 @@ public final class SystemUiHooks {
+         Object result = chain.proceed();
+         if (controlCenterNativeEditing(chain.getThisObject())) return result;
+         ensureConfigForTarget(chain.getThisObject());
+-        applyPluginIconSize(chain.getThisObject());
+         return result;
+     }
+ 
+@@ -1670,71 +1672,6 @@ public final class SystemUiHooks {
+         return result;
+     }
+ 
+-    private static void applyPluginIconSize(Object target) {
+-        if (!(target instanceof ViewGroup)) return;
+-        if (controlCenterNativeEditing(target)) return;
+-        ControlCenterConfig settings = currentConfig.controlCenter;
+-        if (!settings.enabled || settings.tileScale == 100) {
+-            restoreControlCenterIconSizes();
+-            return;
+-        }
+-        try {
+-            Field cardField = findField(target.getClass(), "card");
+-            if (cardField != null && cardField.getBoolean(target)) return;
+-            Field iconField = findField(target.getClass(), "icon");
+-            Object iconValue = iconField == null ? null : iconField.get(target);
+-            if (!(iconValue instanceof View icon)) return;
+-            ViewGroup.LayoutParams params = icon.getLayoutParams();
+-            if (params == null) return;
+-            IconDimensionBaseline base = CONTROL_CENTER_ICON_DIMENSIONS.get(icon);
+-            if (base == null) {
+-                base = new IconDimensionBaseline(params.width, params.height,
+-                        params.width > 0 ? params.width : icon.getMeasuredWidth(),
+-                        params.height > 0 ? params.height : icon.getMeasuredHeight());
+-                if (base.width <= 0 || base.height <= 0) return;
+-                CONTROL_CENTER_ICON_DIMENSIONS.put(icon, base);
+-            }
+-            int width = Math.max(1, Math.round(base.width * settings.tileScale / 100f));
+-            int height = Math.max(1, Math.round(base.height * settings.tileScale / 100f));
+-            if (params.width != width || params.height != height) {
+-                params.width = width;
+-                params.height = height;
+-                icon.setLayoutParams(params);
+-            }
+-        } catch (Throwable error) {
+-            log(Log.WARN, "control-center plugin icon size failed", error);
+-        }
+-    }
+-
+-    private static void restoreControlCenterIconSizes() {
+-        for (Map.Entry<View, IconDimensionBaseline> entry :
+-                new ArrayList<>(CONTROL_CENTER_ICON_DIMENSIONS.entrySet())) {
+-            View icon = entry.getKey();
+-            if (icon == null) continue;
+-            ViewGroup.LayoutParams params = icon.getLayoutParams();
+-            if (params == null) continue;
+-            IconDimensionBaseline base = entry.getValue();
+-            params.width = base.originalWidth;
+-            params.height = base.originalHeight;
+-            RuntimeCleanup.run("restore icon dimensions", () -> icon.setLayoutParams(params));
+-        }
+-        CONTROL_CENTER_ICON_DIMENSIONS.clear();
+-    }
+-
+-    private static final class IconDimensionBaseline {
+-        final int originalWidth;
+-        final int originalHeight;
+-        final int width;
+-        final int height;
+-
+-        IconDimensionBaseline(int originalWidth, int originalHeight, int width, int height) {
+-            this.originalWidth = originalWidth;
+-            this.originalHeight = originalHeight;
+-            this.width = width;
+-            this.height = height;
+-        }
+-    }
+-
+     private static Object controlCenterPluginBackground(XposedInterface.Chain chain)
+             throws Throwable {
+         if (chain.getThisObject() instanceof View owner && chain.getArg(0) instanceof Drawable drawable) {
+@@ -1772,27 +1709,6 @@ public final class SystemUiHooks {
+     private static Object controlCenterPluginContainerHeight(XposedInterface.Chain chain)
+             throws Throwable {
+         Object result = chain.proceed();
+-        if (controlCenterNativeEditing(chain.getThisObject())) return result;
+-        ControlCenterConfig settings = currentConfig.controlCenter;
+-        if (!settings.enabled || settings.tileScale == 100) return result;
+-        try {
+-            Field field = findField(chain.getThisObject().getClass(), "containerHeight");
+-            if (field != null && field.getType() == int.class) {
+-                int current = field.getInt(chain.getThisObject());
+-                if (chain.getThisObject() instanceof View view) {
+-                    int resourceId = view.getResources().getIdentifier(
+-                            "control_center_universal_1_row_with_margin_size", "dimen",
+-                            "miui.systemui.plugin");
+-                    if (resourceId != 0) {
+-                        current = view.getResources().getDimensionPixelSize(resourceId);
+-                    }
+-                }
+-                field.setInt(chain.getThisObject(), Math.max(1,
+-                        Math.round(current * settings.tileScale / 100f)));
+-            }
+-        } catch (Throwable error) {
+-            log(Log.WARN, "control-center plugin tile height failed", error);
+-        }
+         return result;
+     }
+ 
+@@ -2541,14 +2457,11 @@ public final class SystemUiHooks {
+     }
+ 
+     private static void applyTileVisuals(ViewGroup root, ControlCenterConfig settings) {
+-        float scale = settings.tileScale / 100f;
+         for (int index = 0; index < root.getChildCount(); index++) {
+             View child = root.getChildAt(index);
+             if (isTileView(child)) {
+                 CONTROL_CENTER_TILE_VISUALS.putIfAbsent(child,
+                         new TileVisualBaseline(child));
+-                child.setScaleX(scale);
+-                child.setScaleY(scale);
+                 child.setClipToOutline(settings.cornerRadius > 0);
+                 if (settings.cornerRadius > 0) {
+                     final float radius = child.getResources().getDisplayMetrics().density
+@@ -3035,11 +2948,6 @@ public final class SystemUiHooks {
+                 || !loaded.controlCenter.hasVisualOverride())) {
+             restoreControlCenterVisuals();
+         }
+-        if (previousControlCenter.tileScale != 100
+-                && (!loaded.controlCenter.enabled
+-                || loaded.controlCenter.tileScale == 100)) {
+-            restoreControlCenterIconSizes();
+-        }
+         if (changes.statusClock) try {
+             StatusClockController.onConfigChanged(currentConfig);
+         } catch (Throwable error) {
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ConfigurationBackupTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ConfigurationBackupTest.java
+index 8932c98..e6e36b3 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ConfigurationBackupTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ConfigurationBackupTest.java
+@@ -16,6 +16,38 @@ import static org.junit.Assert.*;
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = {33, 34, 35})
+ public class ConfigurationBackupTest {
++    @Test public void fusionContentOrderAndIndependentSizesSurviveBackupAndSchemaFiveMigration() throws Exception {
++        FusionConfig source = FusionConfig.defaults()
++                .withFusionContentPosition(FusionContentConfig.NETWORK, FusionContentConfig.BOTTOM)
++                .withFusionContentScale(FusionContentConfig.BATTERY, 75)
++                .withFusionContentScale(FusionContentConfig.NETWORK, 125)
++                .withFusionContentScale(FusionContentConfig.SIGNAL, 90).withIconScale(115);
++        byte[] backup = ConfigurationBackupCodec.encode(source);
++        FusionConfig restored = ConfigurationBackupCodec.decode(backup);
++        assertTrue(source.fusionContent.sameAs(restored.fusionContent));
++        assertEquals(115, restored.iconScale);
++        JSONObject document = new JSONObject(new String(backup, StandardCharsets.UTF_8));
++        JSONObject previous = document.getJSONObject("config");
++        previous.put(FusionConfig.KEY_SCHEMA_VERSION, 5);
++        for (String key : new String[] {FusionContentConfig.KEY_BATTERY_POSITION,
++                FusionContentConfig.KEY_NETWORK_POSITION, FusionContentConfig.KEY_SIGNAL_POSITION,
++                FusionContentConfig.KEY_BATTERY_SCALE, FusionContentConfig.KEY_NETWORK_SCALE,
++                FusionContentConfig.KEY_SIGNAL_SCALE}) previous.remove(key);
++        assertTrue(FusionContentConfig.defaults().sameAs(decode(document.toString()).fusionContent));
++        assertEquals(115, decode(document.toString()).iconScale);
++    }
++
++    @Test public void currentBackupRejectsConflictingContentSlotsAndIncompleteContentSettings() throws Exception {
++        JSONObject backup = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()),
++                StandardCharsets.UTF_8));
++        JSONObject config = backup.getJSONObject("config");
++        config.put(FusionContentConfig.KEY_NETWORK_POSITION, FusionContentConfig.TOP);
++        assertThrows(IOException.class, () -> decode(backup.toString()));
++        config.put(FusionContentConfig.KEY_NETWORK_POSITION, FusionContentConfig.MIDDLE);
++        config.remove(FusionContentConfig.KEY_NETWORK_SCALE);
++        assertThrows(IOException.class, () -> decode(backup.toString()));
++    }
++
+     @Test public void exportedFullConfigurationRoundTripsAppearanceLayoutsAndRevision() throws Exception {
+         ControlCenterConfig center = ControlCenterConfig.defaults().withEnabled(true).withColumns(5)
+                 .withLayoutPlan(ControlCenterLayoutPlan.blank(5).forPublication(true).encode());
+@@ -84,9 +116,9 @@ public class ConfigurationBackupTest {
+         String[] invalid = {"{}", "[]", "{\"icon_scale\":\"125\"}", "{\"icon_scale\":null}",
+                 "{\"icon_scale\":100,\"icon_scale\":120}", "{icon_scale:100}", "{\"icon_scale\":100} trailing",
+                 "{\"config_schema_version\":999,\"icon_scale\":100}", "{\"config_schema_version\":-1,\"icon_scale\":100}",
++                "{\"config_schema_version\":" + FusionConfig.CONFIG_SCHEMA_VERSION + ",\"icon_scale\":100}",
+                 "{\"icon_scale\":999}", "{\"icon_scale\":100.5}", "{\"icon_scale\":1e2}",
+-                "{\"new_option\":true}", "{\"icon_scale\":100,\"control_center_layout_plan\":\"broken\"}",
+-                "{\"config_schema_version\":5,\"icon_scale\":100}"};
++                "{\"new_option\":true}", "{\"icon_scale\":100,\"control_center_layout_plan\":\"broken\"}"};
+         for (String value : invalid) assertThrows(value, IOException.class, () -> decode(value));
+         JSONObject future = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()), StandardCharsets.UTF_8));
+         future.put("version", 2);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupRuntimeTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupRuntimeTest.java
+index 70d54d9..5231cb4 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupRuntimeTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupRuntimeTest.java
+@@ -43,7 +43,10 @@ public class ControlCenterGroupRuntimeTest {
+         try {
+             invoke(state, "bind");
+             assertEquals(1, carrier.itemView.getChildCount());
+-            ViewGroup grid = (ViewGroup) carrier.itemView.getChildAt(0);
++            ControlCenterScaleViewport viewport =
++                    (ControlCenterScaleViewport) carrier.itemView.getChildAt(0);
++            ViewGroup region = (ViewGroup) viewport.getChildAt(0);
++            ViewGroup grid = (ViewGroup) region.getChildAt(0);
+             assertEquals("No duplicate group background", 1, grid.getChildCount());
+             ControlCenterGroupView surface = (ControlCenterGroupView) grid.getChildAt(0);
+             assertEquals(7, surface.getChildCount());
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibilityTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibilityTest.java
+index 40f3e9d..1192138 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibilityTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibilityTest.java
+@@ -29,8 +29,8 @@ public class ControlCenterHeaderVisibilityTest {
+         ControlCenterHeaderVisibility.afterCarrierPrivacyUpdate(header,
+                 new Object[] {true, false}, hideBoth);
+ 
+-        assertEquals(View.GONE, header.dateView.getVisibility());
+-        assertEquals(View.GONE, header.carrierText.getVisibility());
++        assertEquals(View.INVISIBLE, header.dateView.getVisibility());
++        assertEquals(View.INVISIBLE, header.carrierText.getVisibility());
+         assertEquals(View.GONE, header.privacyIcon.getVisibility());
+ 
+         assertEquals(0, ControlCenterHeaderVisibility.refresh(visible));
+@@ -57,7 +57,7 @@ public class ControlCenterHeaderVisibilityTest {
+         header.updateCarrierAndPrivacyVisible(true, true);
+         ControlCenterHeaderVisibility.afterCarrierPrivacyUpdate(header,
+                 new Object[] {true, true}, hide);
+-        assertEquals(View.GONE, header.carrierLayout.getVisibility());
++        assertEquals(View.INVISIBLE, header.carrierLayout.getVisibility());
+ 
+         assertEquals(0, ControlCenterHeaderVisibility.refresh(
+                 ControlCenterConfig.defaults()));
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java
+index 35dabb9..ba85729 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java
+@@ -98,6 +98,29 @@ public class ControlCenterRuntimeAnimationTest {
+         assertEquals(0, host.requests);
+     }
+ 
++    @Test public void collapseFramesDoNotFightNativeHeightUpdates() throws Exception {
++        holder.frame(0.3f, 0.8f, 100f);
++        host.getLayoutParams().height = 64;
++        host.requests = 0;
++        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
++                ControlCenterRuntimeGrid.GridView.class}, host, grid);
++        assertEquals("Native collapse must not be forced back to the full grid height", 64,
++                host.getLayoutParams().height);
++        assertEquals("Closing frames must not schedule another traversal", 0, host.requests);
++    }
++
++    @Test public void delayedMountWorkCannotResetComponentVisibilityDuringCollapse() {
++        View component = new View(activity.get());
++        grid.addTile(component, ControlCenterLayoutPlan.Item.component(
++                ControlCenterComponentSpec.MEDIA, 0, 0, 2, 2), -1);
++        holder.frame(0.2f, 0.75f, 120f);
++        component.setVisibility(View.INVISIBLE);
++        component.setAlpha(0.2f);
++        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250));
++        assertEquals(View.INVISIBLE, component.getVisibility());
++        assertEquals(0.2f, component.getAlpha(), 0f);
++    }
++
+     @Test public void unbindRestoresHierarchyWithoutReplayingOldAnimationValues() throws Exception {
+         holder.frame(0.15f, 0.7f, 92f);
+         invoke("unbind", new Class<?>[0]);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileAlignmentTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileAlignmentTest.java
+index 2fa9117..c5c6c04 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileAlignmentTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileAlignmentTest.java
+@@ -47,6 +47,23 @@ public class ControlCenterTileAlignmentTest {
+         }
+     }
+ 
++    @Test public void fiveGCircleUsesTheSameInsetSurfaceSizeAsOrdinaryTiles() {
++        Fixture fixture = new Fixture(2);
++        ControlCenter5GTileView fiveG = new ControlCenter5GTileView(fixture.activity);
++        fixture.grid.addTile(fiveG, ControlCenterLayoutPlan.Item.component(
++                ControlCenterComponentSpec.FIVE_G, 1, 0, 1, 1)
++                .withShape(ControlCenterLayoutPlan.Shape.CIRCLE, 0), -1);
++        fixture.grid.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
++                View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.AT_MOST));
++        fixture.grid.layout(0, 0, fixture.grid.getMeasuredWidth(), fixture.grid.getMeasuredHeight());
++        fixture.draw().recycle();
++        assertEquals("5G must match the visible native circle rather than fill the grid cell",
++                fixture.icon.getWidth(), fiveG.getWidth());
++        assertEquals(fixture.icon.getHeight(), fiveG.getHeight());
++        assertEquals("Both circular surfaces use the native vertical inset",
++                fixture.surfaceBounds().top, fiveG.getTop(), 0.01f);
++    }
++
+     @Test public void nativeSurfaceBottomIsNotCutByTheOuterSlotCircle() {
+         Fixture fixture = new Fixture(2);
+         fixture.frame.setTranslationY(4f);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigProtocolTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigProtocolTest.java
+index 1660668..589c232 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigProtocolTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigProtocolTest.java
+@@ -23,6 +23,30 @@ import static org.junit.Assert.*;
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = 34)
+ public class FusionConfigProtocolTest {
++    @Test public void fusionContentConfigurationRoundTripsAndOldSnapshotsUseOriginalComposition() throws Exception {
++        FusionConfig source = FusionConfig.defaults()
++                .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP)
++                .withFusionContentScale(FusionContentConfig.BATTERY, 75)
++                .withFusionContentScale(FusionContentConfig.NETWORK, 125)
++                .withFusionContentScale(FusionContentConfig.SIGNAL, 85)
++                .withIconScale(130).withStatusClockSizeSp(23).withRevision(17);
++        FusionConfig stored = FusionConfigStore.decode(FusionConfigStore.encode(source));
++        assertTrue(source.fusionContent.sameAs(stored.fusionContent));
++        assertEquals(130, stored.iconScale);
++        assertEquals(23, stored.statusClockSizeSp);
++        assertEquals(17, stored.revision);
++        FusionConfig previous = FusionConfigStore.decode("{\"config_schema_version\":5,\"icon_scale\":120}");
++        assertTrue(FusionContentConfig.defaults().sameAs(previous.fusionContent));
++        assertEquals(120, previous.iconScale);
++        FusionConfig malformed = FusionConfigStore.decode("{\"fusion_battery_position\":2,"
++                + "\"fusion_network_position\":2,\"fusion_signal_position\":2,"
++                + "\"fusion_network_content_scale\":\"invalid\"}");
++        assertNotEquals(malformed.fusionContent.batteryPosition, malformed.fusionContent.networkPosition);
++        assertNotEquals(malformed.fusionContent.networkPosition, malformed.fusionContent.signalPosition);
++        assertNotEquals(malformed.fusionContent.batteryPosition, malformed.fusionContent.signalPosition);
++        assertEquals(100, malformed.fusionContent.networkScale);
++    }
++
+     @Test public void failedAtomicWriteKeepsBaselineAndRevisionUntilRetry() {
+         MemoryFile file = new MemoryFile();
+         FusionConfigStore.WriteResult first = FusionConfigStore.write(file,
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java
+index da4e8cc..b799f8c 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java
+@@ -170,7 +170,7 @@ public class FusionConfigTest {
+ 
+     @Test
+     public void configurationSchemaHasAnExplicitCurrentVersion() {
+-        assertEquals(5, FusionConfig.CONFIG_SCHEMA_VERSION);
++        assertEquals(6, FusionConfig.CONFIG_SCHEMA_VERSION);
+     }
+ 
+     @Test
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java
+index e8ad2ac..bcf4be2 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java
+@@ -6,6 +6,63 @@ import static org.junit.Assert.assertEquals;
+ import static org.junit.Assert.assertTrue;
+ 
+ public class FusionIconGeometryTest {
++    @Test public void defaultContentTransformPreservesTheOriginalCoordinates() {
++        FusionIconGeometry.ContentLayout layout = FusionIconGeometry.contentLayout(
++                FusionContentConfig.defaults(), 100);
++        for (int part = 0; part < 3; part++) {
++            assertEquals(FusionIconGeometry.contentSourceY(part, 100), layout.centerY(part), 0.001f);
++        }
++    }
++
++    @Test public void enlargedContentInAllOrdersStaysInsideTheFixedDesignSpace() {
++        for (int battery = 0; battery < 3; battery++) {
++            for (int network = 0; network < 3; network++) {
++                if (battery == network) continue;
++                FusionContentConfig config = FusionContentConfig.defaults()
++                        .withPosition(FusionContentConfig.BATTERY, battery)
++                        .withPosition(FusionContentConfig.NETWORK, network);
++                for (int size : new int[] {50, 100, 150}) {
++                    config = config.withScale(0, size).withScale(1, size).withScale(2, size);
++                    FusionIconGeometry.ContentLayout layout = FusionIconGeometry.contentLayout(config, 150);
++                    for (int part = 0; part < 3; part++) {
++                        assertTrue(layout.top(part) >= 0f);
++                        assertTrue(layout.bottom(part) < FusionIconGeometry.DESIGN_H);
++                    }
++                }
++            }
++        }
++    }
++
++    @Test public void growingOneContentPartCannotChangeOtherPartsSizesOrAnchors() {
++        FusionContentConfig initial = FusionContentConfig.defaults();
++        FusionIconGeometry.ContentLayout before = FusionIconGeometry.contentLayout(initial, 100);
++        for (int part = 0; part < 3; part++) {
++            FusionIconGeometry.ContentLayout changed = FusionIconGeometry.contentLayout(
++                    initial.withScale(part, 150), 100);
++            for (int other = 0; other < 3; other++) {
++                if (part == other) continue;
++                assertEquals(before.centerY(other), changed.centerY(other), 0.001f);
++                assertEquals(before.top(other), changed.top(other), 0.001f);
++                assertEquals(before.bottom(other), changed.bottom(other), 0.001f);
++            }
++        }
++    }
++
++    @Test public void onlyTheTopSignalBlockFlipsAndOverallSizeCannotChangeItsLayout() {
++        FusionConfig config = FusionConfig.defaults()
++                .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP);
++        assertTrue(FusionIconGeometry.flipContent(FusionContentConfig.SIGNAL, config.fusionContent));
++        org.junit.Assert.assertFalse(FusionIconGeometry.flipContent(FusionContentConfig.NETWORK,
++                config.fusionContent));
++        FusionIconGeometry.ContentLayout before = FusionIconGeometry.contentLayout(config.fusionContent, 100);
++        FusionIconGeometry.ContentLayout after = FusionIconGeometry.contentLayout(
++                config.withIconScale(50).fusionContent, 100);
++        for (int part = 0; part < 3; part++) assertEquals(before.centerY(part), after.centerY(part), 0.001f);
++        org.junit.Assert.assertFalse(FusionIconGeometry.flipContent(FusionContentConfig.SIGNAL,
++                config.withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.MIDDLE)
++                        .fusionContent));
++    }
++
+     @Test
+     public void signalColumnsAreSymmetricAroundTheRingCenter() {
+         float left = FusionIconGeometry.signalX(0);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigDiffTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigDiffTest.java
+index 5d097b5..b65af06 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigDiffTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigDiffTest.java
+@@ -10,6 +10,21 @@ import static org.junit.Assert.*;
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = {33, 34, 35})
+ public class RuntimeConfigDiffTest {
++    @Test public void fusionContentOrderAndSizeRefreshOnlyTheStatusBar() {
++        for (FusionConfig changed : new FusionConfig[] {
++                FusionConfig.defaults().withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP),
++                FusionConfig.defaults().withFusionContentScale(FusionContentConfig.NETWORK, 125)}) {
++            RuntimeConfigDiff diff = RuntimeConfigDiff.between(FusionConfig.defaults(), changed);
++            assertTrue(diff.statusBar);
++            assertFalse(diff.statusClock);
++            assertFalse(diff.notificationClock);
++            assertFalse(diff.controlCenter());
++            assertFalse(diff.controlCenterHeader);
++            assertFalse(diff.systemMenus);
++            assertFalse(diff.notificationSurfaces);
++        }
++    }
++
+     @Test public void identicalConfigDoesNotInvalidateAnySurface() {
+         RuntimeConfigDiff diff = RuntimeConfigDiff.between(FusionConfig.defaults(),
+                 FusionConfig.defaults().withRevision(19));
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/SettingsPageControllerTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/SettingsPageControllerTest.java
+index 8eb02c7..1516b03 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/SettingsPageControllerTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/SettingsPageControllerTest.java
+@@ -42,6 +42,44 @@ public class SettingsPageControllerTest {
+     }
+     @After public void close() { dialogs.close(); activity.pause().stop().destroy(); }
+ 
++    @Test public void fusionContentChoicesSwapPositionsAndUpdateBothVisibleSelections() {
++        pages.showFusion();
++        SettingsChoiceSelector network = (SettingsChoiceSelector) find("Wi-Fi / 5G 位置");
++        SettingsChoiceSelector battery = (SettingsChoiceSelector) find("电量百分比位置");
++        SettingsChoiceSelector signal = (SettingsChoiceSelector) find("双排信号位置");
++        network.performClick();
++        network.optionView(FusionContentConfig.TOP).performClick();
++        assertEquals(FusionContentConfig.TOP, config.fusionContent.networkPosition);
++        assertEquals(FusionContentConfig.MIDDLE, config.fusionContent.batteryPosition);
++        assertEquals(FusionContentConfig.TOP, network.selectedIndex());
++        assertEquals(FusionContentConfig.MIDDLE, battery.selectedIndex());
++        signal.performClick();
++        signal.optionView(FusionContentConfig.TOP).performClick();
++        assertEquals(FusionContentConfig.TOP, config.fusionContent.signalPosition);
++        assertEquals(FusionContentConfig.BOTTOM, network.selectedIndex());
++        assertEquals(FusionContentConfig.MIDDLE, battery.selectedIndex());
++        assertEquals(2, modelUpdates);
++    }
++
++    @Test public void fusionContentSizeControlsRemainIndependentWhenChangingOverallSize() {
++        pages.showFusion();
++        SeekBar network = (SeekBar) find("Wi-Fi / 5G 大小");
++        SeekBar battery = (SeekBar) find("电量百分比大小");
++        SeekBar signal = (SeekBar) find("双排信号大小");
++        SeekBar overall = (SeekBar) find("整体大小");
++        Shadows.shadowOf(network).getOnSeekBarChangeListener().onProgressChanged(network, 125 - 50, true);
++        Shadows.shadowOf(battery).getOnSeekBarChangeListener().onProgressChanged(battery, 75 - 50, true);
++        Shadows.shadowOf(signal).getOnSeekBarChangeListener().onProgressChanged(signal, 90 - 50, true);
++        Shadows.shadowOf(overall).getOnSeekBarChangeListener().onProgressChanged(overall, 140 - 50, true);
++        assertEquals(140, config.iconScale);
++        assertEquals(125, config.fusionContent.networkScale);
++        assertEquals(75, config.fusionContent.batteryScale);
++        assertEquals(90, config.fusionContent.signalScale);
++        assertEquals(0, config.fusionContent.batteryPosition);
++        assertEquals(1, config.fusionContent.networkPosition);
++        assertEquals(2, config.fusionContent.signalPosition);
++    }
++
+     @Test public void clockFormatRejectsInvalidTextAndPreservesOtherSettings() {
+         pages.showClock();
+         Switch custom = (Switch) find("自定义时间格式");

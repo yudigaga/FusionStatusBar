@@ -43,7 +43,10 @@ public class ControlCenterGroupRuntimeTest {
         try {
             invoke(state, "bind");
             assertEquals(1, carrier.itemView.getChildCount());
-            ViewGroup grid = (ViewGroup) carrier.itemView.getChildAt(0);
+            ControlCenterScaleViewport viewport =
+                    (ControlCenterScaleViewport) carrier.itemView.getChildAt(0);
+            ViewGroup region = (ViewGroup) viewport.getChildAt(0);
+            ViewGroup grid = (ViewGroup) region.getChildAt(0);
             assertEquals("No duplicate group background", 1, grid.getChildCount());
             ControlCenterGroupView surface = (ControlCenterGroupView) grid.getChildAt(0);
             assertEquals(7, surface.getChildCount());

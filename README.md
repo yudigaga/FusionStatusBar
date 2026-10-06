@@ -6,8 +6,12 @@
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 设计参考：[Miuix](https://github.com/compose-miuix-ui/miuix)，感谢开源项目提供设计灵感。
-- 最新正式版：[FusionStatusBar 0.3.182](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.182)
-- [0.3.182 更新说明](docs/release-v0.3.182.md)
+- 最新正式版：[FusionStatusBar 0.3.187](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.187)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/201-0.3.187)
+- [0.3.187 更新说明](docs/release-v0.3.187.md)
+- 最新正式版：[FusionStatusBar 0.3.187](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.187)
+- [0.3.187 更新说明](docs/release-v0.3.187.md)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/201-0.3.187)
 
 ## 构建
 

@@ -97,7 +97,8 @@ final class ControlCenterWallpaperWorkspace {
         ScrollView scroll = new ScrollView(activity);
         scroll.setClipToPadding(false);
         scroll.setClipChildren(false);
-        scroll.addView(editor, new ScrollView.LayoutParams(-1, -2));
+        scroll.addView(new ControlCenterScaleViewport(activity, editor, editor::scalePercent),
+                new ScrollView.LayoutParams(-1, -2));
         workspace.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout actions = new LinearLayout(activity);
         addButton(actions, "撤销", undo);

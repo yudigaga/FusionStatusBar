@@ -444,7 +444,7 @@ final class ControlCenterSettingsPage {
                     });
             host.setPageSliderEnabled(borderWidthRow[0], settings.borderEnabled);
             host.addPageHint(content, "以下设置同时应用于标准布局和紧凑布局。项目尺寸、形状和独立圆角请在画布中点击项目调整。");
-            host.addPageSlider(content, "内容缩放", "缩放项目内部图标和内容；项目宽高由画布网格决定",
+            host.addPageSlider(content, "内容缩放", "统一缩放组件外框、内容、间距和占用高度",
                     70, 130, settings.tileScale, "%", value -> update(host, draft().withTileScale(value)));
             host.addPageSlider(content, "默认圆角", "用于矩形项目；单项目设置的独立圆角优先，圆角为 0 时使用此默认值",
                     0, 32, settings.cornerRadius, " dp", value -> update(host, draft().withCornerRadius(value)));

@@ -6,6 +6,63 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class FusionIconGeometryTest {
+    @Test public void defaultContentTransformPreservesTheOriginalCoordinates() {
+        FusionIconGeometry.ContentLayout layout = FusionIconGeometry.contentLayout(
+                FusionContentConfig.defaults(), 100);
+        for (int part = 0; part < 3; part++) {
+            assertEquals(FusionIconGeometry.contentSourceY(part, 100), layout.centerY(part), 0.001f);
+        }
+    }
+
+    @Test public void enlargedContentInAllOrdersStaysInsideTheFixedDesignSpace() {
+        for (int battery = 0; battery < 3; battery++) {
+            for (int network = 0; network < 3; network++) {
+                if (battery == network) continue;
+                FusionContentConfig config = FusionContentConfig.defaults()
+                        .withPosition(FusionContentConfig.BATTERY, battery)
+                        .withPosition(FusionContentConfig.NETWORK, network);
+                for (int size : new int[] {50, 100, 150}) {
+                    config = config.withScale(0, size).withScale(1, size).withScale(2, size);
+                    FusionIconGeometry.ContentLayout layout = FusionIconGeometry.contentLayout(config, 150);
+                    for (int part = 0; part < 3; part++) {
+                        assertTrue(layout.top(part) >= 0f);
+                        assertTrue(layout.bottom(part) < FusionIconGeometry.DESIGN_H);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test public void growingOneContentPartCannotChangeOtherPartsSizesOrAnchors() {
+        FusionContentConfig initial = FusionContentConfig.defaults();
+        FusionIconGeometry.ContentLayout before = FusionIconGeometry.contentLayout(initial, 100);
+        for (int part = 0; part < 3; part++) {
+            FusionIconGeometry.ContentLayout changed = FusionIconGeometry.contentLayout(
+                    initial.withScale(part, 150), 100);
+            for (int other = 0; other < 3; other++) {
+                if (part == other) continue;
+                assertEquals(before.centerY(other), changed.centerY(other), 0.001f);
+                assertEquals(before.top(other), changed.top(other), 0.001f);
+                assertEquals(before.bottom(other), changed.bottom(other), 0.001f);
+            }
+        }
+    }
+
+    @Test public void onlyTheTopSignalBlockFlipsAndOverallSizeCannotChangeItsLayout() {
+        FusionConfig config = FusionConfig.defaults()
+                .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP);
+        assertTrue(FusionIconGeometry.flipContent(FusionContentConfig.SIGNAL, config.fusionContent));
+        org.junit.Assert.assertFalse(FusionIconGeometry.flipContent(FusionContentConfig.NETWORK,
+                config.fusionContent));
+        FusionIconGeometry.ContentLayout before = FusionIconGeometry.contentLayout(config.fusionContent, 100);
+        FusionIconGeometry.ContentLayout after = FusionIconGeometry.contentLayout(
+                config.withIconScale(50).fusionContent, 100);
+        for (int part = 0; part < 3; part++) assertEquals(before.centerY(part), after.centerY(part), 0.001f);
+        org.junit.Assert.assertFalse(FusionIconGeometry.flipContent(FusionContentConfig.SIGNAL,
+                config.withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.MIDDLE)
+                        .fusionContent));
+    }
+
     @Test
     public void signalColumnsAreSymmetricAroundTheRingCenter() {
         float left = FusionIconGeometry.signalX(0);

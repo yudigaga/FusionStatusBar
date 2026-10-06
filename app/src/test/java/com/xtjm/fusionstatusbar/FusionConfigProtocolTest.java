@@ -23,6 +23,30 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
 public class FusionConfigProtocolTest {
+    @Test public void fusionContentConfigurationRoundTripsAndOldSnapshotsUseOriginalComposition() throws Exception {
+        FusionConfig source = FusionConfig.defaults()
+                .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP)
+                .withFusionContentScale(FusionContentConfig.BATTERY, 75)
+                .withFusionContentScale(FusionContentConfig.NETWORK, 125)
+                .withFusionContentScale(FusionContentConfig.SIGNAL, 85)
+                .withIconScale(130).withStatusClockSizeSp(23).withRevision(17);
+        FusionConfig stored = FusionConfigStore.decode(FusionConfigStore.encode(source));
+        assertTrue(source.fusionContent.sameAs(stored.fusionContent));
+        assertEquals(130, stored.iconScale);
+        assertEquals(23, stored.statusClockSizeSp);
+        assertEquals(17, stored.revision);
+        FusionConfig previous = FusionConfigStore.decode("{\"config_schema_version\":5,\"icon_scale\":120}");
+        assertTrue(FusionContentConfig.defaults().sameAs(previous.fusionContent));
+        assertEquals(120, previous.iconScale);
+        FusionConfig malformed = FusionConfigStore.decode("{\"fusion_battery_position\":2,"
+                + "\"fusion_network_position\":2,\"fusion_signal_position\":2,"
+                + "\"fusion_network_content_scale\":\"invalid\"}");
+        assertNotEquals(malformed.fusionContent.batteryPosition, malformed.fusionContent.networkPosition);
+        assertNotEquals(malformed.fusionContent.networkPosition, malformed.fusionContent.signalPosition);
+        assertNotEquals(malformed.fusionContent.batteryPosition, malformed.fusionContent.signalPosition);
+        assertEquals(100, malformed.fusionContent.networkScale);
+    }
+
     @Test public void failedAtomicWriteKeepsBaselineAndRevisionUntilRetry() {
         MemoryFile file = new MemoryFile();
         FusionConfigStore.WriteResult first = FusionConfigStore.write(file,

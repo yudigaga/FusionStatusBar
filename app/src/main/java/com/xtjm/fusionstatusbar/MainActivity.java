@@ -17,6 +17,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
     private android.database.ContentObserver activationObserver;
     private android.widget.TextView activationSummary;
     private android.widget.TextView activationTitle;
+    private android.widget.Switch hideLauncherIconSwitch;
     private android.widget.TextView clockSettingsSummary;
     private com.xtjm.fusionstatusbar.FusionConfig config;
     private android.widget.LinearLayout controlCenterActivePreview;
@@ -487,6 +488,17 @@ public final class MainActivity extends android.app.Activity implements ControlC
         activationText.addView(this.activationSummary, matchWrap());
         activationRow.addView(activationText, activationTextParams);
         linearLayoutCard.addView(activationRow, matchWrap());
+        addDivider(linearLayoutCard);
+        android.widget.LinearLayout modulePreferences = new android.widget.LinearLayout(this);
+        modulePreferences.setOrientation(LinearLayout.VERTICAL);
+        modulePreferences.setPadding(dp(20), dp(4), dp(18), dp(8));
+        linearLayoutCard.addView(modulePreferences, matchWrap());
+        hideLauncherIconSwitch = addSwitch(modulePreferences, getString(R.string.hide_launcher_icon),
+                getString(R.string.hide_launcher_icon_summary), LauncherIconVisibility.isHidden(this),
+                this::setLauncherIconHidden);
+        android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
+                .getParent()).getChildAt(0);
+        launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
         linearLayoutNewPage.addView(sectionTitle("设备信息"));
         android.widget.LinearLayout deviceCard = card();
         linearLayoutNewPage.addView(deviceCard, matchWrap());
@@ -2742,6 +2754,21 @@ public final class MainActivity extends android.app.Activity implements ControlC
     public void lambda$addSwitch$80(com.xtjm.fusionstatusbar.MainActivity.BooleanUpdate update, android.widget.CompoundButton button, boolean value) {
         if (!this.updating) {
             update.apply(value);
+        }
+    }
+
+    private void setLauncherIconHidden(boolean hidden) {
+        try {
+            LauncherIconVisibility.setHidden(this, hidden);
+        } catch (RuntimeException failure) {
+            boolean previousUpdating = updating;
+            updating = true;
+            try {
+                hideLauncherIconSwitch.setChecked(!hidden);
+            } finally {
+                updating = previousUpdating;
+            }
+            Toast.makeText(this, R.string.hide_launcher_icon_failed, Toast.LENGTH_LONG).show();
         }
     }
 

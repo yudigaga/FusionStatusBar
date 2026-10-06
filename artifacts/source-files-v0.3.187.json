@@ -1,0 +1,1670 @@
+[
+    {
+        "path":  ".gitattributes",
+        "sha256":  "bbf94eb46747c01a85bebea4d5a7447fd929162613d63ae9188c556ca364a0cc"
+    },
+    {
+        "path":  ".github/workflows/validate.yml",
+        "sha256":  "62f0ba2ffd631d4834f56e7a13839b2f659c794828294aa0ad227fb9a677aa73"
+    },
+    {
+        "path":  ".gitignore",
+        "sha256":  "77abed4f4b81044faa502d2e77eff3c2be154782b9ad41e160e50f0af56d241a"
+    },
+    {
+        "path":  "app/build.gradle",
+        "sha256":  "4401e4c5770a64dee876581edf626f0efed471389772d1fe5e00c4eebe25a966"
+    },
+    {
+        "path":  "app/gradle.lockfile",
+        "sha256":  "8fbdbf32d8f183f9db8e036f652588eb8408cb39aac151896c8ab6e3f913d0b5"
+    },
+    {
+        "path":  "app/src/main/AndroidManifest.xml",
+        "sha256":  "0325f2ee32e648063045fc1aa8185289ec7ff0574d9df2356025076fcc27a7e6"
+    },
+    {
+        "path":  "app/src/main/assets/licenses/material-icons.txt",
+        "sha256":  "a35c20794226fb257bd4426da49edd68a3768155e5ba228106eeeff3cf469daf"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/BoundedAtomicDocument.java",
+        "sha256":  "2f0759e708fd417aebdcab58943bbc6c4d72fc5203886baf959487137ba07b1d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/BoundedHookRetry.java",
+        "sha256":  "6ce44eb44c5349bc4cdcd172ef1073c6963738065625ca88bee94480e48920cc"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ChineseClockFields.java",
+        "sha256":  "7803b119ddf61d69d6adf882bc2fe3b0acf8e36d69a01fe51ceadc10469ae830"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ChineseDateNames.java",
+        "sha256":  "f3a30d34d9a1a0d374f5d1f4e2655f82e1c4b86db1eea153a5def00a7bb0f316"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ClockTextFormatter.java",
+        "sha256":  "169542de2f9ca1024412aab3996f7ba83a76a35b67bb76fdb6e9e87bd2c76c6e"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ConfigurationBackupCodec.java",
+        "sha256":  "2c95a15e825003ab9d8c79b07945617b6b2326762aee0e6bdde6f27b9d64be08"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ConfigurationBackupController.java",
+        "sha256":  "def9445ac220a6e625818cc3db87c86dc8aec657fbf47ce8f5c2887bff3f0374"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ConfigurationRecoveryStore.java",
+        "sha256":  "ec2c6c3e8c9329a13f3ade0e88f0efbbb9292cf24e26a9bba0f7008cd2db733a"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenter5GController.java",
+        "sha256":  "6fa4b3b5db0216ca05f75e62f5745bb4a542e481a6337ada2277109310124337"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenter5GTileView.java",
+        "sha256":  "1947918e37892ba8884e591efd4608b370d3e16b7ad934126922f06b4bba2a56"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterActualEditor.java",
+        "sha256":  "9fc8633deb4a4faef005dc5d670642e4deaa08760fcea25e3e1e7a0e7465783d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java",
+        "sha256":  "35142372fd39d432101719f7cdfed6e77e12a6f5a98a22929bf3d14bdcb5e754"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAppTiles.java",
+        "sha256":  "3192368c5766d222a175832ede1554281170d26ba48611baf468e1a1cbb72d66"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAppTileSource.java",
+        "sha256":  "305c3efc0722c4251fbe84bb7e68e9d10aba4192360c6c9b3aa5d2b012bdab18"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCapturedStyle.java",
+        "sha256":  "cb526878f93db258dd1e5f180bbe156fd30068fcbdeca526f2141543a9270941"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCaptureImport.java",
+        "sha256":  "e1fe3c8cdfbc3506b42cdc33ccaf2f08b53069af51329257aa674bb51a85a4c2"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardStyle.java",
+        "sha256":  "71f6ac32d64c25b575573720957ea9c8702125c4eb43ede1525f76353413f1fc"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardStylePicker.java",
+        "sha256":  "fbcdd4bbc8546104186ee88fd461f863a6c03a06845dd16cceccfd8e722c85f7"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java",
+        "sha256":  "66c17530a39593271f582804775103ab0d859506f5752703cb2de5f7aa0b9a17"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCompactPairPolicy.java",
+        "sha256":  "9d63e2e8337def22c1d486625d5843f4901e95324f08bb04d5f5ae9f04ffda4d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterComponentSpec.java",
+        "sha256":  "1c6fabba9ddfe5e77ee49e261a081bee54f727ef16d46d2c692ee1da41fa8c7e"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java",
+        "sha256":  "f9156b1cf76019d55a70f6ea90b4e425f6a382d4eea976014aa0820b93f3ae18"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterDraftStore.java",
+        "sha256":  "4fe135de1e930e3eca4a9953eeb658e09c70115a0c4215d1ca55fd114b137b60"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterEditorSession.java",
+        "sha256":  "c77f0f6d083499a246c92d1db84bafc189d5ec20c0452d310c93a55dacb7b625"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterEditOverlay.java",
+        "sha256":  "db7e25ff2d1c043ee7739831fb66afecea79f5d7c45533d8e16c9c50bb78777d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGlobalBorder.java",
+        "sha256":  "396349cd98b6bcd523596e24117688734a4daad6a9dad6ab962247535eb5f69b"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridEditor.java",
+        "sha256":  "0ba5011192c19b4e3c0335c55fe7ebd0f710c1dc2c21164174b3f48c19ed96c1"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridGeometry.java",
+        "sha256":  "59f865d0e97c18fe6161219df8881fe8be6dff1719cac768d2ee7b2fc6f2d6e1"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGridPlacement.java",
+        "sha256":  "69009c6ab20264d1fffb1fc12ee17d65e2fb591a833d7c9b80a72ade0aefeafc"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupData.java",
+        "sha256":  "4967e40ede8019d3fe24794a6610e464bc3b6e9c7ac6597ece7fa459ad5da4b3"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupEditor.java",
+        "sha256":  "196edc4e77e03731fb3a34276c0f1e61cfec0a620854688dcb01f345786de618"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupEntry.java",
+        "sha256":  "9de7dc10b2e3b8bd8fd25f0ac4d10a2eafb7657bf080366127f49abeef49e344"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupView.java",
+        "sha256":  "0dd80ef511c62d87619b3e84c6fabd311d55b8694000ff35f661cf97e1ccf9aa"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibility.java",
+        "sha256":  "1cdfcb2948b43193897c1d08e4386aba813f68740a2b2fe5df43aa1947ee19f1"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHookPolicy.java",
+        "sha256":  "96713827f008c2f7519df2c4280f84cd8d5f8f7dfc636f9de509a4da2a321d8a"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterHostAdapter.java",
+        "sha256":  "6628f12ba24d2f4c934b74f1c0853e6aa40fbd682aa63c9dc625cd0c3adb1025"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterIcons.java",
+        "sha256":  "f10ff62de2f1405c092d7dcdca87575a2bee78d2d820503d673d13eac9362801"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterLandscapeLayout.java",
+        "sha256":  "f497726efa91dcee5e1c975daac1760bc10d51c5b27f2c77453f5f88ff06bdcf"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterLayoutPlan.java",
+        "sha256":  "a30f3d1b63c55393ef57552020184a811cc3fe54de889489f03eb6a11b121aec"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java",
+        "sha256":  "90c5d46ab15529e3bc9d10876b5c96a421f2eec03b729f35c4987ef2bfd365eb"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterialSession.java",
+        "sha256":  "fd4c4d419bc877fcb39d510ca7e200b52244198ea7bae6e7180a6aa2b416e97d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java",
+        "sha256":  "9804295880223d08b7c5d7a8fa7e858966f977a3225f4ab012331490afc274d5"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeMode.java",
+        "sha256":  "8b2e1971a6a6d82adeab84b23b62623afc212fcf21f4343ed1beb42027cc1f02"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPageCoordinator.java",
+        "sha256":  "0f8e16cb010ded1f90afacdcbe327fbaeb46ab9fee7f934d41e2cee76bbb0ff6"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginCapabilities.java",
+        "sha256":  "edb050e88e161e97ee6b6eaa215be54d4e3c9c5108e4537d8bd473d4b09c4c0f"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginHookInstaller.java",
+        "sha256":  "c353f1b3da4df55d4fadbb3b8ad70dabbe4ba89417a1bfb18c1557e5bdf9467b"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapture.java",
+        "sha256":  "9aa68ee272ad3f2d93c90683b1b044fa4f8ac0e3575a11bcc3c56e1ffcdd2a56"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapturePolicy.java",
+        "sha256":  "c4120734baa7a8c740a18f58557c21e941f4fcd5012764fc946cce7ba792dabe"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewDraft.java",
+        "sha256":  "cc9bded33c6a3ab566d461b3909ac1d16ed68286a2b894dd384efcdab43d9042"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewLoader.java",
+        "sha256":  "5758a0f97ba925af0c44b920fd01a85c57e90811d9de21d3eafd0cc15fa90d95"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewStore.java",
+        "sha256":  "084bd1a9e9754879ad1ba3637bee63aa49f97d4c52b2d5e96d3eadd280cd35e6"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewTile.java",
+        "sha256":  "1a78a117d7cee0c48e01e9cf1df3bbbfb29f4011269fe430a9f145689b0b0117"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java",
+        "sha256":  "de487e6b86d1795589dfc42d7e8ee8fc08e8d24eb040a48c0c210ea344d5e02b"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterScaleViewport.java",
+        "sha256":  "ea93a04fde01dbc2dde97c9a7f34adb766b585287fffd977b2821b1e8781dfbd"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSettingsPage.java",
+        "sha256":  "3017aa5121411d1d543a9fde077af430fc2965fb1656cc6e947eb12089a9dd1e"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSliderLayout.java",
+        "sha256":  "6950668cf94049eb32e0c4378a91841d6b336f297dcf1ee0ecb10a0133c41bfa"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java",
+        "sha256":  "63b66d3765389a07a6e6a1251ba0c3f613292fca9b899578f9a92c67167f65a4"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterStyleSampler.java",
+        "sha256":  "81ae33a5f883bcdf2deaa98c8a1abb5fb521ff2b4756eda868643a32a0d38082"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java",
+        "sha256":  "639cec640f50d17fdaa08708d91b6287be1431e6a982bac79618e70b16a6d896"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java",
+        "sha256":  "b0824b201fd2f27b9bfaca1507b7748af91f55b28feb0fdbf3ee005f72813e92"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterTileLayout.java",
+        "sha256":  "50b592e13613b90c7b56a5f97792fde4bc999438ac8dec01f5b6fecaeddb7158"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterTileOrder.java",
+        "sha256":  "41d458a88d8d42b68122882aac18cf2fdf4cf8d4753adada2618f3c6cd4f74e0"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterWallpaperWorkspace.java",
+        "sha256":  "147b4f0f1ac0e4db8cfca1dcdad7fbf70278f153fbc4e3044b61756435c38fb3"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterWindowCapture.java",
+        "sha256":  "c50582e95be0d79e6893120d5bae4a74add46dea2a8ab9a41252035d602cf8eb"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/DiagnosticLogExporter.java",
+        "sha256":  "e99f74747011c2f6c14da46bd417ee974cdf135f397c87819bc641f44605d2a3"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/DualRowStatusBarLayout.java",
+        "sha256":  "dbfb51cca773386c0ca9887196c66f454831907358122cdbf027ec6ce6a6a906"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionActivationStatus.java",
+        "sha256":  "93d6b9b5f0e9ed694a5690d5f2699c7300b1e2086a8f4777974decf6c3ac7191"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java",
+        "sha256":  "c6dfcb7a5d49980739a0435ef312a927e3aee9d9cb89e6ecbeea74c7c26cd803"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java",
+        "sha256":  "1af76fe840b630a79ab5afb253d6282238fd53300ea7a7cb424a84a2e16c16c6"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigRepository.java",
+        "sha256":  "904970754b9f2951f9ca9f22d74efe90543e027cbe15ea4a1b8e09ae2b39d0e2"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigStore.java",
+        "sha256":  "539dfaaa079fb027e785510fd10c8ed07d7f625bcfd215894747a04293743313"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionContentConfig.java",
+        "sha256":  "a2fc8b836b07fb5c1778b1f17d5658e992f24da5774c72dc5987a6436c9e9bce"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java",
+        "sha256":  "9032f1120b1bc017ca9b6e9bc0e897665c9bc94073180a083479e3af08121358"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionIconPlacement.java",
+        "sha256":  "8c9706cc5b45fd5c3d880c8db7237a9123f5a330922c4bc8ac3ff6c8f4175ddf"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java",
+        "sha256":  "7922be8bdcb533f5cba17cd3bff2d2317ca4f474612929be481ddfa638c98e5f"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionModule.java",
+        "sha256":  "7a5b0e52f59c57ef995ab248052c73a5b50c8e922ff57158fe819251a8072634"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionPreviewBackdrop.java",
+        "sha256":  "76ba4bb833e70944ee3b779cb474039af9c2993934e4217a20b1c419d08179d5"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/FusionStatusBarHost.java",
+        "sha256":  "9b3e6d54e072d14dc284f8bf8808c66c2ef655ed3dd94db484f3b670fbbdbc77"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/GpuThermalSensor.java",
+        "sha256":  "aa257164978f8f6f5ac83e4e255b5e5c3168768d1f1fbb76b3d7d81bbe122830"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/LatestRootRefreshScheduler.java",
+        "sha256":  "1a53b55f57a6cd9798a041d1a7ddde077ca7aa4f58485154d47f6da5ca764616"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/LauncherIconVisibility.java",
+        "sha256":  "acf889ae78dfdd5e3eefbd2e684e05272890cad1281b52244e70a0dbdc2e860b"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/LayoutPresetController.java",
+        "sha256":  "8f10886cfd643f77bb5db7e587c90d412695cccdfb95f35c8ea5d3d50272c202"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/LayoutPresetStore.java",
+        "sha256":  "f780f5624d1bb69d5cdb400189595ebebda473fbabd3db568a883242a3a42835"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java",
+        "sha256":  "253b766557e15b56207e86f8b1ed696a671ffef6914257e897b8c022dd4b9a3e"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/NetworkLabel.java",
+        "sha256":  "13d2e7c1df6a94c7faa18a06e2875882db0d7be713fa1d7029c23e16efe33bb5"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/NotificationCenterClockController.java",
+        "sha256":  "469c59db93fb258b57500f7172c3ca5a42ff80cf501f2db5b71249d273306a56"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/NotificationClockConfig.java",
+        "sha256":  "6fb4884b6b25e1868e231ae04d8c7432b8f5ea0b883ff6d9cb4ac8a205fc95e2"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/NotificationHookInstaller.java",
+        "sha256":  "c9d5bf61b62cd1da2b9286174a1f1d977bbccbeb072451e892a71848559bd072"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/NotificationSurfaceHooks.java",
+        "sha256":  "976236a7829fdf300f89eaa6ccad718c246c0993b874b4b014308174031ffad4"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuActions.java",
+        "sha256":  "72bf8fa46810db688556318871d8dc12eeae698724e9864b71c461d394b97e89"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuExtension.java",
+        "sha256":  "db8741a0cb4237312f4dd7be4d1d91af7cff5d38d527213a415443a37c347385"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuSideSlider.java",
+        "sha256":  "4fae15cd7142fa6542a1a18569f55b7a5c793262e2ae8953eb2e5ea3284ec31d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeAcknowledgements.java",
+        "sha256":  "4263acf20e1358e92a946e4d41a7a27f775d7b476146095dc9cae7b1619c696d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeApplicationPolicy.java",
+        "sha256":  "dba8b23b116fcaeadfbe84596fc5b00f757378190d3e14ad5b8ddb3519429737"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeCleanup.java",
+        "sha256":  "488eddef2927f5316912859f4aa476f6de3502ce644b6fcdb2560fa59f4e6ad7"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigCoordinator.java",
+        "sha256":  "b3e247e83d5e95f1b2047543fec669e3b500515746d5adb84cce599801a42311"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigDiff.java",
+        "sha256":  "fe60636930c004de1302d083d19fcc91b295aaae9533ae48937dbd8a8fd2a13d"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigLifecycle.java",
+        "sha256":  "7dfa638bf19c938ec80cc6c5cd3ecebd677857e36840e58f285861ff32b38419"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeHookRegistry.java",
+        "sha256":  "8b6a0566174d37940cbc4878b2e3a43a696f41839314e8793e940f627914316e"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeObserverRegistration.java",
+        "sha256":  "c571991e9fd46f7138cf171537aaeaba8e319447ffe255fddcf81aac001f62db"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeReflection.java",
+        "sha256":  "344ff261028ea0625f70d4be60aa74640aa0d08c5cfda2337e4163c0d3f5d10f"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/RuntimeWorkQueue.java",
+        "sha256":  "9587a94aeedd23900772ec1c77129f6c612a0f5f763ed9a010d89d30f8c518ed"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SettingsChoiceSelector.java",
+        "sha256":  "a38c597a1961a313b7cb0909279d58e052acb629b82547faf6f7be4b0919466f"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SettingsDialogController.java",
+        "sha256":  "5386e08f5eb7265d8e430f682abe962869f59ed85b7c9a0ba1c11ef791b73fe8"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SettingsListAdapter.java",
+        "sha256":  "9e9d61af9187a752dd216e11db857fbf2dd9ae095623aff08bf6c2bf191e78e5"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SettingsPageController.java",
+        "sha256":  "8d5fe68d031daf3258478405e7717696f32230443d80ccd52514a1534bfacb63"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SettingsStartupCoordinator.java",
+        "sha256":  "a87fd41afe7a923f740a46fdd0060b99b0fe1a2985d3cf2087ce1dce66e16218"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SliderFillGeometry.java",
+        "sha256":  "f2af4e3fe9d0fff6e5c994f0c2aef5e92f746770be0b17767934e738160ef5fc"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SlotFilter.java",
+        "sha256":  "38a39b6a7b479d0d70a05c7ffaed6c7e73385c1a3c8d0d5c369dfcd30ae4fd9b"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusBarHookInstaller.java",
+        "sha256":  "c25280e1540214e13e25b154ad5b9361cee45d08d3b77d58094dd34e519b634b"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusBarLayoutPlan.java",
+        "sha256":  "4a03a56ca23878c86cc1847be0ce6965cc818361f703f1052025a27e9ba67d0f"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusBarWidthAllocator.java",
+        "sha256":  "92f2ab52997e5e0185f4870ae2c5cac65b7655d3c4a5dad5a2d9b93f28e27157"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusBarWindowHeightController.java",
+        "sha256":  "8f3a55cb5610a407213520c393c10b3973bf2069e82e1b58cad93a6ffe7cd9cf"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusClockController.java",
+        "sha256":  "97d1d8be98dbeaa3cd8e0f594cd8445db92383de2944bf0a0ec0992462be9ffc"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java",
+        "sha256":  "bcbdb479099f2f9d802ec5d78643836e199eb43f38353e0e9de4670f200a5413"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/StatusPairView.java",
+        "sha256":  "8a30fbfb84a65ca90becd2156bfe96e50954bca068731252db5ce6bdfd42c1fe"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SystemMenuHooks.java",
+        "sha256":  "7f804d65e341341298eae901f65cece1d166fe3e348a703ace9e7792e0404c6e"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceConfig.java",
+        "sha256":  "933654e34f2500de7777bbd9f0abf183ec2e672615685856da0a38e52034b618"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java",
+        "sha256":  "0a7f17365ecfa2e34a61599a8fe8583436f9ab91987a20d0051a9ab02bc18374"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java",
+        "sha256":  "1d5b5f146f40c443f6cb26c8f2e0a9d23dad74e4b215812d2aa5e41160f38e58"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/TelemetryConfig.java",
+        "sha256":  "45d8843163b863f5cc57e8f0ce519a74a96a3650081201fe9be8295c34071522"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/TelemetryReadings.java",
+        "sha256":  "4544aeacffa7b2593a691c8511c7e85309aa30b58a4e38226a3944e00d9a9525"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/TelemetrySampler.java",
+        "sha256":  "2e47cca0f37689f8c1aba2a2db17f91160612c7f55e50f2ba74a852e397d40c2"
+    },
+    {
+        "path":  "app/src/main/java/com/xtjm/fusionstatusbar/VisibleSecondTicker.java",
+        "sha256":  "970d7043d9b6449155ae1dc926a9fd3f988927e2f774eab7c46292cc06064e21"
+    },
+    {
+        "path":  "app/src/main/res/anim/settings_sheet_enter.xml",
+        "sha256":  "fe0b2e4701772e2989771cbf2df8a4c3497df823cdf27a172c9c81cd9ff22930"
+    },
+    {
+        "path":  "app/src/main/res/anim/settings_sheet_exit.xml",
+        "sha256":  "edff1577047cd3261c71cd9fe8b5ee2e2285040f62212310b2b462ca1e3bb057"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_airplanemode_active.xml",
+        "sha256":  "c1407dc3fcb449079868f6a29ab1e17e67209beb725c484514da6e292069b8ed"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_battery_saver.xml",
+        "sha256":  "758f3217d6650802b16980be7636deff4631459b9e3534550aeebbec27bf9984"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_bluetooth.xml",
+        "sha256":  "2f180a98cf540091f52c7d61067c38636a141b4fb4f9c969c1f36c1dae787b2d"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_cast.xml",
+        "sha256":  "e9334e7d2df2b5ab2b3053c74d3c91769f9ff3e501a81e122759eb58282e1bd4"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_content_cut.xml",
+        "sha256":  "cc46fc430288dd6a7396ca356f0d0a9c54b3d7976895d5ee719ca3a06ad0d34b"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_flashlight_on.xml",
+        "sha256":  "e3c3f5220ba8b40903b90da278083ac3879c2cdf77d8c862e05349f4e5fdcb5b"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_gps_fixed.xml",
+        "sha256":  "43c2f7140cdb5d7c9aa2c1d0e2b6462d24b82689bde8a8eaee5c02ae04a49960"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_link.xml",
+        "sha256":  "fcc4130948472012c05cc078ffe5ae06f3618daaf2bb311581ec294f9d9cbb73"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_more_horiz.xml",
+        "sha256":  "abf706773a6624b89ef40d3723da77e8f3954a531aa5470988a89968fa9c7459"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_nfc.xml",
+        "sha256":  "ab5c73f1acf2c2d22898d2b03c5543ddc5a771272f913f1a31e82046a6227c5f"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_notifications_off.xml",
+        "sha256":  "6d8d7e9d760d8ebbd78911a91cffca6c1c908c0768e11d5740b8647899a1e8d4"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_play_arrow.xml",
+        "sha256":  "e68d53fec966dbc0ba03978dfa83015a2de8842cf05da72d0b942af61ed747a5"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_screen_lock_rotation.xml",
+        "sha256":  "78454eb11ac75ab4baa2474ff0b270009681d57bd8261a48873e4bb9828d38fd"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_search.xml",
+        "sha256":  "46d9a59e118ff709efe0b30c118c05dfa8e125ea519fb793e73059b35132da1e"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_settings_backup_restore.xml",
+        "sha256":  "9d97fa316bc9a78991b27242d74d8b07396257ae3939b4dab22a2150994bbb03"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_skip_next.xml",
+        "sha256":  "717c554df9d6c604662c810321f833d78bbb878b84db12a85b42c570b7b91f19"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_skip_previous.xml",
+        "sha256":  "6759c7b6128dac37dc6e20c688ccaf341cc346d89ef84c67a830d84584c5b696"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_swap_vert.xml",
+        "sha256":  "1966774ab791528f7e06a88827d177bea131e1cc7c30a39d10fc9ed0dc11ba97"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_usb.xml",
+        "sha256":  "2e4d144230dbe9dccf32200f542116f2d5f0e3b131e5a499ad38f9f524a476e7"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_videocam.xml",
+        "sha256":  "f2a9c7eab2761c4650ba54007c7f3df65f52279173fd2591f8789c74b4362bb4"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_volume_up.xml",
+        "sha256":  "8ae6145a100eace5bcda1240c585e86d2df02b9f25d94b14ec1431507755588f"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_wb_sunny.xml",
+        "sha256":  "376a92c92a3d6b76ed396d73ddd46afca8c86f956136c3e93505b46543c8de2a"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_icon_wifi.xml",
+        "sha256":  "3122fec96f0f4018bb82d16533826b7b80ed0c88ddc071c5a5b4a1efb7e67ed2"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_app_service.xml",
+        "sha256":  "e22c3bf1578aa1bb7d10bcc6bdebfebb66501bdf35ec968f1fbd80c747079265"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_brightness_auto.xml",
+        "sha256":  "51586387ec3c3d861651e2115aa454574410c98c1feae6dffb957e562869088b"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_devices.xml",
+        "sha256":  "95b559914fdbfbf28ebfebfc85356218e049f0457cd6209453db7626c2b8a7f0"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_edit.xml",
+        "sha256":  "f096b9444be825d954f3875bc884b62d85745f2ea586662e2d3957ec83269f81"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_lock.xml",
+        "sha256":  "b3355da1688483ff5333211dfcaf538f648f0eb5407103023d0a6e1bc8f4b85f"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_night.xml",
+        "sha256":  "c33d44008fa8d4689fcffbd572975dc4e7007dfdd8efd10c16ea75da89cf552c"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_satellite.xml",
+        "sha256":  "922bcb5b62ccf3026af60665dc6146e98ac7672063a8a0c22c97b7576453d485"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_settings.xml",
+        "sha256":  "0b53aad327fc04c1d957a05b6944d092397766ecc9027ad0042828f420e5e6c8"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_sync.xml",
+        "sha256":  "a51a876eeb4e828fd011d417a109cf64c65eab71730de0850b24cf86652ea9bb"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_vibrate.xml",
+        "sha256":  "247fd5419cd8f95f8903cce77d2c37b3d67d1557f403789967b30f7f9c02514d"
+    },
+    {
+        "path":  "app/src/main/res/drawable/cc_preview_wallet.xml",
+        "sha256":  "98f3cdc7ecea8bb7682b69151be62afb9f4ad72bcb74e5d14dc1543e9e84090d"
+    },
+    {
+        "path":  "app/src/main/res/drawable/control_center_canvas_background.xml",
+        "sha256":  "165e17ada7f11fd3b6e1e3a76a711555837bc68790746d035a391a7fb2fdd355"
+    },
+    {
+        "path":  "app/src/main/res/drawable/ic_launcher_foreground.xml",
+        "sha256":  "fad28709d26fa9b3d33b5013e0aa84270ce9372d1bba24679afd16a3513b26f4"
+    },
+    {
+        "path":  "app/src/main/res/drawable-nodpi/control_center_canvas_wallpaper.png",
+        "sha256":  "3a8a39c52524b3aaf9c75b2bce4a6f24bd314278c68b1cb04c3d9d0008b690e0"
+    },
+    {
+        "path":  "app/src/main/res/layout/activity_main.xml",
+        "sha256":  "d3e888bd86fb445cbc5cde45e8d295622a6e28568cf6562513e21340cf4a0715"
+    },
+    {
+        "path":  "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+        "sha256":  "678da6560d837e905ba0c82a15a11918714729de283138721e85ccc1eb1ee9ff"
+    },
+    {
+        "path":  "app/src/main/res/values/arrays.xml",
+        "sha256":  "9cf7413cfa06d976b64887d2d2b0497a0685606aa1e0e1a69b9812fca0f672ab"
+    },
+    {
+        "path":  "app/src/main/res/values/backup_strings.xml",
+        "sha256":  "71777385da7f4ea8b518d0ea5b3a3e6424bc354ec9b4633d965ede25da4fabc6"
+    },
+    {
+        "path":  "app/src/main/res/values/editor_strings.xml",
+        "sha256":  "169feb51267fe952f2e586e09d083eaa54007cd712f03a731f673ebb2ee5cd33"
+    },
+    {
+        "path":  "app/src/main/res/values/ids.xml",
+        "sha256":  "edc5360abce586b0c55a1daeb07c04e45f162904917a50b3a3bb46f850987b12"
+    },
+    {
+        "path":  "app/src/main/res/values/launcher_icon_colors.xml",
+        "sha256":  "33d8ccf31c15ce0fc0fc99eac620a5a4bfe2cbc255197d77126dce9a26fe1452"
+    },
+    {
+        "path":  "app/src/main/res/values/launcher_strings.xml",
+        "sha256":  "1e994b6c30d3dd9448719e611ee4ad8be692345eef8998e3962cac44c8d6a1cd"
+    },
+    {
+        "path":  "app/src/main/res/values/strings.xml",
+        "sha256":  "1d34a7c086b5cfb69addd3b126e07fdae6dced1642167d21fd910a9cb3117466"
+    },
+    {
+        "path":  "app/src/main/res/values/styles.xml",
+        "sha256":  "529ffb253694bd044179659ec3a93a189543712b7897bd64a31664e4a3efecb0"
+    },
+    {
+        "path":  "app/src/main/res/values-night/styles.xml",
+        "sha256":  "732928b345ebf9e19e6b67e362a7bd33c48a2cad26b61e7c8f6fd533c4ace776"
+    },
+    {
+        "path":  "app/src/main/resources/META-INF/xposed/java_init.list",
+        "sha256":  "e1a39eed6b56cb9d0ab214be9cb53bf7f53ed91640c91f698aae0fd4b15c0ee6"
+    },
+    {
+        "path":  "app/src/main/resources/META-INF/xposed/scope.list",
+        "sha256":  "3add98d083f378ac6b8fda47ac88362f3fcf55361f50f578f6f04181595896e7"
+    },
+    {
+        "path":  "app/src/main/xposed/module.properties",
+        "sha256":  "5a7aa6a47b33735f5222f17bc87837f61a8bc6fb59df1784457758470c203849"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/AndroidAtomicFileShadow.java",
+        "sha256":  "b91bf01e520df63903b2341631ca36e9510a0d02aac2ab883f0bbd16a47d3f2b"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/BoundedHookRetryTest.java",
+        "sha256":  "486715edd5970c346643267299f54ee5d945fe031ef8499413ac3f13cc87df16"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ChineseDateNamesTest.java",
+        "sha256":  "37a800f4fba0d06242b8e2e8790a26a339a6408b68c254dc88d7d6950237ab6e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ClockTextFormatterTest.java",
+        "sha256":  "bb2fcffea43d8f05c05fb19a08ad68022b9321fa65d7d2fc20c979860f09ea76"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ConfigurationBackupTest.java",
+        "sha256":  "6071518f91d87b40f9449f93e70bb344c7b89b1ffd7add172eb6edb2c116c087"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenter5GControllerTest.java",
+        "sha256":  "324980a9b4d0f1cda8ee5e2851f54de7089dfa07b0dd5006169fd439749a8426"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenter5GRuntimeTest.java",
+        "sha256":  "754c254e31656eb7b52726ae51de144714c469763dd0e8b6b332355348c477c8"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenter5GTileViewTest.java",
+        "sha256":  "e68e205f56e998339a282005cc51c1e032bc16ed048ac72e8ef4f4bb905b7446"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java",
+        "sha256":  "e2f7a8757f8de01b7a9790ca8723e59f856de1d67b90690268d4c53e8f8da6b3"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAppearanceContractTest.java",
+        "sha256":  "506b552379001978f023f820266f2298220812fd1eea81267a93ba428f6958e3"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAppTilesTest.java",
+        "sha256":  "59d7fe22325873a33ac4de135efbac43593089c567f28c6f4678b76d2fecf3ba"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterCanvasIconTest.java",
+        "sha256":  "b7c7ef97fcdcb218e5760d5efcf0253afbead323d83f1e291359dcc0a57a8b5f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterCaptureImportTest.java",
+        "sha256":  "7b80e6e5f6f8c3c72d6e509f898995f26239c8a74e9bb746215e444c6a872eee"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterCardRenderingTest.java",
+        "sha256":  "16753ae783d5fed825e944f9bd5099a4e64b768b02afb7f07aca2f13a9c4b181"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterCardStyleTest.java",
+        "sha256":  "3f4eb90098fbf8289f1a974cf93ce6180e9a326fa44fb0cbc65f030523c28656"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterCardVisualTest.java",
+        "sha256":  "00af2fb024af5f984bc269d921532c6e206e0e231166c230d697159fd3c35211"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterCompactPairPolicyTest.java",
+        "sha256":  "4c0ba202c8c6370a930a1cb42f78cd75b56e8b4c90ed89c3b1a811d532ce3252"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterComponentMaterialTest.java",
+        "sha256":  "54f45c906fdfecdf74ca2371205553be5212999885156fdc1196e0ee904a666a"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterComponentShapeMaterialTest.java",
+        "sha256":  "63ec680a9fb679fe3829e7b2b516506a15c0d04c69ceb6b2eca7fcefd596d13f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterComponentSpecTest.java",
+        "sha256":  "7e77ddde61aacace685446365f8f7004e9a6dee15e7d90798d2f86e28114ad12"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterConfigAliasTest.java",
+        "sha256":  "46c57d03a7f49b801727ca7248bd96b6dafabf04c6c3d8779cd6f0cd6d731ba1"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterContentScalingTest.java",
+        "sha256":  "ec6d62a9a5e1c199a731498d3ffcae378646aebe0e9890d425eb130d82e2a010"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterDraftStoreTest.java",
+        "sha256":  "3437350c6936cb4cc4370ecade17eec97dd7a20210ad8f472e5724e1ebf6f40d"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterEditorInteractionTest.java",
+        "sha256":  "71ebb076b1158bb68be6e1e0d141da28e2bf4dd76b173bf3c430c11be481b0fe"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterEditorSessionTest.java",
+        "sha256":  "156068fc9e4bf8da07e1a1743f08bed546e9a12cfd916299c16b8ac2b8c50e2e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalBorderTest.java",
+        "sha256":  "201f892a1c75a6d15520e14d2a352a68a15a5f996345f82edf7ceb5180879678"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java",
+        "sha256":  "b36a831f85da87a9d988e1a65db32ef5795466f890b14e2afb139090e75fa475"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridEditorShapeTest.java",
+        "sha256":  "fb2e69de17d9539b5b712c71ca56607718900d23cd9e4af82f12681a3c57d962"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridGeometryTest.java",
+        "sha256":  "6d28dbd647866d549d3835496e5f922800515333a3309c5ba40d51487a8e537c"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridMaterialDirtyTest.java",
+        "sha256":  "c5bdaf60e2b0c5a615f2dc0849cda646bac5d459b7077689c5179df4f6dae82a"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupDataTest.java",
+        "sha256":  "3e91b255fa55bc4fe644ad08eec05b6c0dfacdcb230bd96fee580b848899f00b"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupEditorTest.java",
+        "sha256":  "1e28c0ab6b1eb59e0662e4ce2de5f9a5f9235f18c6a468647bfdaf18b0da183f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupRuntimeTest.java",
+        "sha256":  "0d5dca2c89466711d9ec6def3b497abfd649447baf9839b7e6841e554f91f3c5"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGroupViewTest.java",
+        "sha256":  "451b1f9bf519abfece10ae9743de6d8d3b250b3f24733ca29aa99515810fc30e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHeaderVisibilityTest.java",
+        "sha256":  "4d3508f1d79a7cb0b82e8b022c7055652ad24c7dbcaa0b9fa4489fcc5ab5b436"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHolderPresentationTest.java",
+        "sha256":  "777e985f64a28254bee35cc1e14040dbfef8fee4065392cdf5f7e5f3a3d48eef"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHookPolicyTest.java",
+        "sha256":  "66ecda9c3a36f2a6d9690ea65974651cac27b3ace6690c43f505fc8b33819469"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHostAdapterTest.java",
+        "sha256":  "793e84e974feed3dd6a103e116ddd9d2618074ae1de9e0547692d5e0b9523404"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterImportedConfigRegressionTest.java",
+        "sha256":  "a82e4eebdbad1f1a50edfec4d48c2c4fecbba1978520bb39971c5755f47cfc1c"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterLandscapeLayoutTest.java",
+        "sha256":  "2b8456185cff40518af412183d5e994fd0f1ad90c01b5f26c6ab73c934914104"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterLandscapeRuntimeTest.java",
+        "sha256":  "eda36834de8241d37b628abdd647e26293c04ee6baafbddd5a8e385bfbab673b"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterLayoutPlanTest.java",
+        "sha256":  "78528b21ecf00ca2369ac2abc51c58c3487f05e3a73c06a76852ac7cc9393929"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterMaterialSessionTest.java",
+        "sha256":  "d2f6fb4a3bacd93efb02556059b2ea33735a9d57a36dfa388cd47d98b7f197b5"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterMaterialsTest.java",
+        "sha256":  "41fe58a39294c54ee78698414a86a481d240984df265ab2ce58d9ab36adff8a9"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterNativeEditBoundaryTest.java",
+        "sha256":  "be265fc61ff5173dcdd5f8e2bf52be82e21a991a57f400e00128a0bf5d8baae3"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterNativeMaskTest.java",
+        "sha256":  "d8e33471e9f9487d45b7229a0e433aa55dd14f606c20936bcf1dcb4cab7fef20"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterNativeMaterialBoundaryTest.java",
+        "sha256":  "10f9d357e81d653020b3dfb7bf2742e73b676f1861a1a51f9154ac986e703e51"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterNativeRestartTest.java",
+        "sha256":  "a967ee6b09e3c5ed1abd7418d5d45be025ba0e67d39fc0bb21e598a575ad4de9"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPageCoordinatorTest.java",
+        "sha256":  "1429774a12e7540603e30e77e3710f10b3a4dd4e933f0477a946c1eefd930c53"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPluginHookInstallerTest.java",
+        "sha256":  "3be9e88d0e90a51a07236e7fa8500e5bb6152586a81e03d3a3580dce1c643a4e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapturePolicyTest.java",
+        "sha256":  "534ee3b6da29baa7ef56826b4a605271910b319c21539ab3b2cfc149e9f5cc2d"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPreviewDraftTest.java",
+        "sha256":  "a1def8a2e673bbf6b18a4a247fd10a12d43ca120ec10f54345373ced0d721401"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPreviewLoaderTest.java",
+        "sha256":  "2da59829fc99d45f9c789e374bdb944ad5d132951d9ba15feba17e5180cdccc2"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPreviewStoreTest.java",
+        "sha256":  "f1301b2af0dfdf8e5cef28895c1acf995428d5834a0c21c5e9d0b89e9241a3cd"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterPublishedMaterialTest.java",
+        "sha256":  "d3d0846c614fa1cc8405db9e298e958b148d6f95c3a013e99e45ed3b13fad5fa"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java",
+        "sha256":  "26c6fb1da06db5e3b5204c1967008e3bb00484ec7e7bbb48d09380638a65ff20"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAvailabilityTest.java",
+        "sha256":  "07c42cea6c09890f33c0425f8dcf9d7523dad7de230b729a951de689412acd6c"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGridRefreshTest.java",
+        "sha256":  "13e80d5ebbbd40ce39ef0a6ac20f8e3137f25f133383145147a2e0905cef8538"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeShapeTest.java",
+        "sha256":  "690a6699eedb6f34783eb9d441b7d464e2210908e02d378b9e212e185c2b8014"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSettingsPageTest.java",
+        "sha256":  "0ab045d15a188901d2f433287cc3a9e58a008fc8667b4557ea9593ba170689c4"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSettingsUiFlowTest.java",
+        "sha256":  "0f0bbd4455a9db2927d3cd932a5d1dae6c6f0c34bd2b36c562a8320efd449e73"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSliderFillPixelTest.java",
+        "sha256":  "25fda5b69d0c2c69fe95f2c5b9f1ff1f2de1e4e03d50bdbad4f7e097bd846083"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSliderLayoutTest.java",
+        "sha256":  "5aea2dfb0ce563cebd2817f22c3a868e56d96a7b2d0fb8baf7f62df868cd4336"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSliderMaskTest.java",
+        "sha256":  "86ed5416b6f7628164f54b2c49be562f4fc2c5f565c6df715036dba1d76197c3"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlassTest.java",
+        "sha256":  "e5c898e84741b32e046d5d412ce9d679e88787b346db80c29127437390bf9599"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSoftwareSurfaceOwnershipTest.java",
+        "sha256":  "9b5145a839aa38696ab2e3d0509cdb0c29804ea078364aed77c1fd7d722571d8"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceConfigTest.java",
+        "sha256":  "95e5ed501f315ca011983482eebd170b9382045fe87213098d58f42286eec866"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceMaterialsTest.java",
+        "sha256":  "16e2f65734f441b341816b680e0dee5b1df5442c71d18707b177ce5d56ae72d3"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfacePreviewTest.java",
+        "sha256":  "1b350f69cb5d9daf3d4c7b513379e8f9639162729d46814b1b3c2acba10ff7ab"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileAlignmentTest.java",
+        "sha256":  "6f7d82c11550db256808335ea13134de5fd31a8e0fdf5c164be0c173ca1abd03"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileHardwareTest.java",
+        "sha256":  "06558539437952ea8e3c0f1c3415c8fe44a9a7fb7f3454b89bc0364cb9ee4b7d"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileLayoutTest.java",
+        "sha256":  "8eb5c994615e723845601af467a5c856c3e9f1acb0eb780f6cda76b60189633e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileOrderTest.java",
+        "sha256":  "6ff383ecd7f842581b713d4de4bd03ffe56d19ed34032aa4340e86d27f781852"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileShapeIntegrationTest.java",
+        "sha256":  "54c6074c85dc989a5b7267e7f66404f254849e2549b99c5408f2850276f3bc8e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterTileSurfaceRegressionTest.java",
+        "sha256":  "d11e6dab530b7d37b306acbb13ac93796ebef69a3f5604fe7d28ef56cb5bd864"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterWallpaperWorkspaceTest.java",
+        "sha256":  "9efece466935e47a6cd5c7b698549fcfa02e81cd3b6569c0a4771195eb995520"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/DiagnosticLogExporterTest.java",
+        "sha256":  "48e9d52963133edcd1ef6460c1d3112c66df7321b3c06fd9bc27dd4ad1d17bd0"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/DualRowStatusBarLayoutTest.java",
+        "sha256":  "5a65d9934bcbe433f04a33ce966f22f6ac799885d370b22e690cd04ed445a2cb"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/EditorPlatformMatrixTest.java",
+        "sha256":  "c00ec4901e6411764c8eec2086afebf77c24e2dd9f3446241fe6750554b51427"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionActivationStatusTest.java",
+        "sha256":  "a5fc72f1547486e966d5c7da2d6cb242c99e275e16c7482ff899b7363000f5f0"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigProtocolTest.java",
+        "sha256":  "75ebd23703a4c6b460fe959283a22fcd6ff6d3b540995ea675c27a3ea30abc47"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java",
+        "sha256":  "b1b8b4dd0c6f14028025c5df6521353be28bb5eeef61bb3ba468974556117072"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionContentConfigTest.java",
+        "sha256":  "76cff7f11cca1f4ea44cd61e538d32d707ee5ac84d14522c571fcd865401057e"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java",
+        "sha256":  "1f08993555ab2a69e244e5ddebb7d08ad0583e1041279efe70be77155b5feaac"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionIconPlacementTest.java",
+        "sha256":  "791e2d1925925282fe991b30aeef35332202070e9886ea394eed6e8d14e7c9d9"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java",
+        "sha256":  "d99c011617b11c6dd6782ea9308c106e17e7079eeac41f866fc6d1a2dc1fded7"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/GpuThermalSensorTest.java",
+        "sha256":  "6f3d006c157afb948c23e22eb5fddad18d6d76792e615493dc6d4ba2d28c659a"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/LatestRootRefreshSchedulerTest.java",
+        "sha256":  "9ab5129032479d389ca9c460ce1ea2a3c5f20ba0d3ab01047781282d10340dc7"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/LauncherIconVisibilityTest.java",
+        "sha256":  "e314e0247c800e8a00477c8fd1516ee8cd3f847452258e20cc82cf2fe788e744"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/LayoutPresetControllerTest.java",
+        "sha256":  "80c5c4dafdd999d448c3442243df8749f12b7803805f4feeec961a540f6ceb58"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/LayoutPresetStoreTest.java",
+        "sha256":  "f4df3384b796284ba371aa9b42ed7a9383e2938d9bf6384fb0b312187e7a705b"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/NetworkLabelTest.java",
+        "sha256":  "ff94b20c7f7c0218b74e78811b4132ea66d2c790f34501794ce01e00c92fbb16"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/NotificationClockLifecycleTest.java",
+        "sha256":  "ba6f399da1f8de3f44d5c0617172b0d58fa5f903234800158ccca26cd9d25b0f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/NotificationHookInstallerTest.java",
+        "sha256":  "d296cff455494310e74673ecf412d5404ed4534cbe10313ab0a1658394923cec"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/NotificationSurfaceHooksTest.java",
+        "sha256":  "d65920bd28a0d5ed68ca58d4329d53ef38c2d8ab02535349ac01411d2eabbe1d"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/PowerMenuActionsTest.java",
+        "sha256":  "889d651d4c31e3d92e31bd36f0dbe7e2bd7f8559aa2708900d9efaefaf0e22e4"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/PowerMenuExtensionTest.java",
+        "sha256":  "cec2fe31cee9cdc39c5747a7ca2f0444ead123e1659fdc0d8cce7f9510b90ebe"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/PowerMenuSideSliderTest.java",
+        "sha256":  "09326b9951967e9c072d430a9b092fa8e235cc83840f957656565f9fd4bad1be"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeAcknowledgementsTest.java",
+        "sha256":  "afa85382f7261ae29b9afa88dd0587eef0652644e179a6b9a4776a8444d41169"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeApplicationPolicyTest.java",
+        "sha256":  "4abbf6a13b1670bb2ec3e2dbe15dbd8d3f183a1ddef4b42077b226a55a358376"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigCoordinatorTest.java",
+        "sha256":  "ce9b22bad30d720318b2fc3d9f67d259452179de4823ec9cef9a6b64fdaca7f6"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigDiffTest.java",
+        "sha256":  "c58fe36389a76edb751d8f6b2243b8821602c2653ebd9c4ec5e93d0dc69928c2"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigLifecycleTest.java",
+        "sha256":  "404c866ea567a8bddaf385558eefed90df4fc9351331de44ca8bad36c566176c"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeHookRegistryTest.java",
+        "sha256":  "8ba4410eba537622a0c50cf20ef22cadb4693c96ff1a8c8a71cf62d8191cbfc0"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeObserverRegistrationTest.java",
+        "sha256":  "ebbc17cc61d86012d6d8f87d0b3a0ee8655d2f91bff2bbd1e0267e4de64e2119"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/RuntimeReflectionTest.java",
+        "sha256":  "b459f632f74303bd7ac106d02b330b744b4a1cbd4438332f4687d550e0e15b0b"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SettingsChoiceSheetTest.java",
+        "sha256":  "495958ba1320ef17c63fd2c202ee6e7a7e2b7248e19a89de554dff7fdd8981b7"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SettingsPageControllerTest.java",
+        "sha256":  "bfaf958196e6d6d83ed4ff1db173e4a30a019654f27f57221ca92c2dc90c14c2"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SettingsResponsiveTest.java",
+        "sha256":  "e38071a9460c56655ce85c462493d95ddc3e5cba9e3f53fdcf119e9d77a3c1b5"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SettingsStartupCoordinatorTest.java",
+        "sha256":  "079a6c7cd0510a3ec9243c4840a5473361004be7a9ae7a6171acd95253396499"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SlotFilterTest.java",
+        "sha256":  "72e46e0fa7828bb16f93818b94291cd8b3265468b8d1717562ac048f363a92cc"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/StatusBarHeightLayoutTest.java",
+        "sha256":  "2964bbd2fa0936db4518767db0865a8f943d418bbe7f8a0e2a78dbdd40f1947f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/StatusBarHookInstallerTest.java",
+        "sha256":  "c6b30377e6172cd7fae77a20cca9a04e8b92c3c6f7a10e4bcd7b460c8a69600a"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/StatusBarLayoutPlanTest.java",
+        "sha256":  "c7ac6213871dc53c351e05a8e500d1fbe951151796c90926142e35456ed7c2b5"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/StatusBarWindowHeightControllerTest.java",
+        "sha256":  "047653b28c20b39e6206ea2f683669a7ce3b7287f3d58702f4bc764b73f6af5c"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/StatusClockControllerTest.java",
+        "sha256":  "069bac4068febb41cb5c15fcb29d7385549dec84ce149b34d079efb0ad2b8df6"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/StatusMonitorSignalTest.java",
+        "sha256":  "6c11f407a7a53c62790c5db851f4874fff08efe8cfedad509735895193ddd678"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SystemMenuHooksTest.java",
+        "sha256":  "ae9dd2360334f9d09ce608f94347f01f066084f1c2c6190f4764b94117a38849"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceConfigTest.java",
+        "sha256":  "3324e8d9c563c67345fe86b6f7f3157b99d636b4cbe5fb7b0565d20409cc84f0"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceSettingsUiTest.java",
+        "sha256":  "80f454d91f9bad07e6739a91873699319bab1593884229c68e291d78f60808f5"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceStyleTest.java",
+        "sha256":  "5b0d41dd242d2785d1a6f7376d5e4656594b5e5dbefac67afa38bc7a4f811b30"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/SystemUiRestartSaveTest.java",
+        "sha256":  "851359e4cf587dfe724fedaf8dce065c01b2d5b5f7389c7f1a34b36f80891139"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/TelemetryConfigTest.java",
+        "sha256":  "f13a25f1f8ed961293b0c223e54c8e9a2407e91a08a23de49dccfd8d8728038f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/TelemetryLifecycleTest.java",
+        "sha256":  "81c4612ed07e775b20c09d4047319b488accdde8e4953307ac7b67924d830b3f"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/TelemetryReadingsTest.java",
+        "sha256":  "40a35b25b56bc9e9d0a324c27e1d6c210dd190a91821d7f797196524d92dd2d9"
+    },
+    {
+        "path":  "app/src/test/java/com/xtjm/fusionstatusbar/VisibleSecondTickerTest.java",
+        "sha256":  "d47496c685d2aefc66ec714e9358c1edc0dc32e37ccefb1a26ef7dc3cca25895"
+    },
+    {
+        "path":  "app/src/test/java/miui/systemui/controlcenter/panel/main/qs/QSCardsController.java",
+        "sha256":  "c9d9563ec2591fcbe1a11fbf160d372da96375a09504bbd31384653a37502809"
+    },
+    {
+        "path":  "app/src/test/java/miui/systemui/controlcenter/panel/main/qs/QSListController.java",
+        "sha256":  "f955455b45663c20f1e42005a1e806fb4b8652e7dd639507e58908f83752ec86"
+    },
+    {
+        "path":  "app/src/test/java/miui/systemui/controlcenter/panel/main/recyclerview/MainPanelListItem.java",
+        "sha256":  "e3fcf47f4822133ae4b1670092c9a41b924a8add9f16464ff440adb941863f7d"
+    },
+    {
+        "path":  "app/src/test/resources/control-center-config/import-20261004.json",
+        "sha256":  "ea9be07ca532e0d623a34ad32e34c62a35a5992066081f95a54f2515053dc48e"
+    },
+    {
+        "path":  "app/src/test/resources/control-center-icons/miui-themed-empty-service-icon.png",
+        "sha256":  "7cce1294c3f3f325e5aff2eaafb03f006e9d28cca0c850839b8aeca73716161c"
+    },
+    {
+        "path":  "app/src/test/resources/control-center-icons/README.md",
+        "sha256":  "724ff85a8d1f186595695bd1de5fd69cc8ca567b2e95c64e798176ce6cf63c49"
+    },
+    {
+        "path":  "app/src/test/resources/robolectric.properties",
+        "sha256":  "636b932213eaec84a4fd67891604b0bb1599a1bd823d2b5254cac66287923ad4"
+    },
+    {
+        "path":  "artifacts/fusion-statusbar-v0.3.149.apk",
+        "sha256":  "8de51ef700c3fe456c93c5e7ff790186d622a67a1eb856c2f88c0d051a43f9ff"
+    },
+    {
+        "path":  "artifacts/fusion-statusbar-v0.3.150.apk",
+        "sha256":  "6ae643a9685e1cece1e7fbc03178cd8bba7d9e47f55f884999e81e8b041db94c"
+    },
+    {
+        "path":  "artifacts/fusion-statusbar-v0.3.151.apk",
+        "sha256":  "9968124a723bf6fdb64d6d9b3274cb0b64427c290834a1a8343c1260368019eb"
+    },
+    {
+        "path":  "artifacts/fusion-statusbar-v0.3.173.apk",
+        "sha256":  "e1a5c8564e3931e39e4c8a19d796370c05df672753d0a15ad9d80ca8e39ee882"
+    },
+    {
+        "path":  "artifacts/fusion-statusbar-v0.3.182.apk",
+        "sha256":  "bef75edf81db96292b21bc3b49bcb8099a822114b8cd923e72ecca89717b9aee"
+    },
+    {
+        "path":  "artifacts/release-notes-v0.3.149.md",
+        "sha256":  "f93e86b9da0ea82cdbd4e2775e91ec024d5b6a31554b6b4dda5cdba5d7a9e266"
+    },
+    {
+        "path":  "artifacts/release-notes-v0.3.173.md",
+        "sha256":  "4e7f2f42cdd1f9735d1b72ed59041ee6606a7dd9a47f195a696cab8fa07f6431"
+    },
+    {
+        "path":  "artifacts/release-v0.3.173.json",
+        "sha256":  "9bfd85be86e9c9b0f0dc813cd7412774b84492dc621d27cb130dd8169c23d85d"
+    },
+    {
+        "path":  "artifacts/release-v0.3.182.json",
+        "sha256":  "cf5857b686df592d673ac9ec92bc9be5b4b465bd8174c2718c341b6aebf8c52a"
+    },
+    {
+        "path":  "artifacts/source-files-v0.3.182.json",
+        "sha256":  "7c7e82ec48438bcf2a3bde46f9a9bcfd605fe46d88e70e9411f4ee1ac5ab0c72"
+    },
+    {
+        "path":  "artifacts/source-v0.3.182.zip",
+        "sha256":  "89286ea2f3b8529a8ee85acc29b9078fdbee3aae61cf22fd1e89d2053126fc5f"
+    },
+    {
+        "path":  "build.gradle",
+        "sha256":  "ee14908c4c076e6b9e957d630337bfd9b8d3ccdcb8b3654904d42be8f6d86af0"
+    },
+    {
+        "path":  "docs/bounded-hook-retry-v0.3.140.md",
+        "sha256":  "1102da06ba147ea73e15147ee6a4eb16a11104f5b41951c03dfe4eb9a2e19d90"
+    },
+    {
+        "path":  "docs/cold-start-ui-v0.3.133.md",
+        "sha256":  "436b7fca7cb427c1eb66d85b1446afc2cde8a7a3f94231e74690c3d1277cec71"
+    },
+    {
+        "path":  "docs/control-center-canvas-icons-v0.3.129.md",
+        "sha256":  "15b3a0b234435888882f11e6ca3c5e4a9aef541440c9f7c73572b64ff9f13428"
+    },
+    {
+        "path":  "docs/control-center-capture-distortion-v0.3.123.md",
+        "sha256":  "036b98d4dd6cf6a1bbe36aa11e0c4e73ac3e0a45eed857f0bede4b25d721915b"
+    },
+    {
+        "path":  "docs/control-center-capture-import-v0.3.122.md",
+        "sha256":  "00913f4803e07fe7db375cecbfb8e9db4e5b06e756ffb7efdda09ded0e3a5f03"
+    },
+    {
+        "path":  "docs/control-center-card-styles-v0.3.121.md",
+        "sha256":  "7d22eeb0ee0066e990c91b3031d4cd53d3d675d2017b1aada9cfc70974b11d19"
+    },
+    {
+        "path":  "docs/control-center-choice-sheets-v0.3.148.md",
+        "sha256":  "bb6715e7ab72b1959043b734ade29e00d92b3cb64da024061e6bd256e47e212f"
+    },
+    {
+        "path":  "docs/control-center-choice-v0.3.142.md",
+        "sha256":  "13440a91226062f912bf9bed6909a56da0052b36901526a3ddaf6509503b22a2"
+    },
+    {
+        "path":  "docs/control-center-component-colors-v0.3.169.md",
+        "sha256":  "2a0631caddb39ab54d2b52eb54f80780aaec8000fc5f522b3c464a7d62c4dcc7"
+    },
+    {
+        "path":  "docs/control-center-component-shapes-v0.3.170.md",
+        "sha256":  "bfee8ab913b05e40660d6533c5104686b95765629aed578ceb3d16aafffb29a8"
+    },
+    {
+        "path":  "docs/control-center-decoration-outline-v0.3.168.md",
+        "sha256":  "227231d9bb48f731a2eb8d0a3ce90c52e68689b743221d9b9306e280408c20ce"
+    },
+    {
+        "path":  "docs/control-center-edit-app-tiles-v0.3.127.md",
+        "sha256":  "c08fce0d9264df6bc5ac9706802471c0dcf8be6d3c39dc0daa1695994ea8c68d"
+    },
+    {
+        "path":  "docs/control-center-editor-builtin-background.md",
+        "sha256":  "b4aa6fc1e1d18cfc73e52db7ddc047ee219a0a7b4cafdf26aaa4b102d714e520"
+    },
+    {
+        "path":  "docs/control-center-editor-step2.md",
+        "sha256":  "0df509ef8f2a97eb919c2c9d50246665cb4ec8ef222a3f5629685bb410273b0a"
+    },
+    {
+        "path":  "docs/control-center-editor-step3.md",
+        "sha256":  "aefe7f5aea1428b3c3d25e14f5854987391bbe589c87b85907040f2150c3620e"
+    },
+    {
+        "path":  "docs/control-center-editor-step4.md",
+        "sha256":  "05cf0c750343d1e84aebc0b2986370b2ec36196581a30cbb458fad21d0fc4e57"
+    },
+    {
+        "path":  "docs/control-center-global-materials-v0.3.154.md",
+        "sha256":  "7adad5832a1261f375736dbec6fe415ae7c391a8b9bfa41ba70082e458ad256f"
+    },
+    {
+        "path":  "docs/control-center-groups-v0.3.125.md",
+        "sha256":  "aebba3c13849e27ee5102b3c545c728705ec1381772c9afbe2f3d39d1a38d4bf"
+    },
+    {
+        "path":  "docs/control-center-hollow-border-v0.3.171.md",
+        "sha256":  "e7cf93712cc7c396d6d19b1fe318f95274046d0a8f9f681afa4414d201c9eed9"
+    },
+    {
+        "path":  "docs/control-center-icons-v0.3.146.md",
+        "sha256":  "ae7ae8a871719ab2ee8e4b2b569912829edf9886fcd85aedad2f29c3c1efd0a6"
+    },
+    {
+        "path":  "docs/control-center-import-materials-v0.3.164.md",
+        "sha256":  "ca728b06e1dba33caf0a1300fe0fb8f8ebd5633f66ae18d5418195f8d5114474"
+    },
+    {
+        "path":  "docs/control-center-landscape-v0.3.152.md",
+        "sha256":  "66ef6a4b49fc11a38f886ea657abefea8f65c5bf9f00a0fe0403b0dff7008330"
+    },
+    {
+        "path":  "docs/control-center-mask-audit-v0.3.165.md",
+        "sha256":  "a6951f2964e40575ee165212bb3c230cc62d15120f120e00e56084ef711ade3a"
+    },
+    {
+        "path":  "docs/control-center-material-regression-v0.3.156.md",
+        "sha256":  "71a2c1b9c76af0ab024bad0fe042bb8331b2675242dff4e95e299aa909ed8b35"
+    },
+    {
+        "path":  "docs/control-center-material-regression-v0.3.158.md",
+        "sha256":  "c894e7fe4e824b844d5cb449e03de47a3563623898fe791ee1f2a4e519260eb9"
+    },
+    {
+        "path":  "docs/control-center-materials-v0.3.128.md",
+        "sha256":  "c81b77c1c5254e67e44ac30da4dc59fe998ecf3fbff39964163da5a87a23d939"
+    },
+    {
+        "path":  "docs/control-center-native-restart-v0.3.163.md",
+        "sha256":  "7da0302675c9d88794130a495922bf839e91c766ee363a515bd135a38ce89685"
+    },
+    {
+        "path":  "docs/control-center-optional-component-v0.3.126.md",
+        "sha256":  "f0dfdf517145fa78db71eda370dccb11f9fc2af8ee93795818cc600824eab775"
+    },
+    {
+        "path":  "docs/control-center-plugin-installer-v0.3.136.md",
+        "sha256":  "fbc95cb9abe39e5dba89aeae56eb464df486e0bf8aa71e6866291b6765edec03"
+    },
+    {
+        "path":  "docs/control-center-rendering-v0.3.161.md",
+        "sha256":  "1fee7801a4a19c659a1581fdb2a3c943a80d6da64aa92e4dbb3939154c64cdd5"
+    },
+    {
+        "path":  "docs/control-center-runtime-animation-v0.3.124.md",
+        "sha256":  "66844eeb17db540b739db1475cb6de0e666759c6742b4147db285f325bb1d121"
+    },
+    {
+        "path":  "docs/control-center-service-icons-v0.3.147.md",
+        "sha256":  "846723a8ccad6f21cb00e6f768ef7e1546525cd492ac330964f7a0919216b63a"
+    },
+    {
+        "path":  "docs/control-center-settings-audit.md",
+        "sha256":  "145d6f44316795e11aefbd8587708e4bda5e03818d59a59ab05c13b19be19f05"
+    },
+    {
+        "path":  "docs/control-center-shape-branches-v0.3.166.md",
+        "sha256":  "61d2415deb025c688fd883af7e60a392922d47a651fd50375e7628d42236774e"
+    },
+    {
+        "path":  "docs/control-center-shape-fill-v0.3.159.md",
+        "sha256":  "081275df36c401fee1d6bbed0028c3cbea88febf594404e197b35849cb725ed2"
+    },
+    {
+        "path":  "docs/control-center-soft-glass-v0.3.155.md",
+        "sha256":  "c571f10ea7bcd4b502fe0fe8514fe8ac4b016930122bc21c5e6b9184120e740b"
+    },
+    {
+        "path":  "docs/control-center-surfaces-v0.3.153.md",
+        "sha256":  "0adc563be9c094ede69c91a60c52625a2b43df4ffebc295d3e46dcc8c7be61c4"
+    },
+    {
+        "path":  "docs/control-center-tile-alignment-v0.3.162.md",
+        "sha256":  "ca3a87a85ac7973a3fddd783ebcbeac0a171bc893f61decf8c1f963c7eb03c37"
+    },
+    {
+        "path":  "docs/control-center-tile-native-mask-v0.3.167.md",
+        "sha256":  "54d4f9466f71818166638805c31b7b52a792b2e14319432a95c73ab04e8bb610"
+    },
+    {
+        "path":  "docs/control-center-wallpaper-log-20260930-215331.md",
+        "sha256":  "c70d00cfb109a4bdee5cf98347237966eaf76040b92d2db43d4540487303b868"
+    },
+    {
+        "path":  "docs/device-validation-v0.3.143.md",
+        "sha256":  "a306ccf9067a6c5bce1bee0c14ef5ab6946c28da3aac272c1d6440589708e982"
+    },
+    {
+        "path":  "docs/device-validation-v0.3.174.md",
+        "sha256":  "efed59645179a16d139813687b6e22434c29329f1f6302571913b70d3cc608fc"
+    },
+    {
+        "path":  "docs/notification-hook-installer-v0.3.137.md",
+        "sha256":  "1fe3045600468f90895760360ae5e8c1b8f212ca926830c9f12ac0768021e2fd"
+    },
+    {
+        "path":  "docs/optimization-implementation-20261001.md",
+        "sha256":  "0d77f8bc525de2b6bfa8c1310e521d63443c17df0f3759b818743a2be4ef3825"
+    },
+    {
+        "path":  "docs/optimization-implementation-20261005.md",
+        "sha256":  "8d7a0bbcda511a31b32dbe57820442b6cd29f63fe202078fb9dee0c0e04a9af0"
+    },
+    {
+        "path":  "docs/optimization-plan-20261001.md",
+        "sha256":  "78bdbfbe8e3fccbedc6e7f5883578d811d80cd5ebdca20a3e1d3c509d30145f3"
+    },
+    {
+        "path":  "docs/optimization-plan-20261005.md",
+        "sha256":  "282ce634b262ce83ed7adc6abb55af5a615d63bb95787bccda896ff4fcb67df8"
+    },
+    {
+        "path":  "docs/performance-baseline-preparation-20261001.md",
+        "sha256":  "5afde0338d7f4d26a1eec4da1d8fc528aac416088a2c8e67d89ab4518e024029"
+    },
+    {
+        "path":  "docs/performance-baseline-v0.3.143.md",
+        "sha256":  "74d1f3a72804a168c1360dda49c6f519721b027b927fad5d9cb19e020931c68a"
+    },
+    {
+        "path":  "docs/phase2-implementation-20261001.md",
+        "sha256":  "bdf436c5ca9d23765209e07df88d6ddc345228966fc3114c452509408ff58351"
+    },
+    {
+        "path":  "docs/release-v0.3.173.md",
+        "sha256":  "4e68a234c958de9214bf7e0ff75b17c2f6233e3a335adaef8212fb1d8c733772"
+    },
+    {
+        "path":  "docs/release-v0.3.182.md",
+        "sha256":  "9308272d8c0f43263d83614b2a28c97a18eb0cad8f57028f41fbd8c7e2b9c723"
+    },
+    {
+        "path":  "docs/release-v0.3.183.md",
+        "sha256":  "38ded61317d3cb24c568aca44dbf634e8d92f6cd79a84edfdc5e4db5b5d83579"
+    },
+    {
+        "path":  "docs/release-v0.3.184.md",
+        "sha256":  "2a358f7968ea17195c644076e41c33359ea6039bd19fc788f4642ce2dd5d2667"
+    },
+    {
+        "path":  "docs/release-v0.3.185.md",
+        "sha256":  "57e1b8f1b184f1141100b58b4f5bddf91fd168bc4b96a8e2b20b07fa32112c55"
+    },
+    {
+        "path":  "docs/release-v0.3.186.md",
+        "sha256":  "5f241212020ace97007503fa99954db2b559eb1a5a6a59578f3f4bced35dbfab"
+    },
+    {
+        "path":  "docs/release-v0.3.187.md",
+        "sha256":  "bfcca9071cfd73abf1c75b649777dbb187169fea998d136a2bd47c525720eae4"
+    },
+    {
+        "path":  "docs/runtime-config-lifecycle-v0.3.138.md",
+        "sha256":  "5f8bbcd30124f116a0ebe105ef6c1d918b3ebc634dd21f082b3fdecb01ee99ff"
+    },
+    {
+        "path":  "docs/settings-choice-v0.3.141.md",
+        "sha256":  "3dc5b970f28195d6129a0b935059e4fe45a8e4b974ca9bfcd7bf56d40bd684f4"
+    },
+    {
+        "path":  "docs/settings-performance-diagnosis-20261002.md",
+        "sha256":  "8a0615de40f6927a2497fbaf6dc08f8caa921feb9d4430827843b75fc2c66f8e"
+    },
+    {
+        "path":  "docs/settings-sheet-v0.3.132.md",
+        "sha256":  "ddb259597376972726c042c09a2e1ccfa57b01646de5c78f08aaa5ab8776a32f"
+    },
+    {
+        "path":  "docs/startup-coordinator-v0.3.134.md",
+        "sha256":  "8d90c7c6181e5dcedbe323c063f2b81ffed8f801b7a379e716edad650e207ef4"
+    },
+    {
+        "path":  "docs/status-bar-hook-installer-v0.3.135.md",
+        "sha256":  "1059fc3c4fee394ce9fcc2d4b184a3cc7676056b9e0b3859f23966176f560319"
+    },
+    {
+        "path":  "docs/status-bar-refresh-scheduler-v0.3.139.md",
+        "sha256":  "4120ec9ffe57743ec068a46e4a888f0bca6c1605ad613f0a2be7fec49b9ff5ba"
+    },
+    {
+        "path":  "docs/telemetry-choice-v0.3.143.md",
+        "sha256":  "f0e7d76ec49b6cd59cc7b22a3302d1052c5df7d4a130f4f384ff1ff3df1bd7bd"
+    },
+    {
+        "path":  "gradle.properties",
+        "sha256":  "e6b436ff6a08da8b8c05e0e2fc1a7f40f41701bb506cd80fc2ddfd7b6e3b3b2b"
+    },
+    {
+        "path":  "gradle/wrapper/gradle-wrapper.jar",
+        "sha256":  "381dff8aa434499aa93bc25572b049c8c586a67faff2c02f375e4f23e17e49de"
+    },
+    {
+        "path":  "gradle/wrapper/gradle-wrapper.properties",
+        "sha256":  "7bc879e1727b15794b7cefe4f08fc2222433fc1779eea9c5072cf7be8e389647"
+    },
+    {
+        "path":  "gradlew",
+        "sha256":  "8c4c04dd98db1f00d49456dd162418a39312c5cb13d6865d783deb483bd1ed22"
+    },
+    {
+        "path":  "gradlew.bat",
+        "sha256":  "0008d785920c9ff5cab17403e0270ccc7ceee8e169b6d67a82d96a5475fec5c9"
+    },
+    {
+        "path":  "README.md",
+        "sha256":  "a5c297baf7783595a724ed433894848af818e0009722acda989b8663e312f4e2"
+    },
+    {
+        "path":  "settings.gradle",
+        "sha256":  "bcf8eebcfcf0ce835f848d51ae8fd59b0ae778044f6271d76a4baf53ccdb7502"
+    },
+    {
+        "path":  "third_party/material-icons/LICENSE",
+        "sha256":  "49bbe9114e49214df2ccc324cb3ac8d1d1aa1c3a0947f94c286765e86647b32e"
+    },
+    {
+        "path":  "third_party/material-icons/README.md",
+        "sha256":  "db01ea53dcf8e6899c9bfa024f142cf5f21819ece45ab2201c11285947c5e0b3"
+    },
+    {
+        "path":  "tools/analyze-settings-trace.py",
+        "sha256":  "58b20fda599fefce4175cec31baf8f1335f42ddcdf2d06ecf2ad2a1a5aa2c10c"
+    },
+    {
+        "path":  "tools/generate_canvas_background.py",
+        "sha256":  "72466ef06259dc353bb2fffec8ed5a200f78822a0c628c0ec24340fb4746e2d5"
+    },
+    {
+        "path":  "tools/import_control_center_icons.py",
+        "sha256":  "878dd611ce772d79a3f34586fdeb4af92a85be4e256629b4086893fe69133073"
+    },
+    {
+        "path":  "tools/index-evidence.ps1",
+        "sha256":  "f24943a7a4e3fddca409f3e6c88061837854f4745e8bf30c0ec378033a9b7238"
+    },
+    {
+        "path":  "tools/lint-policy.json",
+        "sha256":  "9a1d4775fd9e178ac9eb2032c2896380c46e8640c428263d38380957da08a574"
+    },
+    {
+        "path":  "tools/measure-settings-flows.py",
+        "sha256":  "cde97cf9136bdd175c8d78e90471b6192a034bb639bf8c68dca6d6dcd2ee8f0a"
+    },
+    {
+        "path":  "tools/measure-settings-jank.ps1",
+        "sha256":  "11cc40e91140b370af4df64f8c9f290f44a33a9c0b6ddf713f93fa13a81a5884"
+    },
+    {
+        "path":  "tools/release.ps1",
+        "sha256":  "658449f27cb9bdb2da9c9e803ee56d94755af3e4b4a5146d8c28e50a681d0003"
+    },
+    {
+        "path":  "tools/save-source-snapshot.ps1",
+        "sha256":  "af55414a3e24631f3533d77c56c426bdbd812570b8aaca9e208d5ca6da1422d3"
+    },
+    {
+        "path":  "tools/tests/fixtures/settings-opening.trace",
+        "sha256":  "35d452064772fce3a81084debafe525eea55ca3b134d72b96d889c7fc7d00807"
+    },
+    {
+        "path":  "tools/tests/test_analyze_settings_trace.py",
+        "sha256":  "60d41e66f7089e07976c27794fbcc4ac3e55c6354088bf036cb0347bfa73fb5e"
+    },
+    {
+        "path":  "tools/tests/test_measure_settings_flows.py",
+        "sha256":  "fdf8e0527f8710930977acce1f0543645ae10e7d642acaf1e3d2f67308c682f9"
+    },
+    {
+        "path":  "tools/tests/test_validate_build.py",
+        "sha256":  "bb440586deab7cfa4a07fd96a2cce8fbaf5b2629f8043803517cf8a32ae00d71"
+    },
+    {
+        "path":  "tools/validate-build.py",
+        "sha256":  "d46489f39f833ddac9d74c7a508b80cfed4a276ad2d2ca53074f770b360c9693"
+    }
+]

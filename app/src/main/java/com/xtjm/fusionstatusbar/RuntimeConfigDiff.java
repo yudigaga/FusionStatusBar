@@ -46,6 +46,7 @@ final class RuntimeConfigDiff {
                 || previous.systemRow != next.systemRow || previous.fusionSide != next.fusionSide
                 || previous.fusionRow != next.fusionRow || previous.systemIconScale != next.systemIconScale
                 || previous.notificationIconScale != next.notificationIconScale
+                || !previous.fusionContent.sameAs(next.fusionContent)
                 || !sameTelemetry(previous.telemetry, next.telemetry);
         ControlCenterConfig old = previous.controlCenter;
         ControlCenterConfig value = next.controlCenter;

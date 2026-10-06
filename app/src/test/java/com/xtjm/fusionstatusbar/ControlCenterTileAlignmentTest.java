@@ -47,6 +47,23 @@ public class ControlCenterTileAlignmentTest {
         }
     }
 
+    @Test public void fiveGCircleUsesTheSameInsetSurfaceSizeAsOrdinaryTiles() {
+        Fixture fixture = new Fixture(2);
+        ControlCenter5GTileView fiveG = new ControlCenter5GTileView(fixture.activity);
+        fixture.grid.addTile(fiveG, ControlCenterLayoutPlan.Item.component(
+                ControlCenterComponentSpec.FIVE_G, 1, 0, 1, 1)
+                .withShape(ControlCenterLayoutPlan.Shape.CIRCLE, 0), -1);
+        fixture.grid.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.AT_MOST));
+        fixture.grid.layout(0, 0, fixture.grid.getMeasuredWidth(), fixture.grid.getMeasuredHeight());
+        fixture.draw().recycle();
+        assertEquals("5G must match the visible native circle rather than fill the grid cell",
+                fixture.icon.getWidth(), fiveG.getWidth());
+        assertEquals(fixture.icon.getHeight(), fiveG.getHeight());
+        assertEquals("Both circular surfaces use the native vertical inset",
+                fixture.surfaceBounds().top, fiveG.getTop(), 0.01f);
+    }
+
     @Test public void nativeSurfaceBottomIsNotCutByTheOuterSlotCircle() {
         Fixture fixture = new Fixture(2);
         fixture.frame.setTranslationY(4f);

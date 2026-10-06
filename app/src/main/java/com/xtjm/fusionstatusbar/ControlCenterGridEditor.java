@@ -105,6 +105,7 @@ final class ControlCenterGridEditor extends ViewGroup {
     private final ArrayList<Cell> cells = new ArrayList<>();
     private final ArrayList<EditorItemHost> hosts = new ArrayList<>();
     private int columns = 4, rows = 1, gap, rowHeight, radius, cellWidth;
+    private int regionScale = 100;
     private int cardStrength = 100, tileStrength = 100;
     private ControlCenterSurface surface = ControlCenterSurface.DEFAULT;
     private boolean globalBorderEnabled;
@@ -181,6 +182,7 @@ final class ControlCenterGridEditor extends ViewGroup {
         cells.clear();
         rows = 1;
         if (next != null) for (Cell cell : next) if (cell != null) cells.add(cell);
+        regionScale = cells.isEmpty() ? 100 : cells.get(0).tileScale;
         cells.sort(java.util.Comparator.comparingInt(cell -> cell.zIndex));
         for (int i = 0; i < cells.size(); i++) {
             Cell cell = cells.get(i);
@@ -206,6 +208,8 @@ final class ControlCenterGridEditor extends ViewGroup {
         requestLayout();
         invalidate();
     }
+
+    int scalePercent() { return regionScale; }
 
     /** Ends transient editing only; never mutates the draft. Also used on canvas/lifecycle changes. */
     void finishEditing() {
@@ -314,7 +318,7 @@ final class ControlCenterGridEditor extends ViewGroup {
                     next.firstLabel, next.secondLabel, next.horizontalPair,
                     capturedActive(next.firstStyle, next.firstSpec), capturedActive(next.secondStyle, next.secondSpec),
                     next.width > next.height, next.shape,
-                    next.cornerRadius > 0 ? dp(next.cornerRadius) : radius, next.tileScale,
+                    next.cornerRadius > 0 ? dp(next.cornerRadius) : radius, 100,
                     next.firstStyle, next.secondStyle));
             card.setMaterialStrength(cardStrength, tileStrength);
             card.setSurface(surface);

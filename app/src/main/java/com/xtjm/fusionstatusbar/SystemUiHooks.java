@@ -154,8 +154,6 @@ public final class SystemUiHooks {
     private static final Map<View, Integer> CONTROL_CENTER_BASE_HEIGHTS = new WeakHashMap<>();
     private static final Map<View, Integer> CONTROL_CENTER_BASE_ICON_WIDTHS =
             new WeakHashMap<>();
-    private static final Map<View, IconDimensionBaseline> CONTROL_CENTER_ICON_DIMENSIONS =
-            new WeakHashMap<>();
     private static final Map<LinearLayout, CompactCardBaseline> CONTROL_CENTER_COMPACT_LAYOUTS =
             new WeakHashMap<>();
     private static final Map<View, TileVisualBaseline> CONTROL_CENTER_TILE_VISUALS =
@@ -389,6 +387,11 @@ public final class SystemUiHooks {
         if (source == null || classLoader == null) return;
         if (module == null) module = source;
         int hooks = hookControlCenterPlugin(classLoader);
+        ControlCenterAnimationHooks.Result animationHooks = ControlCenterAnimationHooks.install(
+                classLoader, SystemUiHooks::findClass, SystemUiHooks::hookMethod,
+                () -> currentConfig.controlCenter);
+        log(Log.INFO, "plugin animation hooks=" + animationHooks.installed
+                + " unavailable=" + animationHooks.unavailable, null);
         CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(classLoader);
         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
                 SystemUiHooks::ensureConfigObserver);
@@ -1654,7 +1657,6 @@ public final class SystemUiHooks {
         Object result = chain.proceed();
         if (controlCenterNativeEditing(chain.getThisObject())) return result;
         ensureConfigForTarget(chain.getThisObject());
-        applyPluginIconSize(chain.getThisObject());
         return result;
     }
 
@@ -1668,71 +1670,6 @@ public final class SystemUiHooks {
             ControlCenterRuntimeGrid.markMaterialsDirty(view);
         }
         return result;
-    }
-
-    private static void applyPluginIconSize(Object target) {
-        if (!(target instanceof ViewGroup)) return;
-        if (controlCenterNativeEditing(target)) return;
-        ControlCenterConfig settings = currentConfig.controlCenter;
-        if (!settings.enabled || settings.tileScale == 100) {
-            restoreControlCenterIconSizes();
-            return;
-        }
-        try {
-            Field cardField = findField(target.getClass(), "card");
-            if (cardField != null && cardField.getBoolean(target)) return;
-            Field iconField = findField(target.getClass(), "icon");
-            Object iconValue = iconField == null ? null : iconField.get(target);
-            if (!(iconValue instanceof View icon)) return;
-            ViewGroup.LayoutParams params = icon.getLayoutParams();
-            if (params == null) return;
-            IconDimensionBaseline base = CONTROL_CENTER_ICON_DIMENSIONS.get(icon);
-            if (base == null) {
-                base = new IconDimensionBaseline(params.width, params.height,
-                        params.width > 0 ? params.width : icon.getMeasuredWidth(),
-                        params.height > 0 ? params.height : icon.getMeasuredHeight());
-                if (base.width <= 0 || base.height <= 0) return;
-                CONTROL_CENTER_ICON_DIMENSIONS.put(icon, base);
-            }
-            int width = Math.max(1, Math.round(base.width * settings.tileScale / 100f));
-            int height = Math.max(1, Math.round(base.height * settings.tileScale / 100f));
-            if (params.width != width || params.height != height) {
-                params.width = width;
-                params.height = height;
-                icon.setLayoutParams(params);
-            }
-        } catch (Throwable error) {
-            log(Log.WARN, "control-center plugin icon size failed", error);
-        }
-    }
-
-    private static void restoreControlCenterIconSizes() {
-        for (Map.Entry<View, IconDimensionBaseline> entry :
-                new ArrayList<>(CONTROL_CENTER_ICON_DIMENSIONS.entrySet())) {
-            View icon = entry.getKey();
-            if (icon == null) continue;
-            ViewGroup.LayoutParams params = icon.getLayoutParams();
-            if (params == null) continue;
-            IconDimensionBaseline base = entry.getValue();
-            params.width = base.originalWidth;
-            params.height = base.originalHeight;
-            RuntimeCleanup.run("restore icon dimensions", () -> icon.setLayoutParams(params));
-        }
-        CONTROL_CENTER_ICON_DIMENSIONS.clear();
-    }
-
-    private static final class IconDimensionBaseline {
-        final int originalWidth;
-        final int originalHeight;
-        final int width;
-        final int height;
-
-        IconDimensionBaseline(int originalWidth, int originalHeight, int width, int height) {
-            this.originalWidth = originalWidth;
-            this.originalHeight = originalHeight;
-            this.width = width;
-            this.height = height;
-        }
     }
 
     private static Object controlCenterPluginBackground(XposedInterface.Chain chain)
@@ -1772,27 +1709,6 @@ public final class SystemUiHooks {
     private static Object controlCenterPluginContainerHeight(XposedInterface.Chain chain)
             throws Throwable {
         Object result = chain.proceed();
-        if (controlCenterNativeEditing(chain.getThisObject())) return result;
-        ControlCenterConfig settings = currentConfig.controlCenter;
-        if (!settings.enabled || settings.tileScale == 100) return result;
-        try {
-            Field field = findField(chain.getThisObject().getClass(), "containerHeight");
-            if (field != null && field.getType() == int.class) {
-                int current = field.getInt(chain.getThisObject());
-                if (chain.getThisObject() instanceof View view) {
-                    int resourceId = view.getResources().getIdentifier(
-                            "control_center_universal_1_row_with_margin_size", "dimen",
-                            "miui.systemui.plugin");
-                    if (resourceId != 0) {
-                        current = view.getResources().getDimensionPixelSize(resourceId);
-                    }
-                }
-                field.setInt(chain.getThisObject(), Math.max(1,
-                        Math.round(current * settings.tileScale / 100f)));
-            }
-        } catch (Throwable error) {
-            log(Log.WARN, "control-center plugin tile height failed", error);
-        }
         return result;
     }
 
@@ -2541,14 +2457,11 @@ public final class SystemUiHooks {
     }
 
     private static void applyTileVisuals(ViewGroup root, ControlCenterConfig settings) {
-        float scale = settings.tileScale / 100f;
         for (int index = 0; index < root.getChildCount(); index++) {
             View child = root.getChildAt(index);
             if (isTileView(child)) {
                 CONTROL_CENTER_TILE_VISUALS.putIfAbsent(child,
                         new TileVisualBaseline(child));
-                child.setScaleX(scale);
-                child.setScaleY(scale);
                 child.setClipToOutline(settings.cornerRadius > 0);
                 if (settings.cornerRadius > 0) {
                     final float radius = child.getResources().getDisplayMetrics().density
@@ -3034,11 +2947,6 @@ public final class SystemUiHooks {
                 && (!loaded.controlCenter.enabled
                 || !loaded.controlCenter.hasVisualOverride())) {
             restoreControlCenterVisuals();
-        }
-        if (previousControlCenter.tileScale != 100
-                && (!loaded.controlCenter.enabled
-                || loaded.controlCenter.tileScale == 100)) {
-            restoreControlCenterIconSizes();
         }
         if (changes.statusClock) try {
             StatusClockController.onConfigChanged(currentConfig);

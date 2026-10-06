@@ -29,8 +29,8 @@ public class ControlCenterHeaderVisibilityTest {
         ControlCenterHeaderVisibility.afterCarrierPrivacyUpdate(header,
                 new Object[] {true, false}, hideBoth);
 
-        assertEquals(View.GONE, header.dateView.getVisibility());
-        assertEquals(View.GONE, header.carrierText.getVisibility());
+        assertEquals(View.INVISIBLE, header.dateView.getVisibility());
+        assertEquals(View.INVISIBLE, header.carrierText.getVisibility());
         assertEquals(View.GONE, header.privacyIcon.getVisibility());
 
         assertEquals(0, ControlCenterHeaderVisibility.refresh(visible));
@@ -57,7 +57,7 @@ public class ControlCenterHeaderVisibilityTest {
         header.updateCarrierAndPrivacyVisible(true, true);
         ControlCenterHeaderVisibility.afterCarrierPrivacyUpdate(header,
                 new Object[] {true, true}, hide);
-        assertEquals(View.GONE, header.carrierLayout.getVisibility());
+        assertEquals(View.INVISIBLE, header.carrierLayout.getVisibility());
 
         assertEquals(0, ControlCenterHeaderVisibility.refresh(
                 ControlCenterConfig.defaults()));

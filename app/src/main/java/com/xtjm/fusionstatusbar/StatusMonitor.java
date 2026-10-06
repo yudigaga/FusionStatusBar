@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.lang.reflect.Method;
 
 /** Process-wide battery, transport and signal state shared by every fused icon. */
 public final class StatusMonitor {
@@ -40,24 +41,31 @@ public final class StatusMonitor {
         public final String networkLabel;
         public final int signalLevel;
         public final int signalLevel2;
+        public final int wifiLevel;
         public final boolean charging;
 
         Snapshot(int batteryPercent, boolean showWifi, String networkLabel, int signalLevel) {
-            this(batteryPercent, showWifi, networkLabel, signalLevel, 0, false);
+            this(batteryPercent, showWifi, networkLabel, signalLevel, 0, 0, false);
         }
 
         Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
                 int signalLevel, int signalLevel2) {
-            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2, false);
+            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2, 0, false);
         }
 
         Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
                 int signalLevel, int signalLevel2, boolean charging) {
+            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2, 0, charging);
+        }
+
+        Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
+                int signalLevel, int signalLevel2, int wifiLevel, boolean charging) {
             this.batteryPercent = batteryPercent;
             this.showWifi = showWifi;
             this.networkLabel = networkLabel == null ? "" : networkLabel;
             this.signalLevel = signalLevel;
             this.signalLevel2 = signalLevel2;
+            this.wifiLevel = wifiLevel;
             this.charging = charging;
         }
     }
@@ -89,6 +97,7 @@ public final class StatusMonitor {
     private static boolean wifiConnected;
     private static boolean mobileConnected;
     private static int wifiLevel;
+    private static int renderedWifiLevel;
     private static int mobileLevel;
     private static int signalLevel2;
     private static String mobileLabel = "";
@@ -154,7 +163,7 @@ public final class StatusMonitor {
     public static Snapshot snapshot() {
         synchronized (LOCK) {
             return new Snapshot(batteryPercent, showWifi, networkLabel, signalLevel,
-                    signalLevel2, charging);
+                    signalLevel2, renderedWifiLevel, charging);
         }
     }
 
@@ -419,7 +428,7 @@ public final class StatusMonitor {
         try {
             SignalStrength strength = telephony.getSignalStrength();
             if (strength != null) {
-                setMobileLevel(subscription, strength.getLevel());
+                setMobileLevel(subscription, mobileLevelFromSignalStrength(strength));
             }
             setMobileLabel(subscription, NetworkLabel.fromNetworkType(telephony.getDataNetworkType()));
         } catch (SecurityException error) {
@@ -531,6 +540,7 @@ public final class StatusMonitor {
 
         int nextSignalLevel = signalLevelAtLocked(0);
         int nextSignalLevel2 = signalLevelAtLocked(1);
+        int nextWifiLevel = wifiConnected ? clamp(wifiLevel) : 0;
         boolean hasRealSubscription = false;
         for (Integer subscription : subscriptionOrder) {
             if (subscription != null
@@ -540,18 +550,20 @@ public final class StatusMonitor {
             }
         }
         if (!hasRealSubscription) {
-            nextSignalLevel = wifiConnected ? clamp(wifiLevel) : clamp(mobileLevel);
+            nextSignalLevel = clamp(mobileLevel);
             nextSignalLevel2 = 0;
         }
 
         if (nextWifi == showWifi && nextLabel.equals(networkLabel)
-                && nextSignalLevel == signalLevel && nextSignalLevel2 == signalLevel2) {
+                && nextSignalLevel == signalLevel && nextSignalLevel2 == signalLevel2
+                && nextWifiLevel == renderedWifiLevel) {
             return;
         }
         showWifi = nextWifi;
         networkLabel = nextLabel;
         signalLevel = nextSignalLevel;
         signalLevel2 = nextSignalLevel2;
+        renderedWifiLevel = nextWifiLevel;
         dirty = true;
     }
 
@@ -700,7 +712,7 @@ public final class StatusMonitor {
         @Override
         public void onSignalStrengthsChanged(SignalStrength signalStrength) {
             if (active && signalStrength != null) {
-                setMobileLevel(subscription, signalStrength.getLevel());
+                setMobileLevel(subscription, mobileLevelFromSignalStrength(signalStrength));
             }
         }
 
@@ -712,5 +724,38 @@ public final class StatusMonitor {
             setMobileLabel(subscription, NetworkLabel.fromDisplayInfo(
                     displayInfo.getOverrideNetworkType(), displayInfo.getNetworkType()));
         }
+    }
+
+    /** This module targets MIUI/HyperOS; use the same OEM level as the native signal controller. */
+    static int mobileLevelFromSignalStrength(Object signalStrength) {
+        if (signalStrength == null) return 0;
+        try {
+            Method method = findMethod(signalStrength.getClass(), "getMiuiLevel");
+            if (method != null) {
+                Object value = method.invoke(signalStrength);
+                if (value instanceof Number number) {
+                    int level = number.intValue();
+                    if (level >= 0 && level <= 4) return level;
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // A missing OEM method is an unavailable reading, never a generic substitute.
+        }
+        return 0;
+    }
+
+    private static Method findMethod(Class<?> type, String name) {
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            try {
+                Method method = current.getDeclaredMethod(name);
+                method.setAccessible(true);
+                return method;
+            } catch (NoSuchMethodException ignored) {
+                // Search inherited platform/OEM implementations.
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 }

@@ -25,7 +25,7 @@ public final class FusionConfig {
     static final String KEY_PREVIEW_CATALOG = "preview_tile_catalog";
     static final String KEY_PREVIEW_URI = "preview_uri";
     static final String KEY_SCHEMA_VERSION = "config_schema_version";
-    static final int CONFIG_SCHEMA_VERSION = 5;
+    static final int CONFIG_SCHEMA_VERSION = 6;
 
     public static final int SIDE_LEFT = 0;
     public static final int SIDE_RIGHT = 1;
@@ -70,6 +70,7 @@ public final class FusionConfig {
     final TelemetryConfig telemetry;
     final NotificationClockConfig notificationClock;
     final ControlCenterConfig controlCenter;
+    final FusionContentConfig fusionContent;
     public final boolean wifiIcon;
     public final int statusBarHeight;
     public final int statusClockSizeSp;
@@ -120,7 +121,8 @@ public final class FusionConfig {
                 statusBarHeight, clockSide, clockRow, notificationSide, notificationRow,
                 systemSide, systemRow, fusionSide, fusionRow, systemIconScale,
                 notificationIconScale, spanOffsetX, spanOffsetY, customClock, clockPattern,
-                showWeather, telemetry, notificationClock, controlCenter, 0, 0L);
+                showWeather, telemetry, notificationClock, controlCenter, 0, 0L,
+                FusionContentConfig.defaults());
     }
 
     private FusionConfig(int iconScale, int strokeScale, boolean doubleRow, int doubleRowSide,
@@ -130,7 +132,7 @@ public final class FusionConfig {
             int spanOffsetX, int spanOffsetY, boolean customClock, String clockPattern,
             boolean showWeather, TelemetryConfig telemetry,
             NotificationClockConfig notificationClock, ControlCenterConfig controlCenter,
-            int statusClockSizeSp, long revision) {
+            int statusClockSizeSp, long revision, FusionContentConfig fusionContent) {
         this.revision = Math.max(0L, revision);
         this.iconScale = clampScale(iconScale);
         this.strokeScale = clampScale(strokeScale);
@@ -149,6 +151,7 @@ public final class FusionConfig {
                 ? NotificationClockConfig.defaults() : notificationClock;
         this.controlCenter = controlCenter == null
                 ? ControlCenterConfig.defaults() : controlCenter;
+        this.fusionContent = fusionContent == null ? FusionContentConfig.defaults() : fusionContent;
         this.wifiIcon = wifiIcon;
         this.statusBarHeight = clampStatusBarHeight(statusBarHeight);
         this.statusClockSizeSp = clampStatusClockSize(statusClockSizeSp);
@@ -338,6 +341,7 @@ public final class FusionConfig {
                 values.getBoolean(KEY_SHOW_WEATHER, fallback.showWeather),
                 TelemetryConfig.fromBundle(values), NotificationClockConfig.fromBundle(values),
                 ControlCenterConfig.fromBundle(values))
+                .withFusionContent(FusionContentConfig.fromBundle(values))
                 .withStatusClockSizeSp(values.getInt(KEY_STATUS_CLOCK_SIZE,
                         fallback.statusClockSizeSp)).withRevision(
                         values.getLong(KEY_REVISION, 0L));
@@ -360,6 +364,7 @@ public final class FusionConfig {
         telemetry.writeTo(values);
         notificationClock.writeTo(values);
         controlCenter.writeTo(values);
+        fusionContent.writeTo(values);
         values.putBoolean(KEY_WIFI_ICON, wifiIcon);
         values.putInt(KEY_STATUSBAR_HEIGHT, statusBarHeight);
         values.putInt(KEY_STATUS_CLOCK_SIZE, statusClockSizeSp);
@@ -384,7 +389,7 @@ public final class FusionConfig {
                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
                 source.telemetry, source.notificationClock, source.controlCenter,
-                source.statusClockSizeSp, revision);
+                source.statusClockSizeSp, revision, source.fusionContent);
     }
 
     private FusionConfig(FusionConfig source, int statusClockSizeSp) {
@@ -395,12 +400,37 @@ public final class FusionConfig {
                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
                 source.telemetry, source.notificationClock, source.controlCenter,
-                statusClockSizeSp, source.revision);
+                statusClockSizeSp, source.revision, source.fusionContent);
     }
 
     private FusionConfig preserveStatusClockSize(FusionConfig changed) {
-        return changed.statusClockSizeSp == statusClockSizeSp
+        FusionConfig result = changed.statusClockSizeSp == statusClockSizeSp
                 ? changed : new FusionConfig(changed, statusClockSizeSp);
+        return result.fusionContent.sameAs(fusionContent)
+                ? result : result.withFusionContent(fusionContent);
+    }
+
+    private FusionConfig(FusionConfig source, FusionContentConfig fusionContent) {
+        this(source.iconScale, source.strokeScale, source.doubleRow, source.doubleRowSide,
+                source.spanRows, source.wifiIcon, source.statusBarHeight, source.clockSide,
+                source.clockRow, source.notificationSide, source.notificationRow,
+                source.systemSide, source.systemRow, source.fusionSide, source.fusionRow,
+                source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
+                source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
+                source.telemetry, source.notificationClock, source.controlCenter,
+                source.statusClockSizeSp, source.revision, fusionContent);
+    }
+
+    FusionConfig withFusionContent(FusionContentConfig value) {
+        return new FusionConfig(this, value);
+    }
+
+    FusionConfig withFusionContentPosition(int part, int position) {
+        return withFusionContent(fusionContent.withPosition(part, position));
+    }
+
+    FusionConfig withFusionContentScale(int part, int scale) {
+        return withFusionContent(fusionContent.withScale(part, scale));
     }
 
     FusionConfig withRevision(long revision) {

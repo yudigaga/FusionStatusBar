@@ -16,6 +16,38 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {33, 34, 35})
 public class ConfigurationBackupTest {
+    @Test public void fusionContentOrderAndIndependentSizesSurviveBackupAndSchemaFiveMigration() throws Exception {
+        FusionConfig source = FusionConfig.defaults()
+                .withFusionContentPosition(FusionContentConfig.NETWORK, FusionContentConfig.BOTTOM)
+                .withFusionContentScale(FusionContentConfig.BATTERY, 75)
+                .withFusionContentScale(FusionContentConfig.NETWORK, 125)
+                .withFusionContentScale(FusionContentConfig.SIGNAL, 90).withIconScale(115);
+        byte[] backup = ConfigurationBackupCodec.encode(source);
+        FusionConfig restored = ConfigurationBackupCodec.decode(backup);
+        assertTrue(source.fusionContent.sameAs(restored.fusionContent));
+        assertEquals(115, restored.iconScale);
+        JSONObject document = new JSONObject(new String(backup, StandardCharsets.UTF_8));
+        JSONObject previous = document.getJSONObject("config");
+        previous.put(FusionConfig.KEY_SCHEMA_VERSION, 5);
+        for (String key : new String[] {FusionContentConfig.KEY_BATTERY_POSITION,
+                FusionContentConfig.KEY_NETWORK_POSITION, FusionContentConfig.KEY_SIGNAL_POSITION,
+                FusionContentConfig.KEY_BATTERY_SCALE, FusionContentConfig.KEY_NETWORK_SCALE,
+                FusionContentConfig.KEY_SIGNAL_SCALE}) previous.remove(key);
+        assertTrue(FusionContentConfig.defaults().sameAs(decode(document.toString()).fusionContent));
+        assertEquals(115, decode(document.toString()).iconScale);
+    }
+
+    @Test public void currentBackupRejectsConflictingContentSlotsAndIncompleteContentSettings() throws Exception {
+        JSONObject backup = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()),
+                StandardCharsets.UTF_8));
+        JSONObject config = backup.getJSONObject("config");
+        config.put(FusionContentConfig.KEY_NETWORK_POSITION, FusionContentConfig.TOP);
+        assertThrows(IOException.class, () -> decode(backup.toString()));
+        config.put(FusionContentConfig.KEY_NETWORK_POSITION, FusionContentConfig.MIDDLE);
+        config.remove(FusionContentConfig.KEY_NETWORK_SCALE);
+        assertThrows(IOException.class, () -> decode(backup.toString()));
+    }
+
     @Test public void exportedFullConfigurationRoundTripsAppearanceLayoutsAndRevision() throws Exception {
         ControlCenterConfig center = ControlCenterConfig.defaults().withEnabled(true).withColumns(5)
                 .withLayoutPlan(ControlCenterLayoutPlan.blank(5).forPublication(true).encode());
@@ -84,9 +116,9 @@ public class ConfigurationBackupTest {
         String[] invalid = {"{}", "[]", "{\"icon_scale\":\"125\"}", "{\"icon_scale\":null}",
                 "{\"icon_scale\":100,\"icon_scale\":120}", "{icon_scale:100}", "{\"icon_scale\":100} trailing",
                 "{\"config_schema_version\":999,\"icon_scale\":100}", "{\"config_schema_version\":-1,\"icon_scale\":100}",
+                "{\"config_schema_version\":" + FusionConfig.CONFIG_SCHEMA_VERSION + ",\"icon_scale\":100}",
                 "{\"icon_scale\":999}", "{\"icon_scale\":100.5}", "{\"icon_scale\":1e2}",
-                "{\"new_option\":true}", "{\"icon_scale\":100,\"control_center_layout_plan\":\"broken\"}",
-                "{\"config_schema_version\":5,\"icon_scale\":100}"};
+                "{\"new_option\":true}", "{\"icon_scale\":100,\"control_center_layout_plan\":\"broken\"}"};
         for (String value : invalid) assertThrows(value, IOException.class, () -> decode(value));
         JSONObject future = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()), StandardCharsets.UTF_8));
         future.put("version", 2);
