@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "versionName": "0.3.182",
+  "versionCode": 196,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "namespace": "com.xtjm.fusionstatusbar",
+  "buildMode": "official_signed",
+  "sourceCommit": "3a7437442e1682f0133a31ba67da797bac657f24",
+  "sourceRef": "HEAD",
+  "sourceTags": [],
+  "sourceDirty": false,
+  "sourceArchiveSha256": "89286ea2f3b8529a8ee85acc29b9078fdbee3aae61cf22fd1e89d2053126fc5f",
+  "sourceIndexSha256": "7c7e82ec48438bcf2a3bde46f9a9bcfd605fe46d88e70e9411f4ee1ac5ab0c72",
+  "sourcePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "sourceSnapshot": "source.zip",
+  "variants": {
+    "debug": {
+      "apk": "fusion-statusbar-v0.3.182-debug.apk",
+      "apkSha256": "dae8c430a40c1359121d4c561cedfce901903bbf5985b72f723490b5f2c62eac",
+      "apkSize": 1441902,
+      "debuggable": true,
+      "signing": "debug",
+      "signingCertificateSha256": "4e06d06e242802a8b8e77f696079ddd78e3d615d0cf73b781f3a187abb51f980",
+      "zipAlignment": "not_performed",
+      "tests": {
+        "total": 953,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 67,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      }
+    },
+    "release": {
+      "apk": "fusion-statusbar-v0.3.182-release.apk",
+      "apkSha256": "bef75edf81db96292b21bc3b49bcb8099a822114b8cd923e72ecca89717b9aee",
+      "apkSize": 1215662,
+      "debuggable": false,
+      "signing": "official",
+      "signingCertificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+      "zipAlignment": "passed",
+      "tests": {
+        "total": 953,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 67,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      }
+    }
+  },
+  "createdUtc": "2026-10-06T11:05:53.0516775Z",
+  "toolchain": {
+    "jdk": "openjdk 17.0.20.1 2026-08-18\r\nOpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)\r\nOpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)",
+    "gradle": "8.11.1",
+    "agp": "8.9.3",
+    "compileSdk": 35,
+    "targetSdk": 35,
+    "buildTools": "36.0.0",
+    "dependencyLocks": [
+      {
+        "path": "app/gradle.lockfile",
+        "sha256": "8fbdbf32d8f183f9db8e036f652588eb8408cb39aac151896c8ab6e3f913d0b5"
+      }
+    ]
+  },
+  "validationInput": "built_in_this_run",
+  "installation": "not_performed",
+  "systemUiInjection": "not_performed",
+  "romValidation": "not_performed"
+}

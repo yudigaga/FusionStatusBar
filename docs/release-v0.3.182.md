@@ -26,6 +26,9 @@
 - Debug 与 Release 各 953 项单元测试通过，0 失败、0 错误、0 跳过。
 - 两套 lint 均为 0 错误、67 条警告，高风险策略通过。
 - 正式 APK 使用与 0.3.150 起相同的发布证书；核对 `debuggable=false`、包名、版本元数据和 ZIP 对齐。
-- APK SHA-256 和源码提交以正式发布清单为准。
+- APK SHA-256：`bef75edf81db96292b21bc3b49bcb8099a822114b8cd923e72ecca89717b9aee`
+- 签名证书 SHA-256：`ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2`
+- 来源提交：`3a7437442e1682f0133a31ba67da797bac657f24`，发布清单记录 `sourceDirty=false`。
+- 本版未进行实体设备安装、SystemUI 注入、目标 ROM 视觉或性能验收。
 
 更详细的实现与验证背景见[2026-10-05 优化实施记录](optimization-implementation-20261005.md)。
