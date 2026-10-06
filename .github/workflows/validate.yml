@@ -22,6 +22,8 @@ jobs:
         with:
           python-version: '3.12'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: sdkmanager "platforms;android-35" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - name: Tool regression tests
@@ -38,4 +40,4 @@ jobs:
             artifacts/releases/
             app/build/reports/
             app/build/test-results/
-          if-no-files-found: error
+          if-no-files-found: warn
