@@ -38,6 +38,7 @@ final class SettingsListAdapter extends BaseAdapter {
     @Override public int getCount() { return labels.length; }
     @Override public String getItem(int position) { return labels[position]; }
     @Override public long getItemId(int position) { return position; }
+    Drawable iconAt(int position) { return icons == null ? null : icons.apply(position); }
 
     @Override public View getView(int position, View convertView, ViewGroup parent) {
         LinearLayout row;

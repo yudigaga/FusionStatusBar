@@ -16,12 +16,57 @@ import java.io.IOException;
 /** Authenticated configuration, application acknowledgements and immutable previews. */
 public final class FusionConfigProvider extends ContentProvider {
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
+    private static final String LAUNCHER_PACKAGE = "com.miui.home";
 
     @Override public boolean onCreate() { return true; }
 
     @Override public Bundle call(String method, String arg, Bundle extras) {
         Context context = getContext();
         String caller = getCallingPackage();
+        if (DesktopShortcutCatalog.METHOD_GET.equals(method)
+                || DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
+            enforceCaller(caller, context == null ? null : context.getPackageName(), true);
+            if (DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
+                context.getContentResolver().notifyChange(DesktopShortcutCatalog.contentUri(), null);
+            }
+            Bundle catalog = new Bundle();
+            catalog.putString(DesktopShortcutCatalog.KEY_CATALOG,
+                    context.getSharedPreferences("desktop_settings_v1", Context.MODE_PRIVATE)
+                            .getString(DesktopShortcutCatalog.KEY_CATALOG, "[]"));
+            return catalog;
+        }
+        if (DesktopShortcutCatalog.METHOD_PUBLISH.equals(method)) {
+            enforceLauncherCaller(caller);
+            String encoded = extras == null ? "[]" : extras.getString(DesktopShortcutCatalog.KEY_CATALOG, "[]");
+            if (encoded == null || encoded.length() > 262144) {
+                throw new IllegalArgumentException("shortcut_catalog_too_large");
+            }
+            context.getSharedPreferences("desktop_settings_v1", Context.MODE_PRIVATE).edit()
+                    .putString(DesktopShortcutCatalog.KEY_CATALOG, encoded).apply();
+            return new Bundle();
+        }
+        if (DesktopActionQueue.METHOD_ENQUEUE.equals(method)) {
+            enforceLauncherCaller(caller);
+            return DesktopActionQueue.enqueueFromProvider(context, extras);
+        }
+        if (DesktopActionQueue.METHOD_TAKE.equals(method)) {
+            if (!SYSTEM_UI_PACKAGE.equals(caller)) throw new SecurityException("systemui_action_take_only");
+            return DesktopActionQueue.takeFromProvider(context);
+        }
+        if (DesktopConfig.METHOD_GET.equals(method)) {
+            enforceDesktopReadCaller(caller, context == null ? null : context.getPackageName());
+            UserManager users = context.getSystemService(UserManager.class);
+            if (users != null && !users.isUserUnlocked()) return DesktopConfig.defaults().toBundle();
+            return DesktopConfigStore.read(context).toBundle();
+        }
+        if (DesktopConfig.METHOD_SET.equals(method)) {
+            enforceCaller(caller, context == null ? null : context.getPackageName(), true);
+            boolean accepted = DesktopConfigStore.write(context, DesktopConfig.fromBundle(extras));
+            Bundle result = new Bundle();
+            result.putBoolean(DesktopConfig.KEY_ACCEPTED, accepted);
+            if (accepted) context.getContentResolver().notifyChange(DesktopConfig.contentUri(), null);
+            return result;
+        }
         enforceCaller(caller, context == null ? null : context.getPackageName(),
                 FusionConfig.METHOD_PREVIEW_REQUEST.equals(method)
                         || FusionConfig.METHOD_PREVIEW_CLEAR.equals(method));
@@ -81,6 +126,16 @@ public final class FusionConfigProvider extends ContentProvider {
                 || (!ownOnly && SYSTEM_UI_PACKAGE.equals(caller)))) {
             throw new SecurityException("caller_not_authorized");
         }
+    }
+
+    static void enforceDesktopReadCaller(String caller, String ownPackage) {
+        if (caller == null || !(caller.equals(ownPackage) || LAUNCHER_PACKAGE.equals(caller))) {
+            throw new SecurityException("desktop_config_caller_not_authorized");
+        }
+    }
+
+    static void enforceLauncherCaller(String caller) {
+        if (!LAUNCHER_PACKAGE.equals(caller)) throw new SecurityException("launcher_action_only");
     }
 
     static File previewFile(Context context) {

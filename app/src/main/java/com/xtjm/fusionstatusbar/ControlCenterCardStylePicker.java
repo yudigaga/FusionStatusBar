@@ -49,6 +49,15 @@ final class ControlCenterCardStylePicker extends LinearLayout {
             }
         });
         addView(presets, new LayoutParams(-1, -2));
+        if (context instanceof androidx.activity.ComponentActivity) {
+            heading.setVisibility(View.GONE);
+            LinearLayout range = MiuixControls.slider(this, "独立圆角", "", 0, 64,
+                    item.cornerRadius, " dp", next -> bind(update.apply(current.withShape(current.shape, next))));
+            radius = (SeekBar) range.getTag();
+            value = (TextView) ((LinearLayout) range.getChildAt(0)).getChildAt(1);
+            bind(item);
+            return;
+        }
         LinearLayout radiusRow = new LinearLayout(context);
         radiusRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView label = new TextView(context);

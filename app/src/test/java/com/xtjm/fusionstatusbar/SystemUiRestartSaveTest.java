@@ -78,6 +78,31 @@ public class SystemUiRestartSaveTest {
         assertEquals(1, writeCount);
     }
 
+    @Test public void desktopRestartWaitsForSavedSettingsAndRejectsDuplicateRequests() {
+        Button desktop = new Button(activity);
+        desktop.setText(R.string.restart_desktop);
+        activity.update(saved.withIconScale(131));
+        assertTrue(activity.restartDesktop(desktop, () -> restartCount++));
+        assertFalse(activity.restartDesktop(desktop, () -> restartCount++));
+        assertEquals(0, restartCount);
+        assertEquals(activity.getString(R.string.restarting_desktop), desktop.getText());
+        completeSave();
+        assertEquals(131, saved.iconScale);
+        assertEquals(1, restartCount);
+    }
+
+    @Test public void failedSaveCancelsDesktopRestartAndRestoresItsOwnLabel() {
+        Button desktop = new Button(activity);
+        desktop.setText(R.string.restart_desktop);
+        activity.update(saved.withIconScale(131));
+        failWrite = true;
+        assertTrue(activity.restartDesktop(desktop, () -> restartCount++));
+        completeSave();
+        assertEquals(0, restartCount);
+        assertTrue(desktop.isEnabled());
+        assertEquals(activity.getString(R.string.restart_desktop), desktop.getText());
+    }
+
     @Test public void restartWaitsForEditsQueuedBehindAnInFlightRegularSave() {
         activity.update(saved.withIconScale(123));
         activity.flushSettingsSave();

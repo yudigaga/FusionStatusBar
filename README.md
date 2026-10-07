@@ -2,20 +2,19 @@
 
 面向 SystemUI 的 LibXposed 模块，提供融合图标、双排状态栏、时钟天气、遥测，以及控制中心布局与外观编辑。
 
+当前正式版本为 0.3.192，新增桌面手势、应用隐藏和应用搜索，五个页面、导航与公共弹窗使用 Compose/Miuix 控件。原有预览和控制中心画布继续复用绘制及编辑引擎。见 [0.3.187 到 0.3.192 完整更新说明](docs/release-notes-v0.3.192.md)。
+
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
-- UI 设计参考：[Miuix](https://github.com/compose-miuix-ui/miuix)，感谢开源项目提供设计灵感。
-- 最新正式版：[FusionStatusBar 0.3.187](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.187)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/201-0.3.187)
-- [0.3.187 更新说明](docs/release-v0.3.187.md)
-- 最新正式版：[FusionStatusBar 0.3.187](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.187)
-- [0.3.187 更新说明](docs/release-v0.3.187.md)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/201-0.3.187)
+- UI 组件：[Miuix](https://github.com/compose-miuix-ui/miuix) 0.8.8，Apache-2.0；自定义预览与画布通过 View/Compose 互操作复用。
+- 最新正式版：[FusionStatusBar 0.3.192](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.192)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/206-0.3.192)
+- [0.3.187 到 0.3.192 完整更新说明](docs/release-notes-v0.3.192.md)
 
 ## 构建
 
-- JDK 17、Android SDK Platform 35 与 Build Tools 35 或更新版本。
+- JDK 21、Android SDK Platform 36 与 Build Tools 36.0.0。项目源码仍输出 Java 17 字节码；Miuix 依赖与 Compose 测试需要 Java 21。
 - Gradle Wrapper 固定版本和分发 SHA-256；依赖首次构建需要网络。
 - 设置 `JAVA_HOME`，在 `local.properties` 配置 `sdk.dir`，或设置 `ANDROID_HOME`。
 - Android 最低 API 33。API 范围不代表所有厂商 ROM 均已验证兼容。
@@ -55,7 +54,7 @@ GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug
 
 ## 验证范围
 
-发布脚本不自动安装 APK、不重启 SystemUI，也不把构建成功当作 ROM 验收。设备安装、LSPosed 注入、HyperOS 视觉和性能证据单独记录在版本验证文档中；Robolectric 的行为、生命周期和像素测试不能代替实机检查。0.3.174 曾有目标设备安装、版本和哈希证据；0.3.182 的 SystemUI 注入回执、GPU 视觉和性能对照尚未完成。
+发布脚本不自动安装 APK、不重启 SystemUI，也不把构建成功当作 ROM 验收。设备安装、LSPosed 注入、HyperOS 视觉和性能证据单独记录在版本验证文档中；Robolectric 的行为、生命周期和像素测试不能代替实机检查。0.3.174 曾有目标设备安装、版本和哈希证据；0.3.192 尚未进行设备安装、桌面/SystemUI/安全中心 Hook 注入或目标 ROM 验收。
 
 测试覆盖编辑、布局、配置协议和异常路径。OEM 反射相关 lint 警告需逐项判断；新增错误和自定义 lint 兼容问题阻止发布。`tools/lint-policy.json` 按文件记录已审阅的高风险警告，新增项或数量增加会阻止发布。
 

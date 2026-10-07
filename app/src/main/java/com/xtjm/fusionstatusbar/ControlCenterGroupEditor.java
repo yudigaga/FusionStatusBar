@@ -72,7 +72,8 @@ final class ControlCenterGroupEditor extends LinearLayout {
                     () -> commit(current.get().group.remove(member.spec)));
             addView(row, new LayoutParams(-1, dp(48)));
         }
-        Button add = new Button(getContext());
+        Button add = getContext() instanceof androidx.activity.ComponentActivity
+                ? new MiuixControls.Command(getContext()) : new Button(getContext());
         add.setText("添加成员"); add.setEnabled(!item.locked && item.group.members.size() < 7);
         add.setTextColor(Color.WHITE);
         add.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff286dd1));
@@ -89,13 +90,18 @@ final class ControlCenterGroupEditor extends LinearLayout {
                 }
             });
         });
-        addView(add, new LayoutParams(-1, dp(48)));
-        Button ungroup = new Button(getContext());
+        if (getContext() instanceof androidx.activity.ComponentActivity) {
+            MiuixControls.attachButton(this, add, true, new LayoutParams(-1, -2));
+        } else addView(add, new LayoutParams(-1, dp(48)));
+        Button ungroup = getContext() instanceof androidx.activity.ComponentActivity
+                ? new MiuixControls.Command(getContext()) : new Button(getContext());
         ungroup.setText("拆分卡片"); ungroup.setEnabled(!item.locked && !item.group.members.isEmpty());
         ungroup.setTextColor(Color.WHITE);
         ungroup.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff45474c));
         ungroup.setOnClickListener(v -> split.run());
-        addView(ungroup, new LayoutParams(-1, dp(48)));
+        if (getContext() instanceof androidx.activity.ComponentActivity) {
+            MiuixControls.attachButton(this, ungroup, false, new LayoutParams(-1, -2));
+        } else addView(ungroup, new LayoutParams(-1, dp(48)));
     }
 
     private void edit(String spec) {
@@ -103,6 +109,10 @@ final class ControlCenterGroupEditor extends LinearLayout {
         if (item == null || item.locked) return;
         ControlCenterGroupData.Member member = item.group.members.stream().filter(m -> m.spec.equals(spec)).findFirst().orElse(null);
         if (member == null) return;
+        if (getContext() instanceof MainActivity activity) {
+            editMiuix(activity, spec, member);
+            return;
+        }
         LinearLayout fields = new LinearLayout(getContext());
         fields.setOrientation(VERTICAL); fields.setPadding(dp(20), dp(8), dp(20), dp(8));
         fields.setBackgroundColor(Color.red(color) > 128 ? 0xff242528 : Color.WHITE);
@@ -170,6 +180,51 @@ final class ControlCenterGroupEditor extends LinearLayout {
         dialog.show();
     }
 
+    private void editMiuix(MainActivity activity, String spec, ControlCenterGroupData.Member member) {
+        LinearLayout fields = new LinearLayout(getContext());
+        fields.setOrientation(VERTICAL);
+        int[] values = {member.x, member.y, member.width, member.height, member.iconScale};
+        String[] names = {"内部横坐标", "内部纵坐标", "内部宽度", "内部高度", "图标与圆圈大小 (%)"};
+        EditText[] inputs = new EditText[values.length];
+        for (int i = 0; i < values.length; i++) inputs[i] = MiuixControls.numericInput(fields, names[i], values[i]);
+        LinearLayout scaleRow = MiuixControls.slider(fields, "图标与圆圈大小滑杆", "", ControlCenterGroupData.MIN_ICON_SCALE,
+                ControlCenterGroupData.MAX_ICON_SCALE, member.iconScale, "%", next -> inputs[4].setText(String.valueOf(next)));
+        SeekBar scale = (SeekBar) scaleRow.getTag();
+        inputs[4].addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence text, int start, int before, int count) {
+                try {
+                    int value = Integer.parseInt(text.toString());
+                    if (value >= ControlCenterGroupData.MIN_ICON_SCALE && value <= ControlCenterGroupData.MAX_ICON_SCALE) {
+                        scale.setProgress(value - ControlCenterGroupData.MIN_ICON_SCALE);
+                    }
+                } catch (NumberFormatException ignored) { }
+            }
+            @Override public void afterTextChanged(Editable text) { }
+        });
+        android.widget.Switch show = MiuixControls.toggle(fields, "显示名称与状态", "", member.showLabel, checked -> { });
+        activity.utilitySheets().showNative(label.apply(spec), fields, "应用", () -> {
+            try {
+                ControlCenterLayoutPlan.Item latest = current.get();
+                if (latest == null || latest.locked) return true;
+                int iconScale = Integer.parseInt(inputs[4].getText().toString());
+                if (iconScale < ControlCenterGroupData.MIN_ICON_SCALE || iconScale > ControlCenterGroupData.MAX_ICON_SCALE) {
+                    inputs[4].setError("图标与圆圈大小须在 25%-200% 之间");
+                    return false;
+                }
+                ControlCenterGroupData.Member changed = new ControlCenterGroupData.Member(spec,
+                        Integer.parseInt(inputs[0].getText().toString()), Integer.parseInt(inputs[1].getText().toString()),
+                        Integer.parseInt(inputs[2].getText().toString()), Integer.parseInt(inputs[3].getText().toString()),
+                        show.isChecked(), iconScale);
+                commit(latest.group.edit(changed));
+                return true;
+            } catch (IllegalArgumentException error) {
+                inputs[0].setError("位置或尺寸超出 12×12 范围，或与其他成员重叠");
+                return false;
+            }
+        });
+    }
+
     private void commit(ControlCenterGroupData group) {
         ControlCenterLayoutPlan.Item item = current.get();
         if (item == null || item.locked || group.equals(item.group)) return;
@@ -186,6 +241,10 @@ final class ControlCenterGroupEditor extends LinearLayout {
     }
     private TextView text(String value) { TextView text = new TextView(getContext()); text.setText(value); text.setTextSize(14); text.setTextColor(color); return text; }
     private void icon(LinearLayout row, int resource, String description, boolean enabled, Runnable action) {
+        if (getContext() instanceof androidx.activity.ComponentActivity) {
+            MiuixControls.icon(row, resource, description, enabled, action);
+            return;
+        }
         ImageButton button = new ImageButton(getContext()); button.setImageResource(resource); button.setColorFilter(color);
         button.setBackgroundColor(Color.TRANSPARENT); button.setContentDescription(description); button.setTooltipText(description);
         button.setEnabled(enabled); button.setAlpha(enabled ? 1 : 0.35f); button.setOnClickListener(v -> action.run());

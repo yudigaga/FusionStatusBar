@@ -2843,6 +2843,7 @@ public final class SystemUiHooks {
 
     private static void ensureConfigObserver(Context context) {
         if (context == null) return;
+        DesktopSystemActionReceiver.register(context);
         synchronized (SystemUiHooks.class) {
             if (configLifecycle == null) {
                 configLifecycle = new RuntimeConfigLifecycle(MAIN_HANDLER,

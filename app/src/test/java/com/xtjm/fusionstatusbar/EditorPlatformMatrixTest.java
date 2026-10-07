@@ -82,7 +82,7 @@ public class EditorPlatformMatrixTest {
         MainActivity activity = controller.get();
         long revision = FusionConfigStore.read(activity).revision;
         controlSwitch(activity).performClick();
-        for (String page : new String[] {"设置", "状态栏", "通知栏", "概述", "控制中心"}) {
+        for (String page : new String[] {"设置", "状态栏", "通知栏", "桌面", "控制中心"}) {
             View entry = description(activity.getWindow().getDecorView(), page);
             assertNotNull(entry);
             entry.performClick();

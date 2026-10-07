@@ -1,5 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="desktop_gesture_actions">
+        <item>@string/desktop_action_none</item>
+        <item>@string/desktop_action_notifications</item>
+        <item>@string/desktop_action_quick_settings</item>
+        <item>@string/desktop_action_lock_device</item>
+        <item>@string/desktop_action_sleep</item>
+        <item>@string/desktop_action_screenshot</item>
+        <item>@string/desktop_action_recents</item>
+        <item>@string/desktop_action_power_menu</item>
+        <item>@string/desktop_action_sidebar</item>
+        <item>@string/desktop_action_launch_app</item>
+        <item>@string/desktop_action_launch_shortcut</item>
+        <item>@string/desktop_action_launch_activity</item>
+        <item>@string/desktop_action_toggle</item>
+        <item>@string/desktop_action_clear_memory</item>
+        <item>@string/desktop_action_one_handed</item>
+        <item>@string/desktop_action_clear_notifications</item>
+    </string-array>
+    <integer-array name="desktop_gesture_action_values">
+        <item>1</item><item>2</item><item>3</item><item>4</item>
+        <item>5</item><item>6</item><item>7</item><item>12</item>
+        <item>26</item><item>8</item><item>9</item><item>20</item>
+        <item>10</item><item>13</item><item>22</item><item>23</item>
+    </integer-array>
+    <string-array name="desktop_toggle_actions">
+        <item>Wi-Fi</item>
+        <item>蓝牙</item>
+        <item>位置</item>
+        <item>NFC</item>
+        <item>声音情景</item>
+        <item>自动亮度</item>
+        <item>自动旋转</item>
+        <item>手电筒</item>
+        <item>移动数据</item>
+        <item>个人热点</item>
+        <item>勿扰模式</item>
+        <item>夜间模式</item>
+    </string-array>
+    <integer-array name="desktop_toggle_values">
+        <item>1</item><item>2</item><item>3</item><item>4</item>
+        <item>5</item><item>6</item><item>7</item><item>8</item>
+        <item>9</item><item>10</item><item>11</item><item>12</item>
+    </integer-array>
     <string-array name="telemetry_positions">
         <item>左侧第一排</item>
         <item>左侧第二排</item>

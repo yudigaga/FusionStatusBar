@@ -36,9 +36,11 @@ final class LayoutPresetController implements AutoCloseable {
     private boolean closed;
     private boolean busy;
     private Dialog dialog;
+    private final MiuixSheetHost miuix;
 
     LayoutPresetController(Activity activity, Host host, Choices choices) {
         this.activity = activity; this.host = host; this.choices = choices;
+        miuix = activity instanceof androidx.activity.ComponentActivity owner ? new MiuixSheetHost(owner) : null;
         this.store = new LayoutPresetStore(activity.getApplicationContext());
     }
 
@@ -92,6 +94,15 @@ final class LayoutPresetController implements AutoCloseable {
                         case 2: nameDialog(R.string.preset_copy, "",
                                 name -> mutate(() -> store.copy(preset.id, name), R.string.preset_saved)); break;
                         default:
+                            if (miuix != null) {
+                                dialog = miuix.confirm(activity.getString(R.string.preset_delete),
+                                        activity.getString(R.string.preset_delete_confirmation, preset.name),
+                                        activity.getString(R.string.preset_delete), () -> {
+                                            mutate(() -> store.delete(preset.id), R.string.preset_deleted);
+                                            return true;
+                                        });
+                                break;
+                            }
                             dialog = new AlertDialog.Builder(activity).setTitle(R.string.preset_delete)
                                     .setMessage(activity.getString(R.string.preset_delete_confirmation, preset.name))
                                     .setNegativeButton(R.string.backup_cancel, null)
@@ -103,6 +114,11 @@ final class LayoutPresetController implements AutoCloseable {
     }
 
     private void nameDialog(int title, String current, java.util.function.Consumer<String> submit) {
+        if (miuix != null) {
+            dialog = miuix.input(activity.getString(title), activity.getString(R.string.preset_name), current,
+                    LayoutPresetStore.MAX_NAME_LENGTH, activity.getString(R.string.preset_save), submit);
+            return;
+        }
         EditText input = new EditText(activity);
         input.setSingleLine(true);
         input.setHint(R.string.preset_name);
@@ -154,6 +170,7 @@ final class LayoutPresetController implements AutoCloseable {
     }
     @Override public void close() {
         closed = true;
+        if (miuix != null) miuix.close();
         main.removeCallbacksAndMessages(null);
         if (dialog != null) dialog.dismiss();
         dialog = null;

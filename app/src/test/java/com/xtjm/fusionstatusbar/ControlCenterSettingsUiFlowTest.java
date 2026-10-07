@@ -34,15 +34,19 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
 public class ControlCenterSettingsUiFlowTest {
+    @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
+
+    private Dialog latestDialog() { compose.waitForIdle(); return MiuixTestWindows.latest(); }
     @Test public void aboutSectionShowsRepositoryAndMiuixCreditLinks() throws Exception {
         launchOverview();
-        assertEquals(1, texts(activity.getWindow().getDecorView(), "项目仓库").size());
-        assertEquals(1, texts(activity.getWindow().getDecorView(), "FusionStatusBar").size());
+        MiuixTestActions.click(compose, "navigation_4");
+        assertTrue(MiuixTestActions.exists(compose, "项目仓库"));
+        assertTrue(MiuixTestActions.exists(compose, "FusionStatusBar"));
         assertEquals(1, texts(activity.getWindow().getDecorView(),
                 activity.getString(R.string.about_project_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)).size());
-        assertEquals(1, texts(activity.getWindow().getDecorView(), "UI 参考与感谢").size());
+        assertTrue(MiuixTestActions.exists(compose, activity.getString(R.string.about_miuix_credit)));
         assertEquals(1, texts(activity.getWindow().getDecorView(), "https://github.com/yudigaga/FusionStatusBar").size());
-        assertEquals(1, texts(activity.getWindow().getDecorView(), "感谢 Miuix 提供 UI 设计参考").size());
+        assertEquals(1, texts(activity.getWindow().getDecorView(), activity.getString(R.string.about_miuix_summary)).size());
     }
 
     private void launchOverview() throws Exception {
@@ -64,10 +68,10 @@ public class ControlCenterSettingsUiFlowTest {
         launch();
         String before = activity.editorSession().draft().layoutPlan;
         texts(activity.getWindow().getDecorView(), activity.getString(R.string.editor_add)).get(0).performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         assertNotNull(dialog);
-        assertEquals(android.view.Gravity.BOTTOM, dialog.getWindow().getAttributes().gravity & android.view.Gravity.VERTICAL_GRAVITY_MASK);
-        assertEquals(R.style.SettingsSheetWindowAnimation, dialog.getWindow().getAttributes().windowAnimations);
+        assertTrue(MiuixTestActions.exists(compose, "取消"));
+        assertTrue(dialog.getWindow().getDecorView().getHeight() > 0);
         assertFalse("Tile choices use the same shell as the existing settings pages", dialog instanceof AlertDialog);
         dialog.cancel();
         assertEquals(before, activity.editorSession().draft().layoutPlan);
@@ -89,10 +93,10 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void morePopupUsesTheExistingSettingsSheet() throws Exception {
         LinearLayout page = launch();
         texts(page, "更多 ···").get(0).performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         assertNotNull("More actions must use the settings sheet instead of an OEM popup", dialog);
-        assertEquals(android.view.Gravity.BOTTOM, dialog.getWindow().getAttributes().gravity & android.view.Gravity.VERTICAL_GRAVITY_MASK);
-        assertEquals(R.style.SettingsSheetWindowAnimation, dialog.getWindow().getAttributes().windowAnimations);
+        assertTrue(MiuixTestActions.exists(compose, "取消"));
+        assertTrue(dialog.getWindow().getDecorView().getHeight() > 0);
         dialog.cancel();
         assertFalse(activity.editorSession().isDirty());
     }
@@ -215,7 +219,7 @@ public class ControlCenterSettingsUiFlowTest {
         LinearLayout page = launch();
         assertEquals(1, texts(page, "布局与外观").size());
         findDescription(page, "布局与外观").performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         assertNotNull(dialog);
         assertTrue(dialog.isShowing());
         View dialogContent = dialog.getWindow().getDecorView();
@@ -230,7 +234,7 @@ public class ControlCenterSettingsUiFlowTest {
         LinearLayout page = launch();
         ((Button) field("controlCenterCompactModeButton")).performClick();
         findDescription(page, "布局与外观").performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         View columnRow = (View) texts(dialog.getWindow().getDecorView(), "画布列数")
                 .get(0).getParent().getParent();
         SeekBar columns = findSeekBar(columnRow);
@@ -252,7 +256,7 @@ public class ControlCenterSettingsUiFlowTest {
         LinearLayout page = launch();
         String plan = activity.editorSession().draft().layoutPlan;
         findDescription(page, "布局与外观").performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         View selector = findDescription(dialog.getWindow().getDecorView(), "全局容器背景");
         assertNotNull(selector);
         selector.performClick();
@@ -270,7 +274,7 @@ public class ControlCenterSettingsUiFlowTest {
         LinearLayout page = launch();
         activity.updateControlCenterDraft(activity.editorSession().draft().withBlur(35, 60, 85));
         findDescription(page, "布局与外观").performClick();
-        View root = ShadowDialog.getLatestDialog().getWindow().getDecorView();
+        View root = latestDialog().getWindow().getDecorView();
         SettingsChoiceSelector styles = (SettingsChoiceSelector) findDescription(root, "全局容器背景");
         SeekBar background = findSeekBar((View) texts(root, "背景模糊").get(0).getParent().getParent());
         SeekBar card = findSeekBar((View) texts(root, "卡片模糊").get(0).getParent().getParent());
@@ -303,7 +307,7 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void addAndMoreEntriesExposeDistinctActions() throws Exception {
         LinearLayout page = launch();
         texts(page, activity.getString(R.string.editor_add)).get(0).performClick();
-        Dialog add = ShadowDialog.getLatestDialog();
+        Dialog add = latestDialog();
         assertNotNull(add);
         assertTrue(choiceList(add).getAdapter().getCount() > 2);
         assertEquals("组合卡片 · 将两个磁贴合并", choiceList(add).getAdapter().getItem(0));
@@ -312,7 +316,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertFalse(choiceList(add).getAdapter().getItem(2).toString().startsWith("应用快捷开关 · "));
         add.dismiss();
         texts(page, "更多 ···").get(0).performClick();
-        Dialog more = ShadowDialog.getLatestDialog();
+        Dialog more = latestDialog();
         assertNotNull(more);
         android.widget.ListAdapter actions = choiceList(more).getAdapter();
         assertEquals(4, actions.getCount());
@@ -359,12 +363,12 @@ public class ControlCenterSettingsUiFlowTest {
         installTileChoiceFixture(android.graphics.Color.WHITE);
         Dialog add = openTileChoices();
         choiceList(add).performItemClick(null, 0, 0);
-        Dialog first = ShadowDialog.getLatestDialog();
+        Dialog first = latestDialog();
         assertChoiceIconSize(choiceRow(first, "测试磁贴 · 测试应用"));
         assertChoiceIconSize(choiceRow(first, "Wi-Fi"));
         int selected = choiceIndex(first, "测试磁贴 · 测试应用");
         choiceList(first).performItemClick(null, selected, selected);
-        assertChoiceIconSize(choiceRow(ShadowDialog.getLatestDialog(), "Wi-Fi"));
+        assertChoiceIconSize(choiceRow(latestDialog(), "Wi-Fi"));
     }
 
     private void assertAddTileGlyphContrast(int sourceColor, int surface) throws Exception {
@@ -420,7 +424,7 @@ public class ControlCenterSettingsUiFlowTest {
 
     private Dialog openTileChoices() {
         texts(activity.getWindow().getDecorView(), activity.getString(R.string.editor_add)).get(0).performClick();
-        return ShadowDialog.getLatestDialog();
+        return latestDialog();
     }
 
     private static int choiceIndex(Dialog dialog, String label) {
@@ -673,6 +677,7 @@ public class ControlCenterSettingsUiFlowTest {
         prepareOverlayPlan(false);
         ViewGroup content = activity.findViewById(android.R.id.content);
         View settingsRoot = content.getChildAt(0);
+        int originalRootCount = content.getChildCount();
         texts(activity.getWindow().getDecorView(), "壁纸画布").get(0).performClick();
         assertNull(settingsRoot.getParent());
         assertEquals(1, content.getChildCount());
@@ -683,7 +688,7 @@ public class ControlCenterSettingsUiFlowTest {
         assertTrue(texts(content, "布局与外观").isEmpty());
         activity.onBackPressed();
         assertSame(settingsRoot, content.getChildAt(0));
-        assertEquals(1, content.getChildCount());
+        assertEquals(originalRootCount, content.getChildCount());
         assertEquals(View.VISIBLE, settingsRoot.getVisibility());
     }
 
@@ -744,7 +749,7 @@ public class ControlCenterSettingsUiFlowTest {
         String before = activity.editorSession().draft().layoutPlan;
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         editor.getChildAt(0).performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         SettingsChoiceSelector presets = (SettingsChoiceSelector) findDescription(
                 dialog.getWindow().getDecorView(), "卡片样式");
         assertEquals(8, ControlCenterCardStyle.values().length);
@@ -769,7 +774,7 @@ public class ControlCenterSettingsUiFlowTest {
         ((Button) field("controlCenterCompactModeButton")).performClick();
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         editor.getChildAt(0).performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         SettingsChoiceSelector presets = (SettingsChoiceSelector) findDescription(
                 dialog.getWindow().getDecorView(), "卡片样式");
 
@@ -807,7 +812,7 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void manualRadiusAndLockKeepStyleControlsInSync() throws Exception {
         ControlCenterGridEditor editor = prepareOverlayPlan(false);
         editor.getChildAt(0).performClick();
-        View root = ShadowDialog.getLatestDialog().getWindow().getDecorView();
+        View root = latestDialog().getWindow().getDecorView();
         SettingsChoiceSelector presets = (SettingsChoiceSelector) findDescription(root, "卡片样式");
         SeekBar radius = (SeekBar) findDescription(root, "独立圆角");
         Shadows.shadowOf(radius).getOnSeekBarChangeListener().onProgressChanged(radius, 17, true);
@@ -832,15 +837,15 @@ public class ControlCenterSettingsUiFlowTest {
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         String compactBefore = draftPlan().compact.items.toString();
         texts(activity.getWindow().getDecorView(), activity.getString(R.string.editor_add)).get(0).performClick();
-        Dialog add = ShadowDialog.getLatestDialog();
+        Dialog add = latestDialog();
         choiceList(add).performItemClick(null, 1, 1);
-        Dialog properties = ShadowDialog.getLatestDialog();
+        Dialog properties = latestDialog();
         assertEquals(1, draftPlan().regular.items.size());
         assertEquals(ControlCenterLayoutPlan.Type.GROUP, draftPlan().regular.items.get(0).type);
         String empty = activity.editorSession().draft().layoutPlan;
         for (int i = 0; i < 3; i++) {
             texts(properties.getWindow().getDecorView(), "添加成员").get(0).performClick();
-            Dialog members = ShadowDialog.getLatestDialog();
+            Dialog members = latestDialog();
             choiceList(members).performItemClick(null, 0, 0);
         }
         assertEquals(3, draftPlan().regular.items.get(0).group.members.size());
@@ -858,6 +863,40 @@ public class ControlCenterSettingsUiFlowTest {
         assertEquals(ControlCenterLayoutPlan.Type.GROUP, draftPlan().regular.items.get(0).type);
         for (int i = 0; i < 4; i++) ((Button) field("controlCenterUndoButton")).performClick();
         assertEquals(empty, activity.editorSession().draft().layoutPlan);
+    }
+
+    @Test public void miuixGroupMemberIconScaleInputAndSliderStayInSyncUntilConfirmation() throws Exception {
+        launch();
+        var group = ControlCenterLayoutPlan.Item.group("group:test", ControlCenterGroupData.empty().add("wifi"), 0, 0, 2, 2);
+        activity.updateControlCenterDraft(activity.editorSession().draft()
+                .withLayoutPlan(ControlCenterLayoutPlan.blank(4).withItem(false, group).encode()));
+        String draftBefore = activity.editorSession().draft().layoutPlan;
+        String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
+        ControlCenterGridEditor editor = (ControlCenterGridEditor) field("controlCenterGridEditor");
+        layoutEditor(editor);
+        editor.getChildAt(0).performClick();
+        Dialog properties = latestDialog();
+        findDescription(properties.getWindow().getDecorView(), "编辑 " + activity.tileLabel("wifi")).performClick();
+        Dialog member = latestDialog();
+        View root = member.getWindow().getDecorView();
+        var input = (android.widget.EditText) findDescription(root, "图标与圆圈大小 (%)");
+        var slider = (MiuixControls.Range) findDescription(root, "图标与圆圈大小滑杆");
+        assertTrue(input instanceof MiuixControls.Input);
+
+        input.setText("150");
+        assertEquals(150 - ControlCenterGroupData.MIN_ICON_SCALE, slider.getProgress());
+        assertTrue(MiuixTestActions.exists(compose, "150%"));
+        input.setText("999");
+        assertEquals(150 - ControlCenterGroupData.MIN_ICON_SCALE, slider.getProgress());
+        input.setText("");
+        assertEquals(150 - ControlCenterGroupData.MIN_ICON_SCALE, slider.getProgress());
+        slider.changeFromUi(75 - ControlCenterGroupData.MIN_ICON_SCALE);
+        assertEquals("75", input.getText().toString());
+        assertTrue(MiuixTestActions.exists(compose, "75%"));
+        assertEquals(draftBefore, activity.editorSession().draft().layoutPlan);
+        member.cancel();
+        assertEquals(draftBefore, activity.editorSession().draft().layoutPlan);
+        assertEquals(persisted, FusionConfigStore.read(activity).controlCenter.layoutPlan);
     }
 
     @Test public void groupCannotClaimLockedOrGroupedTilesButCanMoveStandaloneTiles() throws Exception {
@@ -887,7 +926,7 @@ public class ControlCenterSettingsUiFlowTest {
         ControlCenterGridEditor editor = (ControlCenterGridEditor) field("controlCenterGridEditor");
         layoutEditor(editor);
         editor.getChildAt(0).performClick();
-        Dialog properties = ShadowDialog.getLatestDialog();
+        Dialog properties = latestDialog();
         View root = properties.getWindow().getDecorView();
         assertFalse(texts(root, "添加成员").get(0).isEnabled());
         assertFalse(texts(root, "从网格移除").get(0).isEnabled());
@@ -907,7 +946,7 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void optionalComponentsShowCaptureAvailabilityWithoutDeletingDraftItems() throws Exception {
         launch();
         texts(activity.getWindow().getDecorView(), activity.getString(R.string.editor_add)).get(0).performClick();
-        Dialog choices = ShadowDialog.getLatestDialog();
+        Dialog choices = latestDialog();
         List<String> initial = new ArrayList<>();
         for (int i = 0; i < choiceList(choices).getAdapter().getCount(); i++) {
             initial.add(choiceList(choices).getAdapter().getItem(i).toString());
@@ -917,7 +956,7 @@ public class ControlCenterSettingsUiFlowTest {
         ControlCenterActualEditor reference = (ControlCenterActualEditor) field("controlCenterActualPreview");
         reference.setPreview(null, "v1|360|800|Y29udHJvbDptZWRpYQ==,0,0,180,180");
         texts(activity.getWindow().getDecorView(), activity.getString(R.string.editor_add)).get(0).performClick();
-        choices = ShadowDialog.getLatestDialog();
+        choices = latestDialog();
         List<String> captured = new ArrayList<>();
         for (int i = 0; i < choiceList(choices).getAdapter().getCount(); i++) {
             captured.add(choiceList(choices).getAdapter().getItem(i).toString());
@@ -952,7 +991,7 @@ public class ControlCenterSettingsUiFlowTest {
         launch();
         String persisted = FusionConfigStore.read(activity).controlCenter.layoutPlan;
         texts(activity.getWindow().getDecorView(), activity.getString(R.string.editor_add)).get(0).performClick();
-        Dialog choices = ShadowDialog.getLatestDialog();
+        Dialog choices = latestDialog();
         int target = -1;
         for (int i = 0; i < choiceList(choices).getAdapter().getCount(); i++) {
             String label = choiceList(choices).getAdapter().getItem(i).toString();
@@ -967,7 +1006,7 @@ public class ControlCenterSettingsUiFlowTest {
     @Test public void threeBlurSlidersEditIndependentDraftFieldsUntilPush() throws Exception {
         launch();
         findDescription(activity.getWindow().getDecorView(), "布局与外观").performClick();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = latestDialog();
         View root = dialog.getWindow().getDecorView();
         String[] titles = {"背景模糊", "卡片模糊", "磁贴模糊"};
         int[] values = {0, 40, 75};
@@ -1089,7 +1128,7 @@ public class ControlCenterSettingsUiFlowTest {
     public void exportBlurSettingsAtNarrowWidth() throws Exception {
         launch();
         findDescription(activity.getWindow().getDecorView(), "布局与外观").performClick();
-        View root = ShadowDialog.getLatestDialog().getWindow().getDecorView();
+        View root = latestDialog().getWindow().getDecorView();
         View row = (View) texts(root, "背景模糊").get(0).getParent().getParent();
         ViewGroup content = (ViewGroup) row.getParent();
         content.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
@@ -1099,7 +1138,7 @@ public class ControlCenterSettingsUiFlowTest {
             assertEquals(1, texts(sliderRow, "透明").size());
             assertEquals(1, texts(sliderRow, "模糊").size());
             SeekBar slider = findSeekBar(sliderRow);
-            assertTrue(slider.getWidth() > 100);
+            assertTrue(MiuixTestActions.width(compose, "slider_" + title) > 100);
             assertTrue(sliderRow.getBottom() <= content.getHeight());
         }
         Bitmap bitmap = Bitmap.createBitmap(300, content.getHeight(), Bitmap.Config.ARGB_8888);

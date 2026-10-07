@@ -29,6 +29,8 @@ final class SettingsChoiceSelector extends LinearLayout {
     private TextView disclosure;
     private LinearLayout optionList;
     private int selected;
+    private boolean expanded;
+    private MiuixChoiceBinding miuix;
 
     SettingsChoiceSelector(Context context, String title, String[] labels, int selected,
             int background, int primary, int secondary, int accent, IntConsumer update) {
@@ -92,10 +94,10 @@ final class SettingsChoiceSelector extends LinearLayout {
         disclosure.setGravity(Gravity.CENTER);
         valueRow.addView(disclosure, new LinearLayout.LayoutParams(dp(28), -2));
         valueRow.setOnClickListener(view -> {
-            if (isEnabled()) setExpanded(optionList.getVisibility() != View.VISIBLE);
+            if (isEnabled()) setExpanded(!expanded);
         });
         setOnClickListener(view -> {
-            if (isEnabled()) setExpanded(optionList.getVisibility() != View.VISIBLE);
+            if (isEnabled()) setExpanded(!expanded);
         });
         LinearLayout.LayoutParams valueParams = wrap();
         valueParams.topMargin = dp(6);
@@ -115,6 +117,11 @@ final class SettingsChoiceSelector extends LinearLayout {
         }
         renderSelection();
         updateTextColors(isEnabled());
+        if (context instanceof androidx.activity.ComponentActivity) {
+            for (int index = 0; index < getChildCount(); index++) getChildAt(index).setVisibility(View.GONE);
+            miuix = new MiuixChoiceBinding(this);
+            addView(miuix.getView(), wrap());
+        }
     }
 
     @Override public void setEnabled(boolean enabled) {
@@ -126,6 +133,7 @@ final class SettingsChoiceSelector extends LinearLayout {
         }
         if (!enabled) setExpanded(false);
         updateTextColors(enabled);
+        if (miuix != null) miuix.invalidate();
     }
 
     void setSelection(int index) {
@@ -134,6 +142,11 @@ final class SettingsChoiceSelector extends LinearLayout {
     }
 
     int selectedIndex() { return selected; }
+    String[] choiceLabels() { return labels.clone(); }
+    boolean expanded() { return expanded; }
+    boolean optionEnabled(int index) { return isEnabled() && optionEnabled.get(index); }
+    View decoration(int index) { return optionDecoration == null ? null : optionDecoration.apply(index); }
+    void selectOption(int index) { if (optionEnabled(index)) select(index); }
 
     View optionView(int index) { return options.get(index); }
 
@@ -143,6 +156,7 @@ final class SettingsChoiceSelector extends LinearLayout {
         options.get(index).setEnabled(enabled);
         options.get(index).setAlpha(enabled ? 1f : 0.45f);
         optionLabels.get(index).setTextColor(enabled ? primary : secondary);
+        if (miuix != null) miuix.invalidate();
     }
 
     private void addOption(Context context, int index, boolean enabled) {
@@ -220,11 +234,13 @@ final class SettingsChoiceSelector extends LinearLayout {
             selectionMarks.get(index).setVisibility(checked ? View.VISIBLE : View.INVISIBLE);
             selectionMarks.get(index).setTextColor(accent);
         }
+        if (miuix != null) miuix.invalidate();
     }
 
     private void setExpanded(boolean expanded) {
         if (optionList == null) return;
-        optionList.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        this.expanded = expanded;
+        optionList.setVisibility(miuix == null && expanded ? View.VISIBLE : View.GONE);
         disclosure.setText(expanded ? "⌃" : "⌄");
         String state = "当前值：" + labels[selected] + (expanded ? "，已展开" : "，已收起");
         valueRow.setStateDescription(state);
@@ -237,6 +253,7 @@ final class SettingsChoiceSelector extends LinearLayout {
             });
         }
         sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+        if (miuix != null) miuix.invalidate();
     }
 
     private void updateTextColors(boolean enabled) {

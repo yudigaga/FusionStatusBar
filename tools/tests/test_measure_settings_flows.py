@@ -71,13 +71,21 @@ class ParsingTests(unittest.TestCase):
         with self.assertRaises(flows.HarnessError):
             flows.verify_appearance_dialog(root, True)
 
-    def test_overview_requires_selected_nav_and_no_loading_placeholder(self):
-        text = '<hierarchy><node content-desc="概述" clickable="true" selected="true"/><node text="已激活"/><node text="系统界面已连接 · 12:00"/></hierarchy>'
+    def test_desktop_requires_selected_nav_and_no_loading_placeholder(self):
+        text = '<hierarchy><node content-desc="桌面" clickable="true" selected="true"/><node text="隐藏桌面图标"/><node text="选择隐藏的应用"/><node text="桌面手势"/></hierarchy>'
         root = flows.parse_ui(text)
-        self.assertTrue(flows.verify_overview(root)["overviewSelected"])
+        self.assertTrue(flows.verify_desktop(root)["desktopSelected"])
         flows.ET.SubElement(root, "node", {"text": "正在加载设置"})
         with self.assertRaises(flows.HarnessError):
-            flows.verify_overview(root)
+            flows.verify_desktop(root)
+
+    def test_desktop_accepts_compose_merged_labels(self):
+        root = flows.parse_ui('<hierarchy><node content-desc="桌面" clickable="true" selected="true"/></hierarchy>')
+        for label in ("隐藏桌面图标\n选择的应用图标将在桌面和底栏隐藏",
+                      "选择隐藏的应用\n未选择应用", "桌面手势"):
+            flows.ET.SubElement(root, "node", {"text": label})
+        self.assertEqual(flows.verify_desktop(root)["desktopLabels"],
+                         ["隐藏桌面图标", "选择隐藏的应用", "桌面手势"])
 
     def test_receipt_and_metrics_parse_without_claiming_more_coverage(self):
         values = flows.parse_preferences('<map><string name="runtime_session">1000:4321:token</string><string name="module_version">0.3.144</string><int name="module_code" value="158"/></map>')

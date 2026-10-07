@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="dual_row_layout_state" type="id" />
+    <item name="settings_list_search" type="id" />
+    <item name="settings_list_search_clear" type="id" />
+    <item name="desktop_miuix_page" type="id" />
+    <item name="desktop_miuix_popups" type="id" />
+    <item name="miuix_shared_sheets" type="id" />
+    <item name="miuix_navigation" type="id" />
 </resources>

@@ -1,15 +1,17 @@
 apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "org.jetbrains.kotlin.plugin.compose"
 
 android {
     namespace "com.xtjm.fusionstatusbar"
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "io.github.yudigaga.fusionstatusbar"
         minSdk 33
         targetSdk 35
-        versionCode 201
-        versionName "0.3.187"
+        versionCode 206
+        versionName "0.3.192"
     }
 
     compileOptions {
@@ -24,9 +26,11 @@ android {
 
     buildFeatures {
         buildConfig true
+        compose true
     }
 
     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/xposed"))
+    sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/miuix-license"))
 
     buildTypes {
         release {
@@ -38,6 +42,12 @@ android {
         variant.outputs.all { output ->
             outputFileName = "fusion-statusbar-v${variant.versionName}-${variant.name}.apk"
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
@@ -59,14 +69,35 @@ def generateXposedMetadata = tasks.register("generateXposedMetadata") {
     }
 }
 
-tasks.named("preBuild").configure { dependsOn(generateXposedMetadata) }
+def packageMiuixLicense = tasks.register("packageMiuixLicense", Copy) {
+    from(rootProject.file("third_party/miuix/LICENSE"))
+    into(layout.buildDirectory.dir("generated/miuix-license/META-INF"))
+    rename { "miuix-license.txt" }
+}
+
+tasks.named("preBuild").configure { dependsOn(generateXposedMetadata, packageMiuixLicense) }
 tasks.withType(JavaCompile).configureEach { options.encoding = "UTF-8" }
+
+tasks.withType(Test).configureEach {
+    maxHeapSize = "2g"
+    maxParallelForks = 1
+    forkEvery = 40
+}
 
 dependencyLocking {
     lockAllConfigurations()
 }
 
 dependencies {
+    implementation "top.yukonga.miuix.kmp:miuix:0.8.8"
+    implementation "androidx.activity:activity-compose:1.12.4"
+    implementation "androidx.compose.ui:ui:1.10.5"
+    implementation "androidx.compose.foundation:foundation:1.10.5"
+    implementation "androidx.compose.runtime:runtime:1.10.5"
+    implementation "androidx.compose.material:material-icons-core:1.7.8"
+    testImplementation "androidx.compose.ui:ui-test-junit4:1.10.5"
+    androidTestImplementation "androidx.compose.ui:ui-test-junit4:1.10.5"
+    debugImplementation "androidx.compose.ui:ui-test-manifest:1.10.5"
     compileOnly "io.github.libxposed:api:102.0.0"
     testImplementation "io.github.libxposed:api:102.0.0"
     testImplementation "junit:junit:4.13.2"

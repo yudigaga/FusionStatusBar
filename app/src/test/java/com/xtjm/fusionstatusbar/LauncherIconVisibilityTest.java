@@ -63,7 +63,7 @@ public class LauncherIconVisibilityTest {
                 .resolveActivity(launcher, 0).activityInfo.name);
     }
 
-    @Test public void overviewSwitchReflectsAndChangesPackageManagerState() throws Exception {
+    @Test public void settingsSwitchReflectsAndChangesPackageManagerState() throws Exception {
         LauncherIconVisibility.setHidden(context, true);
         Field repository = FusionConfigRepository.class.getDeclaredField("application");
         repository.setAccessible(true);

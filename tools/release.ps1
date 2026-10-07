@@ -42,11 +42,11 @@ try {
     }
     $directory = [IO.Path]::GetFullPath((Join-Path $projectRoot "$ArtifactRoot/v$($identity.versionName)"))
     if (Test-Path -LiteralPath $directory) { throw "Artifact directory already exists: $directory" }
-    if ([string]::IsNullOrWhiteSpace($JavaHome)) { throw 'Set JAVA_HOME or supply -JavaHome pointing to JDK 17.' }
+    if ([string]::IsNullOrWhiteSpace($JavaHome)) { throw 'Set JAVA_HOME or supply -JavaHome pointing to JDK 21.' }
     $java = Join-Path $JavaHome $(if ($windowsHost) { 'bin/java.exe' } else { 'bin/java' })
-    if (-not (Test-Path -LiteralPath $java)) { throw 'JDK 17 java executable was not found.' }
+    if (-not (Test-Path -LiteralPath $java)) { throw 'JDK 21 java executable was not found.' }
     $jdk = (Invoke-Checked $java @('--version') | Out-String).Trim()
-    if ($jdk -notmatch '(?m)^(?:openjdk|java) 17[. ]') { throw 'JDK 17 is required.' }
+    if ($jdk -notmatch '(?m)^(?:openjdk|java) 21[. ]') { throw 'JDK 21 is required for Miuix and Compose tests.' }
     if ([string]::IsNullOrWhiteSpace($AndroidSdk)) {
         $localFile = Join-Path $projectRoot 'local.properties'
         if (Test-Path -LiteralPath $localFile) {

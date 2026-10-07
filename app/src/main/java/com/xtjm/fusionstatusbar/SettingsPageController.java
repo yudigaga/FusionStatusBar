@@ -242,6 +242,9 @@ final class SettingsPageController {
 
     private EditText pattern(LinearLayout content, String initial, boolean enabled, boolean multiline,
             String hint, Consumer<String> update) {
+        if (activity instanceof androidx.activity.ComponentActivity) {
+            return MiuixControls.pattern(content, initial, enabled, multiline, hint, update);
+        }
         EditText input = new EditText(activity);
         input.setSingleLine(!multiline); input.setText(initial); input.setTextSize(15);
         input.setTextColor(primary()); input.setHintTextColor(secondary()); input.setHint(hint);
@@ -272,6 +275,9 @@ final class SettingsPageController {
     }
 
     private Switch toggle(LinearLayout content, String title, String summary, boolean value, Consumer<Boolean> update) {
+        if (activity instanceof androidx.activity.ComponentActivity) {
+            return MiuixControls.toggle(content, title, summary, value, update);
+        }
         LinearLayout row = new LinearLayout(activity); row.setGravity(Gravity.CENTER_VERTICAL); row.setMinimumHeight(dp(58));
         LinearLayout labels = new LinearLayout(activity); labels.setOrientation(LinearLayout.VERTICAL);
         labels.addView(text(title, 16, false), wrap());
@@ -286,6 +292,9 @@ final class SettingsPageController {
 
     private ViewGroup slider(LinearLayout content, String title, String summary, int minimum, int maximum,
             int value, String suffix, IntConsumer update) {
+        if (activity instanceof androidx.activity.ComponentActivity) {
+            return MiuixControls.slider(content, title, summary, minimum, maximum, value, suffix, update);
+        }
         LinearLayout block = new LinearLayout(activity); block.setOrientation(LinearLayout.VERTICAL); block.setPadding(0, dp(10), 0, dp(8));
         LinearLayout row = new LinearLayout(activity); row.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout labels = new LinearLayout(activity); labels.setOrientation(LinearLayout.VERTICAL);
@@ -309,6 +318,10 @@ final class SettingsPageController {
     }
 
     private void section(LinearLayout content, String title) {
+        if (activity instanceof androidx.activity.ComponentActivity) {
+            content.addView(MiuixControls.section(activity, title), wrap());
+            return;
+        }
         TextView text = text(title, 13, true); text.setTextColor(secondary()); text.setPadding(0, dp(18), 0, dp(8)); content.addView(text, wrap());
     }
     private void show(String title, Consumer<LinearLayout> build) { dialogs.show(title, build, night() ? 0xff1c1c1e : 0xffffffff, primary(), accent()); }

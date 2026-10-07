@@ -66,19 +66,19 @@ def node_center(node):
     return [(left + right) // 2, (top + bottom) // 2]
 
 
-def verify_overview(root):
-    overview = find_node(root, "概述", clickable=True)
-    selected = overview.get("selected") == "true"
+def verify_desktop(root):
+    desktop = find_node(root, "桌面", clickable=True)
+    selected = desktop.get("selected") == "true"
     nodes = list(root.iter("node"))
     labels = [n.get("text", "") for n in nodes]
     loading = any("正在加载设置" in n.get("text", "")
                   or "正在加载设置" in n.get("content-desc", "") for n in nodes)
-    activation = [t for t in labels if t in ("已激活", "未检测到激活")
-                  or "系统界面已连接" in t or "本次开机尚未收到系统界面连接记录" in t]
-    if not selected or loading or not activation:
-        raise HarnessError("Cold-start settled UI is not the selected overview with activation status")
-    return {"overviewSelected": selected, "startupPlaceholderVisible": loading,
-            "activationLabels": activation, "settledSnapshotOnly": True}
+    controls = [title for title in ("隐藏桌面图标", "选择隐藏的应用", "桌面手势")
+                if any(title in label.splitlines() for label in labels)]
+    if not selected or loading or len(set(controls)) != 3:
+        raise HarnessError("Cold-start settled UI is not the selected desktop with desktop controls")
+    return {"desktopSelected": selected, "startupPlaceholderVisible": loading,
+            "desktopLabels": controls, "settledSnapshotOnly": True}
 
 
 def selector_current_row(root, title="全局容器背景"):
@@ -470,7 +470,7 @@ class FlowHarness:
         self.write_json("metadata.json", self.metadata)
 
     def learn_editor(self):
-        root = self.ui("learn-overview")
+        root = self.ui("learn-desktop")
         self.tap(node_center(find_node(root, "控制中心", clickable=True)), "learn-control-center-nav")
         root = self.ui("learn-editor-page")
         nav = find_node(root, "控制中心", clickable=True)
@@ -509,8 +509,8 @@ class FlowHarness:
         if stopped["pids"]:
             raise HarnessError("App process survived force-stop; cold launch is not valid")
         startup = self.start(label + "-startup")
-        root = self.ui(label + "-settled-overview")
-        verification = verify_overview(root)
+        root = self.ui(label + "-settled-desktop")
+        verification = verify_desktop(root)
         focus = self.focus(label + "-settled-focus")
         stats = self.renderer_stats(label)
         self.cycles.append({"cycle": index, "pidBeforeForceStop": before,

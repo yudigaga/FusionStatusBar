@@ -1,18 +1,16 @@
 package com.xtjm.fusionstatusbar;
 
-import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
 /* JADX INFO: loaded from: classes2.dex */
-public final class MainActivity extends android.app.Activity implements ControlCenterSettingsPage.Host {
+public final class MainActivity extends androidx.activity.ComponentActivity implements ControlCenterSettingsPage.Host {
     private static final java.lang.String KEY_SELECTED_PAGE = "selected_page";
     private static final java.lang.String PROJECT_REPOSITORY_URL = "https://github.com/yudigaga/FusionStatusBar";
     private static final java.lang.String MIUIX_REPOSITORY_URL = "https://github.com/compose-miuix-ui/miuix";
     private static final int REQUEST_EXPORT_LOGS = 1027;
-    private static final int REQUEST_PHONE_PERMISSION = 1028;
     private android.view.View activationIndicator;
     private android.database.ContentObserver activationObserver;
     private android.widget.TextView activationSummary;
@@ -48,13 +46,15 @@ public final class MainActivity extends android.app.Activity implements ControlC
     private DiagnosticLogExporter.ExportOptions pendingDiagnosticOptions =
             DiagnosticLogExporter.ExportOptions.defaults();
     private java.util.concurrent.atomic.AtomicBoolean diagnosticExportCancellation;
-    private android.app.AlertDialog diagnosticExportDialog;
+    private android.app.Dialog diagnosticExportDialog;
+    private MiuixSheetHost utilitySheets;
     private boolean settingsLoaded;
     private boolean controlCenterSaving;
     private boolean configWriteInFlight;
     private boolean configRestoring;
     private android.widget.Button restartingSystemUiButton;
     private Runnable pendingSystemUiRestart;
+    private CharSequence restartButtonLabel;
     private boolean controlCenterSaveFailed;
     private long controlCenterSavedRevision;
     private boolean suppressEditorSelection;
@@ -77,8 +77,10 @@ public final class MainActivity extends android.app.Activity implements ControlC
     private android.widget.LinearLayout notificationPreview;
     private android.widget.TextView notificationTimePreview;
     private android.widget.ScrollView pageScroll;
+    private DesktopSettingsPage desktopSettingsPage;
+    private MiuixNavigation miuixNavigation;
+    private MiuixPreviewMode miuixPreviewMode;
     private boolean pendingSettingsSave;
-    private android.widget.TextView phonePermissionSummary;
     private com.xtjm.fusionstatusbar.FusionIconView preview;
     private com.xtjm.fusionstatusbar.FusionPreviewBackdrop previewBackdrop;
     private int previewSliderIndex;
@@ -203,6 +205,9 @@ public final class MainActivity extends android.app.Activity implements ControlC
         labelParams.topMargin = dp(16);
         loading.addView(label, labelParams);
         overlay.addView(loading, new android.widget.FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER));
+        loading.setVisibility(View.GONE);
+        overlay.addView(MiuixControls.startup(this, getString(R.string.starting_settings)),
+                new android.widget.FrameLayout.LayoutParams(-1, -1));
         root.addView(overlay, new android.widget.FrameLayout.LayoutParams(-1, -1));
         startupOverlay = overlay;
     }
@@ -407,6 +412,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
         suppressEditorSelection = false;
         if (controlCenterSettingsPage != null && controlCenterGridEditor != null)
             controlCenterGridEditor.restoreSelection(controlCenterSettingsPage.selection());
+        if (desktopSettingsPage != null) desktopSettingsPage.refresh();
         refreshControlCenterAppTiles();
         if (this.activationObserver == null) {
             this.activationObserver = new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) { // from class: com.xtjm.fusionstatusbar.MainActivity.15
@@ -468,54 +474,9 @@ public final class MainActivity extends android.app.Activity implements ControlC
         frameLayout.setBackgroundColor(pageColor());
         viewGroup.addView(frameLayout, originalParams);
         frameLayout.addView(this.pageScroll, new android.widget.FrameLayout.LayoutParams(-1, -1));
-        android.widget.LinearLayout linearLayoutNewPage = newPage(root, 0, "概述");
-        linearLayoutNewPage.addView(sectionTitle("模块状态"));
-        android.widget.LinearLayout linearLayoutCard = card();
-        linearLayoutNewPage.addView(linearLayoutCard, matchWrap());
-        android.widget.LinearLayout activationRow = new android.widget.LinearLayout(this);
-        activationRow.setGravity(16);
-        activationRow.setPadding(dp(20), dp(18), dp(18), dp(18));
-        this.activationIndicator = new android.view.View(this);
-        activationRow.addView(this.activationIndicator, new android.widget.LinearLayout.LayoutParams(dp(12), dp(12)));
-        android.widget.LinearLayout activationText = new android.widget.LinearLayout(this);
-        activationText.setOrientation(LinearLayout.VERTICAL);
-        android.widget.LinearLayout.LayoutParams activationTextParams = new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f);
-        activationTextParams.leftMargin = dp(14);
-        this.activationTitle = labelView("正在检查", 19.0f, true);
-        activationText.addView(this.activationTitle, matchWrap());
-        this.activationSummary = labelView("", 13.0f, false);
-        this.activationSummary.setTextColor(textSecondaryColor());
-        activationText.addView(this.activationSummary, matchWrap());
-        activationRow.addView(activationText, activationTextParams);
-        linearLayoutCard.addView(activationRow, matchWrap());
-        addDivider(linearLayoutCard);
-        android.widget.LinearLayout modulePreferences = new android.widget.LinearLayout(this);
-        modulePreferences.setOrientation(LinearLayout.VERTICAL);
-        modulePreferences.setPadding(dp(20), dp(4), dp(18), dp(8));
-        linearLayoutCard.addView(modulePreferences, matchWrap());
-        hideLauncherIconSwitch = addSwitch(modulePreferences, getString(R.string.hide_launcher_icon),
-                getString(R.string.hide_launcher_icon_summary), LauncherIconVisibility.isHidden(this),
-                this::setLauncherIconHidden);
-        android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
-                .getParent()).getChildAt(0);
-        launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-        linearLayoutNewPage.addView(sectionTitle("设备信息"));
-        android.widget.LinearLayout deviceCard = card();
-        linearLayoutNewPage.addView(deviceCard, matchWrap());
-        addDetail(deviceCard, "设备", android.os.Build.MANUFACTURER + "  " + android.os.Build.MODEL);
-        addDivider(deviceCard);
-        addDetail(deviceCard, "系统", "Android " + android.os.Build.VERSION.RELEASE + "  ·  API " + android.os.Build.VERSION.SDK_INT);
-        linearLayoutNewPage.addView(sectionTitle("关于"));
-        android.widget.LinearLayout aboutCard = card();
-        linearLayoutNewPage.addView(aboutCard, matchWrap());
-        addDetail(aboutCard, "FusionStatusBar", getString(R.string.about_project_version,
-                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
-        addDivider(aboutCard);
-        addPreference(aboutCard, getString(R.string.about_project_repository),
-                PROJECT_REPOSITORY_URL, view -> openRepositoryUrl(PROJECT_REPOSITORY_URL));
-        addDivider(aboutCard);
-        addPreference(aboutCard, getString(R.string.about_miuix_credit),
-                getString(R.string.about_miuix_summary), view -> openRepositoryUrl(MIUIX_REPOSITORY_URL));
+        android.widget.LinearLayout desktopPage = newPage(root, 0, "桌面");
+        desktopSettingsPage = new DesktopSettingsPage(this);
+        desktopSettingsPage.installInto(desktopPage);
         android.widget.LinearLayout statusPage = newPage(root, 1, "状态栏");
         previewTitle.setText("预览");
         previewTitle.setTextSize(15.0f);
@@ -527,7 +488,10 @@ public final class MainActivity extends android.app.Activity implements ControlC
         previewFrame.setBackground(rounded(android.graphics.Color.parseColor("#FF1C242C"), dp(8)));
         previewFrame.setClipToOutline(true);
         statusPage.addView(previewFrame, new android.widget.LinearLayout.LayoutParams(-1, dp(200)));
-        statusPage.addView(previewModeView, matchWrap());
+        previewModeView.setVisibility(View.GONE);
+        statusPage.addView(previewModeView, new LinearLayout.LayoutParams(0, 0));
+        miuixPreviewMode = new MiuixPreviewMode((android.widget.RadioGroup) previewModeView);
+        statusPage.addView(miuixPreviewMode.getView(), matchWrap());
         statusPage.addView(sectionTitle("显示与布局"));
         android.widget.LinearLayout personalizationCard = card();
         statusPage.addView(personalizationCard, matchWrap());
@@ -602,23 +566,43 @@ public final class MainActivity extends android.app.Activity implements ControlC
         android.widget.LinearLayout controlCenterPage = newPage(root, 3, "控制中心");
         installControlCenterPage(controlCenterPage);
         android.widget.LinearLayout settingsPage = newPage(root, 4, "设置");
-        settingsPage.addView(sectionTitle("权限"));
-        android.widget.LinearLayout permissionCard = card();
-        settingsPage.addView(permissionCard, matchWrap());
-        android.widget.LinearLayout phoneRow = addPreference(permissionCard, "电话状态权限", "检查中", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.22
-            @Override // android.view.View.OnClickListener
-            public final void onClick(android.view.View view) {
-                com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$18(view);
-            }
-        });
-        this.phonePermissionSummary = (android.widget.TextView) phoneRow.getTag();
-        addDivider(permissionCard);
-        addPreference(permissionCard, "应用权限管理", "打开系统权限页面", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.23
-            @Override // android.view.View.OnClickListener
-            public final void onClick(android.view.View view) {
-                com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$19(view);
-            }
-        });
+        settingsPage.addView(sectionTitle("模块状态"));
+        android.widget.LinearLayout linearLayoutCard = card();
+        settingsPage.addView(linearLayoutCard, matchWrap());
+        this.activationIndicator = new android.view.View(this);
+        this.activationTitle = new MiuixControls.Label(this);
+        this.activationTitle.setText("正在检查");
+        this.activationSummary = new MiuixControls.Label(this);
+        MiuixControls.status(linearLayoutCard, (MiuixControls.Label) activationTitle,
+                (MiuixControls.Label) activationSummary, activationIndicator);
+        addDivider(linearLayoutCard);
+        android.widget.LinearLayout modulePreferences = new android.widget.LinearLayout(this);
+        modulePreferences.setOrientation(LinearLayout.VERTICAL);
+        modulePreferences.setPadding(dp(20), dp(4), dp(18), dp(8));
+        linearLayoutCard.addView(modulePreferences, matchWrap());
+        hideLauncherIconSwitch = addSwitch(modulePreferences, getString(R.string.hide_launcher_icon),
+                getString(R.string.hide_launcher_icon_summary), LauncherIconVisibility.isHidden(this),
+                this::setLauncherIconHidden);
+        android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
+                .getParent()).getChildAt(0);
+        launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+        settingsPage.addView(sectionTitle("设备信息"));
+        android.widget.LinearLayout deviceCard = card();
+        settingsPage.addView(deviceCard, matchWrap());
+        addDetail(deviceCard, "设备", android.os.Build.MANUFACTURER + "  " + android.os.Build.MODEL);
+        addDivider(deviceCard);
+        addDetail(deviceCard, "系统", "Android " + android.os.Build.VERSION.RELEASE + "  ·  API " + android.os.Build.VERSION.SDK_INT);
+        settingsPage.addView(sectionTitle("关于"));
+        android.widget.LinearLayout aboutCard = card();
+        settingsPage.addView(aboutCard, matchWrap());
+        addDetail(aboutCard, "FusionStatusBar", getString(R.string.about_project_version,
+                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+        addDivider(aboutCard);
+        addPreference(aboutCard, getString(R.string.about_project_repository),
+                PROJECT_REPOSITORY_URL, view -> openRepositoryUrl(PROJECT_REPOSITORY_URL));
+        addDivider(aboutCard);
+        addPreference(aboutCard, getString(R.string.about_miuix_credit),
+                getString(R.string.about_miuix_summary), view -> openRepositoryUrl(MIUIX_REPOSITORY_URL));
         settingsPage.addView(sectionTitle("模块维护"));
         android.widget.LinearLayout maintenanceCard = card();
         settingsPage.addView(maintenanceCard, matchWrap());
@@ -630,6 +614,10 @@ public final class MainActivity extends android.app.Activity implements ControlC
         addDivider(maintenanceCard);
         addPreference(maintenanceCard, getString(R.string.editor_backup_undo),
                 getString(R.string.editor_backup_undo_summary), view -> backupController().undoRestore());
+        addDivider(maintenanceCard);
+        android.widget.LinearLayout desktopRestartRow = addPreference(maintenanceCard, getString(R.string.restart_desktop),
+                getString(R.string.restart_desktop_summary), view -> showDesktopRestartConfirmation());
+        desktopRestartRow.getChildAt(0).getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
         addDivider(maintenanceCard);
         addPreference(maintenanceCard, "重启系统界面", "配置修改后让系统界面重新加载", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.24
             @Override // android.view.View.OnClickListener
@@ -658,8 +646,8 @@ public final class MainActivity extends android.app.Activity implements ControlC
         navigationBackground.setStroke(dp(1), android.graphics.Color.parseColor(isNightMode() ? "#FF3A3A3D" : "#FFE6E8EB"));
         navigation.setBackground(navigationBackground);
         navigation.setElevation(dp(12));
-        int[] icons = {android.R.drawable.ic_menu_info_details, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_manage};
-        java.lang.String[] labels = {"概述", "状态栏", "通知栏", "控制中心", "设置"};
+        int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_manage};
+        java.lang.String[] labels = {"桌面", "状态栏", "通知栏", "控制中心", "设置"};
         int i = 0;
         while (i < this.pages.length) {
             final int page = i;
@@ -691,7 +679,11 @@ public final class MainActivity extends android.app.Activity implements ControlC
         navigationParams.leftMargin = dp(18);
         navigationParams.rightMargin = dp(18);
         navigationParams.bottomMargin = dp(16);
+        navigation.setVisibility(View.GONE);
         frameLayout.addView(navigation, navigationParams);
+        miuixNavigation = new MiuixNavigation(this, this::selectPage);
+        frameLayout.addView(miuixNavigation.getView(),
+                new android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.BOTTOM));
         selectPage(0);
         refreshOverview();
     }
@@ -720,14 +712,6 @@ public final class MainActivity extends android.app.Activity implements ControlC
         showNotificationListDialog();
     }
 
-    public void lambda$installMiuixSettingsUi$18(android.view.View v) {
-        requestPhonePermission();
-    }
-
-    public void lambda$installMiuixSettingsUi$19(android.view.View v) {
-        openAppPermissions();
-    }
-
     public void lambda$installMiuixSettingsUi$22(android.view.View v) {
         confirmResetSettings();
     }
@@ -739,9 +723,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
     private android.widget.LinearLayout newPage(android.widget.LinearLayout root, int index, java.lang.String heading) {
         android.widget.LinearLayout page = new android.widget.LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        android.widget.TextView title = labelView(heading, 28.0f, true);
-        title.setPadding(0, dp(12), 0, dp(6));
-        page.addView(title, matchWrap());
+        page.addView(MiuixControls.heading(this, heading), matchWrap());
         root.addView(page, matchWrap());
         this.pages[index] = page;
         return page;
@@ -786,14 +768,15 @@ public final class MainActivity extends android.app.Activity implements ControlC
         gestureHint.setTextColor(textSecondaryColor());
         gestureHint.setPadding(0, dp(10), 0, dp(12));
         controlCenterGridPanel.addView(gestureHint, matchWrap());
-        controlCenterGridPanel.addView(controlCenterButton("壁纸画布", false, view -> {
+        android.widget.Button wallpaperButton = controlCenterButton("壁纸画布", false, view -> {
             if (controlCenterWallpaperWorkspace == null) {
                 controlCenterWallpaperWorkspace = new ControlCenterWallpaperWorkspace(this, controlCenterGridEditor);
             }
             controlCenterWallpaperWorkspace.open(isCompactControlCenter() ? "紧凑布局 · 壁纸画布" : "标准布局 · 壁纸画布",
                     this::undoControlGridChange);
             controlCenterWallpaperWorkspace.setBackgroundStrength(controlCenterSettings().backgroundBlur);
-        }), matchWrap());
+        });
+        MiuixControls.attachButton(controlCenterGridPanel, wallpaperButton, false, matchWrap());
         LinearLayout tools = new LinearLayout(this);
         android.widget.Button addItem = controlCenterButton(getString(R.string.editor_add), false,
                 view -> showAddControlItemDialog());
@@ -860,11 +843,11 @@ public final class MainActivity extends android.app.Activity implements ControlC
         page.addView(controlCenterDraftHint, matchWrap());
         controlCenterDraftRetryButton = controlCenterButton(getString(R.string.editor_draft_retry), false,
                 view -> editorPage.retryDraft());
-        page.addView(controlCenterDraftRetryButton, controlCenterSectionParams());
+        MiuixControls.attachButton(page, controlCenterDraftRetryButton, false, controlCenterSectionParams());
         controlCenterPushButton = controlCenterButton("推送修改", true,
                 view -> pushControlCenterDraft());
         controlCenterPushButton.setContentDescription("推送控制中心修改到手机");
-        page.addView(controlCenterPushButton, controlCenterSectionParams());
+        MiuixControls.attachButton(page, controlCenterPushButton, true, controlCenterSectionParams());
         loadLatestControlCenterPreview();
     }
 
@@ -883,7 +866,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
 
     private android.widget.Button controlCenterButton(String text, boolean primary,
             View.OnClickListener action) {
-        android.widget.Button button = new android.widget.Button(this);
+        android.widget.Button button = new MiuixControls.Command(this);
         button.setText(text);
         button.setAllCaps(false);
         button.setTextSize(14f);
@@ -900,6 +883,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     private void styleControlCenterButton(android.widget.Button button, boolean primary) {
+        if (button instanceof MiuixControls.Command command) command.primary(primary);
         button.setBackgroundTintList(null);
         int background = primary ? accentColor() : inputColor();
         int foreground = primary ? (isNightMode() ? android.graphics.Color.rgb(16, 30, 48)
@@ -917,7 +901,9 @@ public final class MainActivity extends android.app.Activity implements ControlC
     private void addControlCenterAction(LinearLayout row, View action, boolean spaced) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1f);
         if (spaced) params.leftMargin = dp(8);
-        row.addView(action, params);
+        if (action instanceof android.widget.Button button) {
+            MiuixControls.attachButton(row, button, false, params);
+        } else row.addView(action, params);
     }
 
     private void showControlCenterMoreMenu(View anchor) {
@@ -1263,7 +1249,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
             boolean enabled, Runnable action) {
         android.widget.Button button = controlCenterButton(title, false, view -> action.run());
         button.setEnabled(enabled);
-        content.addView(button, matchWrap());
+        MiuixControls.attachButton(content, button, false, matchWrap());
         return button;
     }
 
@@ -1316,12 +1302,8 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     private void confirmResetControlCenter() {
-        new android.app.AlertDialog.Builder(this).setTitle("恢复原生布局").setMessage("清除本模块的控制中心布局和外观修改，保留当前磁贴选择与顺序。").setNegativeButton("取消", (android.content.DialogInterface.OnClickListener) null).setPositiveButton("恢复", new android.content.DialogInterface.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda5
-            @Override // android.content.DialogInterface.OnClickListener
-            public final void onClick(android.content.DialogInterface dialogInterface, int i) {
-                MainActivity.this.lambda$confirmResetControlCenter$10(dialogInterface, i);
-            }
-        }).show();
+        utilitySheets().confirm("恢复原生布局", "清除本模块的控制中心布局和外观修改，保留当前磁贴选择与顺序。",
+                "恢复", () -> { restoreControlCenter(false); return true; });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -2192,12 +2174,12 @@ public final class MainActivity extends android.app.Activity implements ControlC
         com.xtjm.fusionstatusbar.ControlCenterConfig settings = controlCenterSettings();
         android.widget.LinearLayout placement = new android.widget.LinearLayout(this);
         placement.setOrientation(LinearLayout.HORIZONTAL);
-        final android.widget.Button left = new android.widget.Button(this);
+        final android.widget.Button left = new MiuixControls.Command(this);
         left.setText("左侧");
         left.setAllCaps(false);
         left.setAlpha("left".equals(settings.componentSide(spec)) ? 1.0f : 0.56f);
-        placement.addView(left, new android.widget.LinearLayout.LayoutParams(0, dp(44), 1.0f));
-        final android.widget.Button right = new android.widget.Button(this);
+        MiuixControls.attachButton(placement, left, false, new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f));
+        final android.widget.Button right = new MiuixControls.Command(this);
         right.setText("右侧");
         right.setAllCaps(false);
         right.setAlpha("right".equals(settings.componentSide(spec)) ? 1.0f : 0.56f);
@@ -2213,11 +2195,11 @@ public final class MainActivity extends android.app.Activity implements ControlC
                 MainActivity.this.lambda$showControlComponentShapeDialog$33(spec, right, left, view);
             }
         });
-        placement.addView(right, new android.widget.LinearLayout.LayoutParams(0, dp(44), 1.0f));
+        MiuixControls.attachButton(placement, right, false, new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f));
         linearLayout.addView(placement, matchWrap());
         android.widget.LinearLayout ordering = new android.widget.LinearLayout(this);
         ordering.setOrientation(LinearLayout.HORIZONTAL);
-        android.widget.Button earlier = new android.widget.Button(this);
+        android.widget.Button earlier = new MiuixControls.Command(this);
         earlier.setText("上移");
         earlier.setAllCaps(false);
         earlier.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda40
@@ -2226,8 +2208,8 @@ public final class MainActivity extends android.app.Activity implements ControlC
                 MainActivity.this.lambda$showControlComponentShapeDialog$34(spec, view);
             }
         });
-        ordering.addView(earlier, new android.widget.LinearLayout.LayoutParams(0, dp(44), 1.0f));
-        android.widget.Button later = new android.widget.Button(this);
+        MiuixControls.attachButton(ordering, earlier, false, new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f));
+        android.widget.Button later = new MiuixControls.Command(this);
         later.setText("下移");
         later.setAllCaps(false);
         later.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda41
@@ -2236,7 +2218,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
                 MainActivity.this.lambda$showControlComponentShapeDialog$35(spec, view);
             }
         });
-        ordering.addView(later, new android.widget.LinearLayout.LayoutParams(0, dp(44), 1.0f));
+        MiuixControls.attachButton(ordering, later, false, new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f));
         linearLayout.addView(ordering, matchWrap());
         boolean customized = com.xtjm.fusionstatusbar.ControlCenterTileLayout.hasShape(settings.layout, spec);
         int i = settings.columns;
@@ -2267,7 +2249,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
                 MainActivity.this.lambda$showControlComponentShapeDialog$37(spec, nativeWidth, i2);
             }
         });
-        android.widget.Button reset = new android.widget.Button(this);
+        android.widget.Button reset = new MiuixControls.Command(this);
         reset.setText("恢复系统原始尺寸");
         reset.setAllCaps(false);
         reset.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda2
@@ -2278,7 +2260,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
         });
         android.widget.LinearLayout.LayoutParams resetParams = new android.widget.LinearLayout.LayoutParams(-1, dp(46));
         resetParams.topMargin = dp(8);
-        linearLayout.addView(reset, resetParams);
+        MiuixControls.attachButton(linearLayout, reset, false, resetParams);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -2598,6 +2580,10 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     private android.widget.TextView addDetail(android.widget.LinearLayout container, java.lang.String title, java.lang.String description) {
+        return MiuixControls.detail(container, title, description);
+    }
+
+    private android.widget.TextView addLegacyDetail(android.widget.LinearLayout container, java.lang.String title, java.lang.String description) {
         android.widget.LinearLayout row = new android.widget.LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(dp(18), dp(14), dp(18), dp(14));
@@ -2615,6 +2601,9 @@ public final class MainActivity extends android.app.Activity implements ControlC
             return;
         }
         this.selectedPage = index;
+        if (miuixNavigation != null) miuixNavigation.select(index);
+        desktopSettingsPage.setVisible(index == 0);
+        pageScroll.setVisibility(index == 0 ? View.GONE : View.VISIBLE);
         int i = 0;
         while (i < this.pages.length) {
             this.pages[i].setVisibility(i == index ? View.VISIBLE : View.GONE);
@@ -2639,7 +2628,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$selectPage$24();
             }
         });
-        if (index == 0 || index == 4) {
+        if (index == 4) {
             refreshOverview();
         }
     }
@@ -2663,17 +2652,6 @@ public final class MainActivity extends android.app.Activity implements ControlC
             textView.setText(str);
             this.activationIndicator.setBackground(rounded(android.graphics.Color.parseColor(loaded ? "#FF228663" : "#FFC48733"), dp(6)));
         }
-        if (this.phonePermissionSummary != null) {
-            this.phonePermissionSummary.setText(checkSelfPermission("android.permission.READ_PHONE_STATE") == PackageManager.PERMISSION_GRANTED ? "已授权" : "未授权 · 点击请求");
-        }
-    }
-
-    private void requestPhonePermission() {
-        if (checkSelfPermission("android.permission.READ_PHONE_STATE") != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new java.lang.String[]{"android.permission.READ_PHONE_STATE"}, REQUEST_PHONE_PERMISSION);
-        } else {
-            openAppPermissions();
-        }
     }
 
     private void openRepositoryUrl(String url) {
@@ -2681,22 +2659,6 @@ public final class MainActivity extends android.app.Activity implements ControlC
             startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)));
         } catch (android.content.ActivityNotFoundException e) {
             Toast.makeText(this, R.string.about_link_unavailable, Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void openAppPermissions() {
-        try {
-            startActivity(new android.content.Intent("android.settings.APPLICATION_DETAILS_SETTINGS", android.net.Uri.parse("package:" + getPackageName())));
-        } catch (java.lang.RuntimeException e) {
-            android.widget.Toast.makeText(this, "无法打开权限设置", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    @Override // android.app.Activity
-    public void onRequestPermissionsResult(int requestCode, java.lang.String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_PHONE_PERMISSION) {
-            refreshOverview();
         }
     }
 
@@ -2720,12 +2682,21 @@ public final class MainActivity extends android.app.Activity implements ControlC
     private void showLayoutDialog() { settingsPages().showLayout(); }
 
     private void showSettingsDialog(java.lang.String title, com.xtjm.fusionstatusbar.MainActivity.DialogBuilder builder) {
+        settingsDialogController().show(title, builder::build, surfaceColor(), textPrimaryColor(), accentColor());
+    }
+
+    private SettingsDialogController settingsDialogController() {
         if (settingsDialogs == null) settingsDialogs = new SettingsDialogController(this);
-        settingsDialogs.show(title, builder::build, surfaceColor(), textPrimaryColor(), accentColor());
+        return settingsDialogs;
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public android.widget.Switch addSwitch(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, boolean checked, final com.xtjm.fusionstatusbar.MainActivity.BooleanUpdate update) {
+        return MiuixControls.toggle(linearLayout, title, summary, checked,
+                value -> lambda$addSwitch$80(update, null, value));
+    }
+
+    private android.widget.Switch addLegacySwitch(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, boolean checked, final com.xtjm.fusionstatusbar.MainActivity.BooleanUpdate update) {
         android.widget.LinearLayout row = new android.widget.LinearLayout(this);
         row.setGravity(16);
         row.setMinimumHeight(dp(58));
@@ -2774,6 +2745,11 @@ public final class MainActivity extends android.app.Activity implements ControlC
 
     /* JADX INFO: Access modifiers changed from: private */
     public android.view.View addSlider(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, final int minimum, int maximum, int value, final java.lang.String suffix, final com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate update) {
+        return MiuixControls.slider(linearLayout, title, summary, minimum, maximum, value, suffix,
+                selected -> { if (!updating) update.apply(selected); });
+    }
+
+    private android.view.View addLegacySlider(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, final int minimum, int maximum, int value, final java.lang.String suffix, final com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate update) {
         android.widget.LinearLayout row = new android.widget.LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(0, dp(8), 0, dp(4));
@@ -2860,6 +2836,12 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     private android.widget.LinearLayout addPreference(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, android.view.View.OnClickListener listener) {
+        LinearLayout row = MiuixControls.preference(this, title, summary, listener);
+        linearLayout.addView(row, matchWrap());
+        return row;
+    }
+
+    private android.widget.LinearLayout addLegacyPreference(android.widget.LinearLayout linearLayout, java.lang.String title, java.lang.String summary, android.view.View.OnClickListener listener) {
         android.widget.LinearLayout row = new android.widget.LinearLayout(this);
         row.setGravity(16);
         row.setMinimumHeight(dp(70));
@@ -2892,7 +2874,11 @@ public final class MainActivity extends android.app.Activity implements ControlC
         card.addView(divider, params);
     }
 
-    private android.widget.TextView sectionTitle(java.lang.String text) {
+    private android.view.View sectionTitle(java.lang.String text) {
+        return MiuixControls.section(this, text);
+    }
+
+    private android.widget.TextView legacySectionTitle(java.lang.String text) {
         android.widget.TextView title = labelView(text, 14.0f, true);
         title.setTextColor(textSecondaryColor());
         title.setAllCaps(false);
@@ -2999,8 +2985,8 @@ public final class MainActivity extends android.app.Activity implements ControlC
             controlCenterDraftHint.setVisibility(editorPage.draftFailed() ? View.VISIBLE : View.GONE);
             controlCenterDraftHint.setText(editorPage.draftRetrying()
                     ? R.string.editor_draft_retrying : R.string.editor_draft_failed);
-            controlCenterDraftRetryButton.setVisibility(editorPage.draftFailed() && !editorPage.draftRetrying()
-                    ? View.VISIBLE : View.GONE);
+            MiuixControls.buttonVisibility(controlCenterDraftRetryButton,
+                    editorPage.draftFailed() && !editorPage.draftRetrying() ? View.VISIBLE : View.GONE);
             boolean previousUpdating = updating;
             updating = true;
             controlCenterEnabledSwitch.setChecked(control.enabled);
@@ -3079,21 +3065,16 @@ public final class MainActivity extends android.app.Activity implements ControlC
 
     private void chooseLogDestination() {
         boolean[] selected = {false, false, false};
-        new android.app.AlertDialog.Builder(this)
-                .setTitle(R.string.export_logs_options_title)
-                .setMessage(R.string.export_logs_options_summary)
-                .setMultiChoiceItems(new CharSequence[] {
-                        getString(R.string.export_logs_full_logcat),
-                        getString(R.string.export_logs_dmesg),
-                        getString(R.string.export_logs_lsposed)
-                }, selected, (dialog, which, checked) -> selected[which] = checked)
-                .setNegativeButton(R.string.backup_cancel, null)
-                .setPositiveButton(R.string.export_logs, (dialog, which) -> {
+        utilitySheets().options(getString(R.string.export_logs_options_title),
+                getString(R.string.export_logs_options_summary), new String[] {
+                    getString(R.string.export_logs_full_logcat), getString(R.string.export_logs_dmesg),
+                    getString(R.string.export_logs_lsposed)
+                }, selected, getString(R.string.export_logs), () -> {
                     pendingDiagnosticOptions = new DiagnosticLogExporter.ExportOptions(
                             selected[0], selected[1], selected[2]);
                     openLogDestinationPicker();
-                })
-                .show();
+                    return true;
+                });
     }
 
     private void openLogDestinationPicker() {
@@ -3127,12 +3108,9 @@ public final class MainActivity extends android.app.Activity implements ControlC
         diagnosticExportCancellation = cancellation;
         button.setEnabled(false);
         button.setText(com.xtjm.fusionstatusbar.R.string.exporting_logs);
-        diagnosticExportDialog = new android.app.AlertDialog.Builder(this)
-                .setTitle(R.string.exporting_logs)
-                .setMessage(R.string.export_logs_cancel_note)
-                .setNegativeButton(R.string.export_logs_cancel, (dialog, which) -> cancellation.set(true))
-                .setCancelable(false)
-                .show();
+        diagnosticExportDialog = utilitySheets().progress(getString(R.string.exporting_logs),
+                getString(R.string.export_logs_cancel_note), getString(R.string.export_logs_cancel),
+                () -> cancellation.set(true));
         new java.lang.Thread(new java.lang.Runnable() { // from class: com.xtjm.fusionstatusbar.MainActivity.107
             @Override // java.lang.Runnable
             public final void run() {
@@ -3348,6 +3326,8 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     @Override protected void onDestroy() {
+        if (utilitySheets != null) utilitySheets.close();
+        if (desktopSettingsPage != null) desktopSettingsPage.close();
         if (diagnosticExportCancellation != null) diagnosticExportCancellation.set(true);
         if (diagnosticExportDialog != null && diagnosticExportDialog.isShowing())
             diagnosticExportDialog.dismiss();
@@ -3443,12 +3423,13 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     private void confirmResetSettings() {
-        new android.app.AlertDialog.Builder(this).setTitle("恢复默认设置").setMessage("将恢复状态栏和通知栏的全部自定义参数，是否继续？").setNegativeButton("取消", (android.content.DialogInterface.OnClickListener) null).setPositiveButton("恢复", new android.content.DialogInterface.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.119
-            @Override // android.content.DialogInterface.OnClickListener
-            public final void onClick(android.content.DialogInterface dialogInterface, int i) {
-                com.xtjm.fusionstatusbar.MainActivity.this.lambda$confirmResetSettings$89(dialogInterface, i);
-            }
-        }).show();
+        utilitySheets().confirm("恢复默认设置", "将恢复状态栏和通知栏的全部自定义参数，是否继续？",
+                "恢复", () -> { lambda$confirmResetSettings$89(null, 0); return true; });
+    }
+
+    MiuixSheetHost utilitySheets() {
+        if (utilitySheets == null) utilitySheets = new MiuixSheetHost(this);
+        return utilitySheets;
     }
 
     public void lambda$confirmResetSettings$89(android.content.DialogInterface dialog, int which) {
@@ -4013,16 +3994,54 @@ public final class MainActivity extends android.app.Activity implements ControlC
     }
 
     void restartSystemUi(android.widget.Button button, Runnable restart) {
-        if (restartingSystemUiButton != null || !settingsLoaded) return;
+        scheduleRestart(button, restart, R.string.restarting_systemui);
+    }
+
+    boolean restartDesktop(android.widget.Button button, Runnable restart) {
+        return scheduleRestart(button, restart, R.string.restarting_desktop);
+    }
+
+    private boolean scheduleRestart(android.widget.Button button, Runnable restart, int progress) {
+        if (restartingSystemUiButton != null || !settingsLoaded || isDestroyed() || isFinishing()) {
+            Toast.makeText(this, R.string.restart_busy, Toast.LENGTH_SHORT).show();
+            return false;
+        }
         if (controlCenterSaveFailed && !controlCenterSaving) {
             Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
-            return;
+            return false;
         }
         restartingSystemUiButton = button;
+        restartButtonLabel = button.getText();
         pendingSystemUiRestart = restart;
         button.setEnabled(false);
-        button.setText(com.xtjm.fusionstatusbar.R.string.restarting_systemui);
+        button.setText(progress);
         continuePendingSystemUiRestart();
+        return true;
+    }
+
+    private void showDesktopRestartConfirmation() {
+        showDesktopRestartConfirmation(() -> new Thread(() -> {
+            boolean stopped = runRootCommand("killall -9 com.miui.home");
+            if (!stopped) stopped = runRootCommand("am force-stop com.miui.home");
+            boolean success = stopped && runRootCommand(
+                    "am start -a android.intent.action.MAIN -c android.intent.category.HOME -p com.miui.home");
+            runOnUiThread(() -> {
+                restartingSystemUiButton = null;
+                restartButtonLabel = null;
+                if (!isDestroyed() && !isFinishing()) {
+                    Toast.makeText(this, success ? R.string.restart_desktop_success
+                            : R.string.restart_desktop_failed, Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "fusion-restart-desktop").start());
+    }
+
+    void showDesktopRestartConfirmation(Runnable restart) {
+        android.widget.Button button = new android.widget.Button(this);
+        button.setText(R.string.restart_desktop);
+        utilitySheets().confirm(getString(R.string.restart_desktop),
+                getString(R.string.restart_desktop_confirmation), getString(R.string.restart_desktop_confirm),
+                () -> restartDesktop(button, restart));
     }
 
     private void continuePendingSystemUiRestart() {
@@ -4042,8 +4061,9 @@ public final class MainActivity extends android.app.Activity implements ControlC
         pendingSystemUiRestart = null;
         if (restartingSystemUiButton != null) {
             restartingSystemUiButton.setEnabled(true);
-            restartingSystemUiButton.setText(R.string.restart_systemui);
+            restartingSystemUiButton.setText(restartButtonLabel);
             restartingSystemUiButton = null;
+            restartButtonLabel = null;
         }
     }
 
@@ -4063,6 +4083,7 @@ public final class MainActivity extends android.app.Activity implements ControlC
 
     public void lambda$restartSystemUi$90(android.widget.Button button, boolean result) {
         restartingSystemUiButton = null;
+        restartButtonLabel = null;
         button.setEnabled(true);
         button.setText(com.xtjm.fusionstatusbar.R.string.restart_systemui);
         android.widget.Toast.makeText(this, result ? com.xtjm.fusionstatusbar.R.string.restart_systemui_success : com.xtjm.fusionstatusbar.R.string.restart_systemui_failed, Toast.LENGTH_LONG).show();

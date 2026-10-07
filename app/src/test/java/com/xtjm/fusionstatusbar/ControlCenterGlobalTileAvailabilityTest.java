@@ -26,6 +26,7 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
 public class ControlCenterGlobalTileAvailabilityTest {
+    @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
     private static final String APPLICATION_SPEC = "custom(com.example.global/.apptile)";
     private static final String APPLICATION_LABEL = "测试应用开关 · 测试应用";
     private ActivityController<MainActivity> controller;
@@ -191,8 +192,9 @@ public class ControlCenterGlobalTileAvailabilityTest {
 
     private Dialog openPanel() {
         activity.showControlCenterTilesDialog();
+        compose.waitForIdle();
         ShadowLooper.idleMainLooper();
-        Dialog dialog = ShadowDialog.getLatestDialog();
+        Dialog dialog = MiuixTestWindows.latest();
         assertNotNull(dialog);
         assertTrue(dialog.isShowing());
         return dialog;
@@ -205,7 +207,7 @@ public class ControlCenterGlobalTileAvailabilityTest {
     }
 
     private static Switch findSwitch(View view, String title) {
-        if (view instanceof LinearLayout row && row.getChildCount() == 2
+        if (view instanceof LinearLayout row && row.getChildCount() >= 2
                 && row.getChildAt(0) instanceof LinearLayout texts
                 && texts.getChildCount() > 0 && texts.getChildAt(0) instanceof TextView label
                 && title.contentEquals(label.getText()) && row.getChildAt(1) instanceof Switch toggle) {

@@ -25,6 +25,20 @@ public final class FusionModule extends XposedModule {
 
     @Override
     public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
+        if ("com.miui.securitycenter".equals(param.getPackageName())) {
+            try {
+                int installed = SidebarHooks.install(this, param.getClassLoader());
+                log(Log.INFO, TAG, "sidebar hooks loaded count=" + installed);
+            } catch (Throwable error) {
+                Log.e(TAG, "sidebar module load failed", error);
+                log(Log.ERROR, TAG, "sidebar module load failed", error);
+            }
+            return;
+        }
+        if ("com.miui.home".equals(param.getPackageName())) {
+            installLauncher(param.getClassLoader());
+            return;
+        }
         if ("com.android.systemui".equals(param.getPackageName())) {
             installSystemUi(param.getClassLoader());
             return;
@@ -44,6 +58,16 @@ public final class FusionModule extends XposedModule {
         } catch (Throwable error) {
             Log.e(TAG, "systemui plugin hooks failed", error);
             log(Log.ERROR, TAG, "systemui plugin hooks failed", error);
+        }
+    }
+
+    private void installLauncher(ClassLoader classLoader) {
+        try {
+            int installed = LauncherHooks.install(this, classLoader);
+            log(Log.INFO, TAG, "launcher hooks loaded count=" + installed);
+        } catch (Throwable error) {
+            Log.e(TAG, "launcher module load failed", error);
+            log(Log.ERROR, TAG, "launcher module load failed", error);
         }
     }
 

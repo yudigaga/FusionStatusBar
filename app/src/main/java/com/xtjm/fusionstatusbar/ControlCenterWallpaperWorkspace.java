@@ -182,12 +182,15 @@ final class ControlCenterWallpaperWorkspace {
     }
 
     private void addButton(LinearLayout row, String label, Runnable action) {
-        Button button = new Button(activity);
+        Button button = activity instanceof androidx.activity.ComponentActivity
+                ? new MiuixControls.Command(activity) : new Button(activity);
         button.setText(label);
         button.setTextColor(Color.WHITE);
         button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(32, 34, 37)));
         button.setOnClickListener(view -> action.run());
-        row.addView(button, new LinearLayout.LayoutParams(0, dp(52), 1));
+        if (activity instanceof androidx.activity.ComponentActivity) {
+            MiuixControls.attachButton(row, button, false, new LinearLayout.LayoutParams(0, -2, 1));
+        } else row.addView(button, new LinearLayout.LayoutParams(0, dp(52), 1));
     }
     private int dp(int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
 }

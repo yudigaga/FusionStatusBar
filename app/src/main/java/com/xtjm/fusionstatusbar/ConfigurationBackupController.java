@@ -2,6 +2,7 @@ package com.xtjm.fusionstatusbar;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
@@ -34,10 +35,12 @@ final class ConfigurationBackupController implements AutoCloseable {
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean closed;
     private boolean busy;
-    private AlertDialog dialog;
+    private Dialog dialog;
+    private final MiuixSheetHost miuix;
 
     ConfigurationBackupController(Activity activity, Host host) {
         this.activity = activity; this.host = host; app = activity.getApplicationContext();
+        miuix = activity instanceof androidx.activity.ComponentActivity owner ? new MiuixSheetHost(owner) : null;
         session = FusionConfigRepository.forApplication(activity).newSession();
     }
 
@@ -93,6 +96,12 @@ final class ConfigurationBackupController implements AutoCloseable {
             deliver(() -> {
                 busy = false;
                 if (!available) { message(R.string.backup_undo_unavailable); return; }
+                if (miuix != null) {
+                    dialog = miuix.confirm(activity.getString(R.string.backup_undo),
+                            activity.getString(R.string.backup_undo_confirmation),
+                            activity.getString(R.string.backup_restore), () -> { performRestore(null); return true; });
+                    return;
+                }
                 dialog = new AlertDialog.Builder(activity).setTitle(R.string.backup_undo)
                         .setMessage(R.string.backup_undo_confirmation)
                         .setNegativeButton(R.string.backup_cancel, null)
@@ -108,6 +117,11 @@ final class ConfigurationBackupController implements AutoCloseable {
                 imported.statusBarHeight, imported.controlCenter.columns,
                 activity.getString(imported.controlCenter.enabled ? R.string.backup_enabled : R.string.backup_disabled));
         if (host.hasDraft()) summary += "\n\n" + activity.getString(R.string.backup_keep_draft);
+        if (miuix != null) {
+            dialog = miuix.confirm(activity.getString(R.string.backup_restore_confirmation), summary,
+                    activity.getString(R.string.backup_restore), () -> { performRestore(imported); return true; });
+            return;
+        }
         dialog = new AlertDialog.Builder(activity).setTitle(R.string.backup_restore_confirmation)
                 .setMessage(summary).setNegativeButton(R.string.backup_cancel, null)
                 .setPositiveButton(R.string.backup_restore, (which, button) -> performRestore(imported)).create();
@@ -150,5 +164,6 @@ final class ConfigurationBackupController implements AutoCloseable {
         main.removeCallbacksAndMessages(null);
         if (dialog != null) dialog.dismiss();
         dialog = null;
+        if (miuix != null) miuix.close();
     }
 }
