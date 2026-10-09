@@ -226,6 +226,7 @@ public final class FusionConfig {
     }
 
     static Bundle controlCenterPreviewState(Context context) {
+        if (RuntimeConfigCache.settingsPackageDisabled(context)) return null;
         try {
             return context.getContentResolver().call(controlCenterPreviewUri(),
                     METHOD_PREVIEW_STATE, null, null);
@@ -274,35 +275,48 @@ public final class FusionConfig {
     }
 
     public static FusionConfig read(Context context) {
-        if (context == null) {
-            return defaults();
-        }
-        FusionConfig providerConfig = readFromProvider(context);
-        if (providerConfig != null) return providerConfig;
-        try {
-            Context packageContext = context.createPackageContext(
-                    BuildConfig.APPLICATION_ID, Context.CONTEXT_IGNORE_SECURITY);
-            return FusionConfigStore.read(packageContext);
-        } catch (Throwable ignored) {
-            return defaults();
-        }
+        if (context == null) return defaults();
+        if (BuildConfig.APPLICATION_ID.equals(context.getPackageName()))
+            return FusionConfigStore.read(context);
+        FusionConfig cached = RuntimeConfigCache.read(context);
+        return cached == null ? defaults() : cached;
     }
 
     static FusionConfig readFromProvider(Context context) {
-        if (context == null) return null;
-        try {
+        return readFromProvider(context, RuntimeConfigCache.settingsPackageDisabled(context));
+    }
+
+    static FusionConfig readFromProvider(Context context, boolean preferHostCache) {
+        return readFromProvider(context, () -> {
             Bundle request = new Bundle();
             request.putString(FusionActivationStatus.KEY_RUNTIME_SESSION,
                     FusionActivationStatus.runtimeSession());
-            Bundle values = context.getContentResolver().call(
-                    contentUri(), METHOD_GET, null, request);
+            return context.getContentResolver().call(contentUri(), METHOD_GET, null, request);
+        }, preferHostCache);
+    }
+
+    interface ProviderReader { Bundle read() throws Exception; }
+
+    static FusionConfig readFromProvider(Context context, ProviderReader reader,
+            boolean preferHostCache) {
+        if (context == null) return null;
+        boolean hostContext = !BuildConfig.APPLICATION_ID.equals(context.getPackageName());
+        if (hostContext && preferHostCache) {
+            return RuntimeConfigCache.read(context);
+        }
+        try {
+            Bundle values = reader.read();
             if (values != null) {
-                return fromBundle(values);
+                if (hostContext) DesktopActionBridgeToken.cacheHostToken(context, values);
+                FusionConfig loaded = fromBundle(values);
+                if (hostContext) RuntimeConfigCache.write(context, loaded);
+                return loaded;
             }
         } catch (Throwable error) {
             Log.w("FusionStatusBar", "config provider read failed: "
                     + error.getClass().getSimpleName());
         }
+        if (hostContext) return RuntimeConfigCache.read(context);
         return null;
     }
 

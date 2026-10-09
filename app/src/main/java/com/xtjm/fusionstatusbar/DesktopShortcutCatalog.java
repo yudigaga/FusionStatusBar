@@ -18,12 +18,17 @@ final class DesktopShortcutCatalog {
     static final String METHOD_REQUEST = "desktop_shortcuts_request";
     static final String METHOD_PUBLISH = "desktop_shortcuts_publish";
     static final String KEY_CATALOG = "desktop_shortcuts";
+    static final String KEY_REVISION = "desktop_shortcuts_revision";
     private static final int MAX_SHORTCUTS = 512;
 
     private DesktopShortcutCatalog() { }
 
     static Uri contentUri() {
         return Uri.parse("content://" + BuildConfig.APPLICATION_ID + ".config/desktop_shortcuts");
+    }
+
+    static Uri requestUri() {
+        return Uri.parse("content://" + BuildConfig.APPLICATION_ID + ".config/desktop_shortcuts_request");
     }
 
     static void publishFromLauncher(Context context) {
@@ -58,7 +63,13 @@ final class DesktopShortcutCatalog {
     static List<Choice> read(Context context) {
         ArrayList<Choice> result = new ArrayList<>();
         try {
-            Bundle data = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
+            Bundle data = context.getContentResolver().call(contentUri(), METHOD_REQUEST, null, null);
+            long previousRevision = data == null ? 0L : data.getLong(KEY_REVISION, 0L);
+            for (int attempt = 0; attempt < 12; attempt++) {
+                if (data != null && data.getLong(KEY_REVISION, 0L) > previousRevision) break;
+                android.os.SystemClock.sleep(80L);
+                data = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
+            }
             JSONArray catalog = new JSONArray(data == null ? "[]" : data.getString(KEY_CATALOG, "[]"));
             for (int i = 0; i < catalog.length() && i < MAX_SHORTCUTS; i++) {
                 JSONObject item = catalog.getJSONObject(i);

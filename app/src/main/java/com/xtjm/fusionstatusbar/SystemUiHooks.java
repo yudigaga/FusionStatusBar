@@ -2865,7 +2865,7 @@ public final class SystemUiHooks {
                     }
 
                     @Override public void requestPreview(Context source) {
-                        requestControlCenterPreviewCapture(source);
+                        PREVIEW_CAPTURE.requestFromSettings(source);
                     }
                         });
             }

@@ -19,8 +19,11 @@ final class RuntimeObserverRegistration {
 
     RuntimeObserverRegistration(Context context, Handler main, Runnable reload, Runnable preview) {
         this((task, delay) -> main.postDelayed(task, delay),
-                () -> context.getContentResolver().registerContentObserver(
-                        FusionConfig.contentUri(), true, observer(main, reload)),
+                () -> {
+                    if (!RuntimeConfigExchange.registerSystemUi(context, reload))
+                        throw new IllegalStateException("host_config_receiver_unavailable");
+                    RuntimeConfigExchange.request(context);
+                },
                 () -> context.getContentResolver().registerContentObserver(
                         FusionConfig.controlCenterPreviewUri(), true, observer(main, preview)),
                 () -> context.registerReceiver(new BroadcastReceiver() {

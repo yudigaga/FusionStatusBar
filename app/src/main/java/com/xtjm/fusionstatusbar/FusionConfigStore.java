@@ -97,6 +97,7 @@ public final class FusionConfigStore {
 
     private static void notifyCommitted(Context context, WriteResult result) {
         if (result.success) {
+            RuntimeConfigExchange.publish(context);
             try {
                 context.getContentResolver().notifyChange(FusionConfig.contentUri(), null);
             } catch (RuntimeException error) {

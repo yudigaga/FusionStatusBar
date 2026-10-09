@@ -1,12 +1,12 @@
 package com.xtjm.fusionstatusbar;
 
 import android.bluetooth.BluetoothAdapter;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.database.ContentObserver;
-import android.net.Uri;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.location.LocationManager;
@@ -15,6 +15,7 @@ import android.net.wifi.WifiManager;
 import android.nfc.NfcAdapter;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Build;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
@@ -31,7 +32,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Executes queued launcher gestures in SystemUI so platform actions use its UID. */
+/** Executes authenticated launcher action broadcasts in SystemUI's permission context. */
 final class DesktopSystemActionReceiver {
     private static final String TAG = "FusionStatusBar";
     private static final AtomicBoolean REGISTERED = new AtomicBoolean();
@@ -56,30 +57,53 @@ final class DesktopSystemActionReceiver {
         }
         try {
             final Context systemUiContext = context;
-            context.getContentResolver().registerContentObserver(DesktopActionQueue.contentUri(),
-                    false, new ContentObserver(MAIN) {
-                        @Override public void onChange(boolean selfChange, Uri uri) {
-                            drain(systemUiContext);
-                        }
-                    });
-            drain(context);
-            Log.i(TAG, "desktop action bridge registered");
+            context.registerReceiver(new BroadcastReceiver() {
+                @Override public void onReceive(Context ignored, Intent intent) {
+                    int senderUid = Build.VERSION.SDK_INT >= 34 ? getSentFromUid() : -1;
+                    if (!receiveLauncherAction(systemUiContext, intent, senderUid)) {
+                        Log.w(TAG, "ignored untrusted desktop action broadcast");
+                    }
+                }
+            }, new IntentFilter(DesktopActionQueue.ACTION_DISPATCH), Context.RECEIVER_EXPORTED);
+            Log.i(TAG, "desktop action broadcast bridge registered");
         } catch (Throwable error) {
             REGISTERED.set(false);
             Log.w(TAG, "desktop action bridge registration failed", error);
         }
     }
 
-    private static void drain(Context context) {
-        Runnable drain = () -> {
-            for (int i = 0; i < 16; i++) {
-                DesktopActionQueue.Command command = DesktopActionQueue.take(context);
-                if (command == null) return;
-                execute(context, command.action, command.target, command.toggle);
-            }
-        };
-        if (Looper.myLooper() == Looper.getMainLooper()) drain.run();
-        else MAIN.post(drain);
+    static boolean receiveLauncherAction(Context context, Intent intent, int senderUid) {
+        if (context == null || intent == null
+                || !DesktopActionQueue.ACTION_DISPATCH.equals(intent.getAction())
+                || !"com.android.systemui".equals(intent.getPackage())) return false;
+        int action = intent.getIntExtra(DesktopActionQueue.KEY_ACTION,
+                DesktopConfig.ACTION_NATIVE);
+        String target = intent.getStringExtra(DesktopActionQueue.KEY_TARGET);
+        int toggle = intent.getIntExtra(DesktopActionQueue.KEY_TOGGLE, 1);
+        if (!DesktopActionQueue.isValidCommand(action, target, toggle)) return false;
+        long timestamp = intent.getLongExtra(DesktopActionQueue.KEY_TIMESTAMP, 0L);
+        String nonce = intent.getStringExtra(DesktopActionQueue.KEY_NONCE);
+        String signature = intent.getStringExtra(DesktopActionQueue.KEY_SIGNATURE);
+        if (!DesktopActionBridgeToken.verify(context, action, target, toggle, timestamp,
+                    nonce, signature)
+                || Build.VERSION.SDK_INT >= 34 && !isTrustedLauncherUid(context, senderUid)) {
+            return false;
+        }
+        execute(context, action, target, toggle);
+        return true;
+    }
+
+    static boolean isTrustedLauncherUid(Context context, int uid) {
+        if (context == null || uid < 0) return false;
+        return isTrustedLauncherUid(uid, context.getPackageManager().getPackagesForUid(uid));
+    }
+
+    static boolean isTrustedLauncherUid(int uid, String[] packages) {
+        if (uid < 0 || packages == null) return false;
+        for (String packageName : packages) {
+            if ("com.miui.home".equals(packageName)) return true;
+        }
+        return false;
     }
 
     private static void execute(Context context, int action, String target, int toggle) {

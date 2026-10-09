@@ -6,7 +6,7 @@ import android.os.Looper;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
-/** Serial provider IO; only the newest requested, non-regressing snapshot reaches views. */
+/** Serial host snapshot IO; only the newest snapshot from the current source reaches views. */
 final class RuntimeConfigCoordinator {
     interface Reader { FusionConfig read(); }
     interface Listener {
@@ -22,13 +22,17 @@ final class RuntimeConfigCoordinator {
     private long appliedRevision = -1;
     private Delivery pendingDelivery;
     private boolean deliveryPosted;
+    private Context sourceContext;
+    private String sourceToken;
 
     private record Delivery(long request, FusionConfig config) { }
 
     RuntimeConfigCoordinator(Context context, Listener listener) {
         this(new RuntimeWorkQueue("fusion-config", 4),
                 mainExecutor(new Handler(Looper.getMainLooper())),
-                () -> FusionConfig.readFromProvider(context), listener);
+                () -> FusionConfig.read(context), listener);
+        sourceContext = context;
+        sourceToken = DesktopActionBridgeToken.cachedToken(context);
     }
 
     RuntimeConfigCoordinator(RuntimeWorkQueue work, Executor main, Reader reader, Listener listener) {
@@ -43,7 +47,17 @@ final class RuntimeConfigCoordinator {
 
     void reload() {
         long request;
-        synchronized (this) { request = ++generation; }
+        synchronized (this) {
+            if (sourceContext != null) {
+                String nextToken = DesktopActionBridgeToken.cachedToken(sourceContext);
+                if (!java.util.Objects.equals(sourceToken, nextToken)) {
+                    sourceToken = nextToken;
+                    appliedRevision = -1;
+                }
+            }
+            acknowledgements.resetSource();
+            request = ++generation;
+        }
         if (!work.execute("read", this::readLatest)) offerDelivery(request, null);
     }
 

@@ -27,6 +27,7 @@ final class ControlCenterPreviewCapture {
     private String lastLayout = "";
     private WeakReference<View> lastRoot = new WeakReference<>(null);
     private int stableSamples;
+    private long requestedUntil;
 
     ControlCenterPreviewCapture(Handler main, Supplier<View> root, Function<View, Layout> serialize) {
         this.main = main;
@@ -35,6 +36,7 @@ final class ControlCenterPreviewCapture {
     }
 
     void request(Context context) {
+        if (android.os.SystemClock.elapsedRealtime() > requestedUntil) return;
         if (context == null || !posted.compareAndSet(false, true)) return;
         main.postDelayed(() -> work.execute("state", () -> {
             Bundle state = FusionConfig.controlCenterPreviewState(context);
@@ -46,6 +48,11 @@ final class ControlCenterPreviewCapture {
                 }
             });
         }), 120L);
+    }
+
+    void requestFromSettings(Context context) {
+        requestedUntil = android.os.SystemClock.elapsedRealtime() + 120_000L;
+        request(context);
     }
 
     private void capture(Context context, Bundle state) {

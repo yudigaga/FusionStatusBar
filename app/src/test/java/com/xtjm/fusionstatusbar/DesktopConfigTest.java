@@ -136,27 +136,17 @@ public class DesktopConfigTest {
         assertEquals(12, context.getResources().getIntArray(R.array.desktop_toggle_values).length);
     }
 
-    @Test public void actionQueueAllowsOnlyLauncherRequestsAndPreservesOrder() {
+    @Test public void desktopActionCommandsAreValidatedBeforeBroadcast() {
         FusionConfigProvider.enforceLauncherCaller("com.miui.home");
         assertThrows(SecurityException.class,
                 () -> FusionConfigProvider.enforceLauncherCaller("malicious.app"));
         assertThrows(SecurityException.class,
                 () -> FusionConfigProvider.enforceLauncherCaller(BuildConfig.APPLICATION_ID));
-        Bundle first = new Bundle();
-        first.putInt(DesktopActionQueue.KEY_ACTION, DesktopConfig.ACTION_NOTIFICATIONS);
-        assertTrue(DesktopActionQueue.enqueueFromProvider(context, first)
-                .getBoolean(DesktopActionQueue.KEY_ACCEPTED));
-        Bundle second = new Bundle();
-        second.putInt(DesktopActionQueue.KEY_ACTION, DesktopConfig.ACTION_TOGGLE);
-        second.putInt(DesktopActionQueue.KEY_TOGGLE, 12);
-        assertTrue(DesktopActionQueue.enqueueFromProvider(context, second)
-                .getBoolean(DesktopActionQueue.KEY_ACCEPTED));
-        assertEquals(DesktopConfig.ACTION_NOTIFICATIONS,
-                DesktopActionQueue.takeFromProvider(context).getInt(DesktopActionQueue.KEY_ACTION));
-        Bundle takenToggle = DesktopActionQueue.takeFromProvider(context);
-        assertEquals(DesktopConfig.ACTION_TOGGLE, takenToggle.getInt(DesktopActionQueue.KEY_ACTION));
-        assertEquals(12, takenToggle.getInt(DesktopActionQueue.KEY_TOGGLE));
-        assertEquals(null, DesktopActionQueue.takeFromProvider(context));
+        assertTrue(DesktopActionQueue.isValidCommand(DesktopConfig.ACTION_NOTIFICATIONS, null, 1));
+        assertTrue(DesktopActionQueue.isValidCommand(DesktopConfig.ACTION_TOGGLE, null,
+                DesktopConfig.TOGGLE_COUNT));
+        assertFalse(DesktopActionQueue.isValidCommand(DesktopConfig.ACTION_TOGGLE, null,
+                DesktopConfig.TOGGLE_COUNT + 1));
     }
 
     @Test public void upgradePreservesOldNotificationAndApplicationAssignments() {
@@ -175,14 +165,5 @@ public class DesktopConfigTest {
         assertEquals(upgraded, DesktopConfigStore.read(context));
     }
 
-    @Test public void queuedCommandsExpireInsteadOfExecutingAfterSystemUiRestarts() {
-        long expiredAt = System.currentTimeMillis() - DesktopActionQueue.MAX_COMMAND_AGE_MS - 1L;
-        String expired = "[{\"desktop_action\":4,\"created_at\":" + expiredAt + "}]";
-        context.getSharedPreferences("desktop_settings_v1", android.content.Context.MODE_PRIVATE)
-                .edit().putString("pending_desktop_actions", expired).commit();
-        assertEquals(null, DesktopActionQueue.takeFromProvider(context));
-        assertEquals("[]", context.getSharedPreferences("desktop_settings_v1", android.content.Context.MODE_PRIVATE)
-                .getString("pending_desktop_actions", "missing"));
-    }
 }
 

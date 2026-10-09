@@ -26,13 +26,16 @@ public final class FusionConfigProvider extends ContentProvider {
         if (DesktopShortcutCatalog.METHOD_GET.equals(method)
                 || DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
             enforceCaller(caller, context == null ? null : context.getPackageName(), true);
+            android.content.SharedPreferences preferences = context.getSharedPreferences(
+                    "desktop_settings_v1", Context.MODE_PRIVATE);
             if (DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
-                context.getContentResolver().notifyChange(DesktopShortcutCatalog.contentUri(), null);
+                context.getContentResolver().notifyChange(DesktopShortcutCatalog.requestUri(), null);
             }
             Bundle catalog = new Bundle();
             catalog.putString(DesktopShortcutCatalog.KEY_CATALOG,
-                    context.getSharedPreferences("desktop_settings_v1", Context.MODE_PRIVATE)
-                            .getString(DesktopShortcutCatalog.KEY_CATALOG, "[]"));
+                    preferences.getString(DesktopShortcutCatalog.KEY_CATALOG, "[]"));
+            catalog.putLong(DesktopShortcutCatalog.KEY_REVISION,
+                    preferences.getLong(DesktopShortcutCatalog.KEY_REVISION, 0L));
             return catalog;
         }
         if (DesktopShortcutCatalog.METHOD_PUBLISH.equals(method)) {
@@ -41,23 +44,22 @@ public final class FusionConfigProvider extends ContentProvider {
             if (encoded == null || encoded.length() > 262144) {
                 throw new IllegalArgumentException("shortcut_catalog_too_large");
             }
-            context.getSharedPreferences("desktop_settings_v1", Context.MODE_PRIVATE).edit()
-                    .putString(DesktopShortcutCatalog.KEY_CATALOG, encoded).apply();
+            android.content.SharedPreferences preferences = context.getSharedPreferences(
+                    "desktop_settings_v1", Context.MODE_PRIVATE);
+            boolean saved = preferences.edit().putString(DesktopShortcutCatalog.KEY_CATALOG, encoded)
+                    .putLong(DesktopShortcutCatalog.KEY_REVISION,
+                            preferences.getLong(DesktopShortcutCatalog.KEY_REVISION, 0L) + 1L)
+                    .commit();
+            if (saved) context.getContentResolver().notifyChange(DesktopShortcutCatalog.contentUri(), null);
             return new Bundle();
-        }
-        if (DesktopActionQueue.METHOD_ENQUEUE.equals(method)) {
-            enforceLauncherCaller(caller);
-            return DesktopActionQueue.enqueueFromProvider(context, extras);
-        }
-        if (DesktopActionQueue.METHOD_TAKE.equals(method)) {
-            if (!SYSTEM_UI_PACKAGE.equals(caller)) throw new SecurityException("systemui_action_take_only");
-            return DesktopActionQueue.takeFromProvider(context);
         }
         if (DesktopConfig.METHOD_GET.equals(method)) {
             enforceDesktopReadCaller(caller, context == null ? null : context.getPackageName());
             UserManager users = context.getSystemService(UserManager.class);
             if (users != null && !users.isUserUnlocked()) return DesktopConfig.defaults().toBundle();
-            return DesktopConfigStore.read(context).toBundle();
+            Bundle desktop = DesktopConfigStore.read(context).toBundle();
+            DesktopActionBridgeToken.appendModuleToken(context, desktop);
+            return desktop;
         }
         if (DesktopConfig.METHOD_SET.equals(method)) {
             enforceCaller(caller, context == null ? null : context.getPackageName(), true);
@@ -78,7 +80,10 @@ public final class FusionConfigProvider extends ContentProvider {
             if (SYSTEM_UI_PACKAGE.equals(caller)) FusionActivationStatus.reportRead(context,
                     config.revision, FusionActivationStatus.callerSession(
                             android.os.Binder.getCallingUid(), android.os.Binder.getCallingPid(), extras));
-            return config.toBundle();
+            Bundle values = config.toBundle();
+            if (SYSTEM_UI_PACKAGE.equals(caller))
+                DesktopActionBridgeToken.appendModuleToken(context, values);
+            return values;
         }
         if (FusionConfig.METHOD_REPORT_APPLIED.equals(method)) {
             if (!SYSTEM_UI_PACKAGE.equals(caller)) throw new SecurityException("systemui_report_only");

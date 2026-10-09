@@ -226,7 +226,10 @@ public final class DesktopConfig {
         if (context == null || config == null) return false;
         if (BuildConfig.APPLICATION_ID.equals(context.getPackageName())) {
             boolean saved = DesktopConfigStore.write(context, config);
-            if (saved) context.getContentResolver().notifyChange(contentUri(), null);
+            if (saved) {
+                RuntimeConfigExchange.publish(context);
+                context.getContentResolver().notifyChange(contentUri(), null);
+            }
             return saved;
         }
         try {
@@ -241,18 +244,38 @@ public final class DesktopConfig {
     }
 
     public static DesktopConfig read(Context context) {
+        return read(context, () -> context.getContentResolver().call(contentUri(), METHOD_GET,
+                null, null));
+    }
+
+    static DesktopConfig readForRuntime(Context context) {
+        return context == null ? defaults() : DesktopConfigStore.read(context);
+    }
+
+    static DesktopConfig readForRuntime(Context context, boolean settingsPackageDisabled) {
+        return readForRuntime(context);
+    }
+
+    interface ProviderReader { Bundle read() throws Exception; }
+
+    static DesktopConfig read(Context context, ProviderReader reader) {
         if (context == null) return defaults();
         if (BuildConfig.APPLICATION_ID.equals(context.getPackageName())) {
             return DesktopConfigStore.read(context);
         }
         try {
-            Bundle result = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
-            return result == null ? defaults() : fromBundle(result);
+            Bundle result = reader.read();
+            if (result != null) {
+                DesktopActionBridgeToken.cacheHostToken(context, result);
+                DesktopConfig loaded = fromBundle(result);
+                DesktopConfigStore.write(context, loaded);
+                return loaded;
+            }
         } catch (Throwable error) {
             Log.w("FusionStatusBar", "desktop settings read failed: "
                     + error.getClass().getSimpleName());
-            return defaults();
         }
+        return DesktopConfigStore.read(context);
     }
 
     static int gestureForVerticalDirection(int direction, int pointerCount) {

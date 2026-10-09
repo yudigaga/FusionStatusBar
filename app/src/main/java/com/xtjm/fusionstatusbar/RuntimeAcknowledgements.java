@@ -66,6 +66,12 @@ final class RuntimeAcknowledgements {
         latest.clear();
     }
 
+    synchronized void resetSource() {
+        for (Report report : latest.values()) cancelRetry(report);
+        latest.clear();
+        revision = -1;
+    }
+
     void report(Context context, long value, String feature, String state, String reason) {
         if (!knownFeature(feature) || value < 0) return;
         Report next;

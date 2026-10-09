@@ -13,6 +13,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private static final int REQUEST_EXPORT_LOGS = 1027;
     private android.view.View activationIndicator;
     private android.database.ContentObserver activationObserver;
+    private AutoCloseable runtimeConfigExchange;
     private android.widget.TextView activationSummary;
     private android.widget.TextView activationTitle;
     private android.widget.Switch hideLauncherIconSwitch;
@@ -157,6 +158,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     @Override // android.app.Activity
     protected void onCreate(android.os.Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        runtimeConfigExchange = RuntimeConfigExchange.registerSettings(this);
         setContentView(com.xtjm.fusionstatusbar.R.layout.activity_main);
         installStartupOverlay();
         editorPage = new ControlCenterPageCoordinator(new ControlCenterDraftStore(this), this::updateSettingsSummaries);
@@ -3326,6 +3328,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     @Override protected void onDestroy() {
+        if (runtimeConfigExchange != null) {
+            try { runtimeConfigExchange.close(); }
+            catch (Exception error) {
+                android.util.Log.w("FusionStatusBar", "settings config exchange release failed", error);
+            }
+            runtimeConfigExchange = null;
+        }
         if (utilitySheets != null) utilitySheets.close();
         if (desktopSettingsPage != null) desktopSettingsPage.close();
         if (diagnosticExportCancellation != null) diagnosticExportCancellation.set(true);

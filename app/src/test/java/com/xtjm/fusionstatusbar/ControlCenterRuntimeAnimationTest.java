@@ -98,6 +98,23 @@ public class ControlCenterRuntimeAnimationTest {
         assertEquals(0, host.requests);
     }
 
+    @Test public void openingHeightResetIsRepairedWithoutAnotherLayoutCallback() throws Exception {
+        assertTrue("The RecyclerView carrier must be attached for frame callbacks", host.isAttachedToWindow());
+        holder.frame(0.4f, 0.8f, 64f);
+        host.getLayoutParams().height = 64;
+        host.setLayoutParams(host.getLayoutParams());
+        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
+                ControlCenterRuntimeGrid.GridView.class}, host, grid);
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(80));
+        assertEquals(64, host.getLayoutParams().height);
+
+        holder.frame(1f, 1f, 0f);
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(32));
+
+        assertEquals("The mounted carrier must reserve all rows before the native edit item",
+                grid.renderedHeight(), host.getLayoutParams().height);
+    }
+
     @Test public void collapseFramesDoNotFightNativeHeightUpdates() throws Exception {
         holder.frame(0.3f, 0.8f, 100f);
         host.getLayoutParams().height = 64;

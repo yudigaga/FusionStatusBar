@@ -17,7 +17,7 @@ final class DesktopConfigStore {
 
     static DesktopConfig read(Context context) {
         if (context == null) return DesktopConfig.defaults();
-        SharedPreferences preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
+        SharedPreferences preferences = preferences(context);
         Bundle values = new Bundle();
         boolean legacy = preferences.getInt("desktop_schema_version", 1) < 2;
         values.putInt("desktop_schema_version", 2);
@@ -56,8 +56,7 @@ final class DesktopConfigStore {
 
     static boolean write(Context context, DesktopConfig config) {
         if (context == null || config == null) return false;
-        SharedPreferences.Editor editor = context.getSharedPreferences(FILE,
-                Context.MODE_PRIVATE).edit();
+        SharedPreferences.Editor editor = preferences(context).edit();
         editor.putInt("desktop_schema_version", 2);
         editor.putBoolean(KEY_HIDE_ICONS, config.hideIcons);
         editor.putStringSet(KEY_HIDDEN_PACKAGES, new HashSet<>(config.hiddenPackages()));
@@ -68,6 +67,12 @@ final class DesktopConfigStore {
             editor.putInt(gestureToggleKey(i), config.gestureToggle(i));
         }
         return editor.commit();
+    }
+
+    private static SharedPreferences preferences(Context context) {
+        Context owner = BuildConfig.APPLICATION_ID.equals(context.getPackageName())
+                ? context : context.createDeviceProtectedStorageContext();
+        return owner.getSharedPreferences(FILE, Context.MODE_PRIVATE);
     }
 
     private static String gestureActionKey(int gestureId) {

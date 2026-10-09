@@ -110,9 +110,7 @@ final class FusionActivationStatus {
                 }
             }
             values.putBundle(KEY_FEATURES, states);
-            Bundle result = context.getContentResolver().call(FusionConfig.contentUri(),
-                    FusionConfig.METHOD_REPORT_APPLIED, null, values);
-            return result != null && result.getBoolean("accepted", false);
+            return RuntimeConfigExchange.sendStatus(context, values);
         } catch (RuntimeException error) {
             return false;
         }

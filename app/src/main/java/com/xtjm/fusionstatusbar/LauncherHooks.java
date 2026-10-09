@@ -592,10 +592,10 @@ final class LauncherHooks {
                     }
                 };
                 try {
+                    if (!RuntimeConfigExchange.registerLauncher(app, LauncherHooks::refreshConfiguration))
+                        throw new IllegalStateException("launcher_config_receiver_unavailable");
                     app.getContentResolver().registerContentObserver(
-                            DesktopConfig.contentUri(), false, observer);
-                    app.getContentResolver().registerContentObserver(
-                            DesktopShortcutCatalog.contentUri(), false, new ContentObserver(MAIN) {
+                            DesktopShortcutCatalog.requestUri(), false, new ContentObserver(MAIN) {
                                 @Override public void onChange(boolean selfChange, Uri uri) {
                                     SHORTCUT_WORKER.execute(() -> DesktopShortcutCatalog.publishFromLauncher(app));
                                 }
@@ -606,8 +606,8 @@ final class LauncherHooks {
                 }
             }
         }
-        config = DesktopConfig.read(activity);
-        SHORTCUT_WORKER.execute(() -> DesktopShortcutCatalog.publishFromLauncher(app));
+        RuntimeConfigExchange.request(app);
+        config = DesktopConfig.readForRuntime(activity);
         updateShakeRegistration();
         applyDesktopIcons(activity.getWindow() == null
                 ? null : activity.getWindow().getDecorView());
@@ -619,7 +619,7 @@ final class LauncherHooks {
             Activity activity = currentActivity.get();
             if (activity == null) return;
             Context context = activity.getApplicationContext();
-            config = DesktopConfig.read(context);
+            config = DesktopConfig.readForRuntime(context);
             updateShakeRegistration();
             applyDesktopIcons(activity.getWindow() == null
                     ? null : activity.getWindow().getDecorView());

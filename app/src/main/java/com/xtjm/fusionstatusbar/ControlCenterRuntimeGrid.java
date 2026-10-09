@@ -506,6 +506,7 @@ final class ControlCenterRuntimeGrid {
         ViewGroup outerView;
         GridView grid;
         ControlCenterScaleViewport gridViewport;
+        ControlCenterOuterHeightReconciler outerHeightReconciler;
         View.OnLayoutChangeListener outerLayoutListener;
         final ArrayList<Runnable> mountTasks = new ArrayList<>();
         ArrayList<Child> originalChildren;
@@ -811,7 +812,11 @@ final class ControlCenterRuntimeGrid {
                 }
             };
             view.addOnLayoutChangeListener(outerLayoutListener);
-            pinOuterHeight(view, nextGrid);
+            outerHeightReconciler = new ControlCenterOuterHeightReconciler(view,
+                    () -> outerView == view && grid == nextGrid && !disposed && !failed,
+                    () -> guardPresentation(() -> pinOuterHeight(view, nextGrid)),
+                    ControlCenterOuterHeightReconciler.VIEW_SCHEDULER);
+            outerHeightReconciler.reconcile();
             scheduleMountTask(view, () -> {
                 if (outerView == view && grid == nextGrid)
                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
@@ -843,9 +848,10 @@ final class ControlCenterRuntimeGrid {
         }
 
         private void enforceOuterHeight(ViewGroup view, GridView child) {
-            if (view.getVisibility() != View.VISIBLE || view.getAlpha() < 0.999f
-                    || Math.abs(view.getScaleX() - 1f) > 0.001f
-                    || Math.abs(view.getScaleY() - 1f) > 0.001f) return;
+            if (outerHeightReconciler != null) {
+                outerHeightReconciler.reconcile();
+                return;
+            }
             pinOuterHeight(view, child);
         }
 
@@ -974,6 +980,7 @@ final class ControlCenterRuntimeGrid {
         }
 
         private void unbind() {
+            if (outerHeightReconciler != null) outerHeightReconciler.cancel();
             if (outerView != null) {
                 for (Runnable task : new ArrayList<>(mountTasks))
                     RuntimeCleanup.run("cancel grid mount task", () -> outerView.removeCallbacks(task));
@@ -1021,6 +1028,7 @@ final class ControlCenterRuntimeGrid {
             outerView = null;
             grid = null;
             gridViewport = null;
+            outerHeightReconciler = null;
             outerLayoutListener = null;
             bindings = null;
             originalChildren = null;

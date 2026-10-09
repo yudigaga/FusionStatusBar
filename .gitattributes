@@ -11,3 +11,4 @@ gradlew text eol=lf
 *.png binary
 *.jar binary
 artifacts/*-v0.3.192.* -text
+artifacts/*-v0.3.193.* -text

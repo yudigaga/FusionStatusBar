@@ -1,0 +1,985 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index ae531d1..ec7c634 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 206
+-        versionName "0.3.192"
++        versionCode 207
++        versionName "0.3.193"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 46b5d19..1324616 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,6 +1,9 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:tools="http://schemas.android.com/tools">
++    <permission android:name="${applicationId}.permission.PUBLISH_CONFIG"
++        android:protectionLevel="signature" />
++    <uses-permission android:name="${applicationId}.permission.PUBLISH_CONFIG" />
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapture.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapture.java
+index 708335b..aebc585 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapture.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPreviewCapture.java
+@@ -27,6 +27,7 @@ final class ControlCenterPreviewCapture {
+     private String lastLayout = "";
+     private WeakReference<View> lastRoot = new WeakReference<>(null);
+     private int stableSamples;
++    private long requestedUntil;
+ 
+     ControlCenterPreviewCapture(Handler main, Supplier<View> root, Function<View, Layout> serialize) {
+         this.main = main;
+@@ -35,6 +36,7 @@ final class ControlCenterPreviewCapture {
+     }
+ 
+     void request(Context context) {
++        if (android.os.SystemClock.elapsedRealtime() > requestedUntil) return;
+         if (context == null || !posted.compareAndSet(false, true)) return;
+         main.postDelayed(() -> work.execute("state", () -> {
+             Bundle state = FusionConfig.controlCenterPreviewState(context);
+@@ -48,6 +50,11 @@ final class ControlCenterPreviewCapture {
+         }), 120L);
+     }
+ 
++    void requestFromSettings(Context context) {
++        requestedUntil = android.os.SystemClock.elapsedRealtime() + 120_000L;
++        request(context);
++    }
++
+     private void capture(Context context, Bundle state) {
+         if (state == null) return;
+         long requested = state.getLong(FusionConfig.KEY_PREVIEW_REQUEST, 0);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index c06ebcc..287079f 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -506,6 +506,7 @@ final class ControlCenterRuntimeGrid {
+         ViewGroup outerView;
+         GridView grid;
+         ControlCenterScaleViewport gridViewport;
++        ControlCenterOuterHeightReconciler outerHeightReconciler;
+         View.OnLayoutChangeListener outerLayoutListener;
+         final ArrayList<Runnable> mountTasks = new ArrayList<>();
+         ArrayList<Child> originalChildren;
+@@ -811,7 +812,11 @@ final class ControlCenterRuntimeGrid {
+                 }
+             };
+             view.addOnLayoutChangeListener(outerLayoutListener);
+-            pinOuterHeight(view, nextGrid);
++            outerHeightReconciler = new ControlCenterOuterHeightReconciler(view,
++                    () -> outerView == view && grid == nextGrid && !disposed && !failed,
++                    () -> guardPresentation(() -> pinOuterHeight(view, nextGrid)),
++                    ControlCenterOuterHeightReconciler.VIEW_SCHEDULER);
++            outerHeightReconciler.reconcile();
+             scheduleMountTask(view, () -> {
+                 if (outerView == view && grid == nextGrid)
+                     guardPresentation(() -> enforceOuterHeight(view, nextGrid));
+@@ -843,9 +848,10 @@ final class ControlCenterRuntimeGrid {
+         }
+ 
+         private void enforceOuterHeight(ViewGroup view, GridView child) {
+-            if (view.getVisibility() != View.VISIBLE || view.getAlpha() < 0.999f
+-                    || Math.abs(view.getScaleX() - 1f) > 0.001f
+-                    || Math.abs(view.getScaleY() - 1f) > 0.001f) return;
++            if (outerHeightReconciler != null) {
++                outerHeightReconciler.reconcile();
++                return;
++            }
+             pinOuterHeight(view, child);
+         }
+ 
+@@ -974,6 +980,7 @@ final class ControlCenterRuntimeGrid {
+         }
+ 
+         private void unbind() {
++            if (outerHeightReconciler != null) outerHeightReconciler.cancel();
+             if (outerView != null) {
+                 for (Runnable task : new ArrayList<>(mountTasks))
+                     RuntimeCleanup.run("cancel grid mount task", () -> outerView.removeCallbacks(task));
+@@ -1021,6 +1028,7 @@ final class ControlCenterRuntimeGrid {
+             outerView = null;
+             grid = null;
+             gridViewport = null;
++            outerHeightReconciler = null;
+             outerLayoutListener = null;
+             bindings = null;
+             originalChildren = null;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java
+index 2fa7895..f8edf26 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java
+@@ -1,159 +1,65 @@
+ package com.xtjm.fusionstatusbar;
+ 
+ import android.content.Context;
+-import android.net.Uri;
+-import android.os.Bundle;
++import android.content.Intent;
++import android.app.BroadcastOptions;
++import android.os.Build;
+ import android.util.Log;
+ 
+-import org.json.JSONArray;
+-import org.json.JSONException;
+-import org.json.JSONObject;
+-
+-/** Small authenticated queue that transfers launcher gestures to privileged SystemUI. */
++/** Authenticated one-shot bridge from Launcher gestures to privileged SystemUI actions. */
+ final class DesktopActionQueue {
+-    static final String METHOD_ENQUEUE = "desktop_action_enqueue";
+-    static final String METHOD_TAKE = "desktop_action_take";
++    static final String ACTION_DISPATCH = BuildConfig.APPLICATION_ID + ".action.DESKTOP_GESTURE";
+     static final String KEY_ACTION = "desktop_action";
+     static final String KEY_TARGET = "desktop_target";
+     static final String KEY_TOGGLE = "desktop_toggle";
+-    static final String KEY_ACCEPTED = "desktop_action_accepted";
+-    private static final String URI_STRING = "content://" + BuildConfig.APPLICATION_ID
+-            + ".config/desktop_action";
+-    private static final String PREFS = "desktop_settings_v1";
+-    private static final String KEY_QUEUE = "pending_desktop_actions";
+-    private static final int MAX_QUEUED_ACTIONS = 16;
+-    static final long MAX_COMMAND_AGE_MS = 5000L;
+-    private static final String KEY_CREATED = "created_at";
+-    private static final Object LOCK = new Object();
++    static final String KEY_TIMESTAMP = "desktop_action_timestamp";
++    static final String KEY_NONCE = "desktop_action_nonce";
++    static final String KEY_SIGNATURE = "desktop_action_signature";
+ 
+     private DesktopActionQueue() { }
+ 
+-    static Uri contentUri() { return Uri.parse(URI_STRING); }
+-
+     static boolean enqueue(Context context, int action, String target, int toggle) {
+-        if (context == null || !DesktopConfig.isSupportedAction(action)
+-                || action == DesktopConfig.ACTION_NATIVE || action == DesktopConfig.ACTION_NONE) {
+-            return false;
+-        }
+-        Bundle values = new Bundle();
+-        values.putInt(KEY_ACTION, action);
+-        values.putString(KEY_TARGET, target);
+-        values.putInt(KEY_TOGGLE, toggle);
++        if (context == null) return false;
++        Intent intent = dispatchIntent(context, action, target, toggle);
++        if (intent == null) return false;
+         try {
+-            Bundle result = context.getContentResolver().call(contentUri(), METHOD_ENQUEUE,
+-                    null, values);
+-            return result != null && result.getBoolean(KEY_ACCEPTED, false);
++            if (Build.VERSION.SDK_INT >= 34) {
++                context.sendBroadcast(intent, null, BroadcastOptions.makeBasic()
++                        .setShareIdentityEnabled(true).toBundle());
++            } else {
++                context.sendBroadcast(intent);
++            }
++            return true;
+         } catch (Throwable error) {
+-            Log.w("FusionStatusBar", "desktop action enqueue failed", error);
++            Log.w("FusionStatusBar", "desktop action broadcast failed", error);
+             return false;
+         }
+     }
+ 
+-    static Bundle enqueueFromProvider(Context context, Bundle request) {
+-        if (context == null || request == null) return accepted(false);
+-        int action = request.getInt(KEY_ACTION, DesktopConfig.ACTION_NATIVE);
++    static Intent dispatchIntent(Context context, int action, String target, int toggle) {
++        if (!isValidCommand(action, target, toggle)) return null;
++        long timestamp = android.os.SystemClock.elapsedRealtime();
++        String nonce = java.util.UUID.randomUUID().toString();
++        String signature = DesktopActionBridgeToken.sign(context, action, target, toggle,
++                timestamp, nonce);
++        if (signature == null) return null;
++        return new Intent(ACTION_DISPATCH).setPackage("com.android.systemui")
++                .putExtra(KEY_ACTION, action).putExtra(KEY_TARGET, target)
++                .putExtra(KEY_TOGGLE, toggle).putExtra(KEY_TIMESTAMP, timestamp)
++                .putExtra(KEY_NONCE, nonce).putExtra(KEY_SIGNATURE, signature);
++    }
++
++    static boolean isValidCommand(int action, String target, int toggle) {
+         if (!DesktopConfig.isSupportedAction(action) || action == DesktopConfig.ACTION_NATIVE
+-                || action == DesktopConfig.ACTION_NONE) return accepted(false);
+-        String target = request.getString(KEY_TARGET);
+-        int toggle = request.getInt(KEY_TOGGLE, 1);
++                || action == DesktopConfig.ACTION_NONE) return false;
+         if ((action == DesktopConfig.ACTION_LAUNCH_APP
+                 || action == DesktopConfig.ACTION_LAUNCH_SHORTCUT
+                 || action == DesktopConfig.ACTION_LAUNCH_ACTIVITY)
+-                && (target == null || target.isEmpty() || target.length() > 8192)) {
+-            return accepted(false);
+-        }
++                && (target == null || target.isEmpty() || target.length() > 8192)) return false;
++        if (action == DesktopConfig.ACTION_TOGGLE
++                && (toggle < 1 || toggle > DesktopConfig.TOGGLE_COUNT)) return false;
+         DesktopConfig validated = DesktopConfig.defaults().withGesture(0, action)
+                 .withGestureTarget(0, target, null).withGestureToggle(0, toggle);
+-        if (validated.gestureAction(0) != action || !validated.isGestureComplete(0)) {
+-            return accepted(false);
+-        }
+-        if (action == DesktopConfig.ACTION_TOGGLE
+-                && (toggle < 1 || toggle > DesktopConfig.TOGGLE_COUNT)) return accepted(false);
+-        JSONObject command = new JSONObject();
+-        try {
+-            command.put(KEY_ACTION, action);
+-            command.put(KEY_TARGET, target == null ? JSONObject.NULL : target);
+-            command.put(KEY_TOGGLE, toggle);
+-            command.put(KEY_CREATED, System.currentTimeMillis());
+-        } catch (JSONException error) {
+-            return accepted(false);
+-        }
+-        synchronized (LOCK) {
+-            JSONArray queue = readQueue(context);
+-            if (queue.length() >= MAX_QUEUED_ACTIONS) queue.remove(0);
+-            queue.put(command);
+-            if (!writeQueue(context, queue)) return accepted(false);
+-        }
+-        context.getContentResolver().notifyChange(contentUri(), null);
+-        return accepted(true);
+-    }
+-
+-    static Bundle takeFromProvider(Context context) {
+-        if (context == null) return null;
+-        synchronized (LOCK) {
+-            JSONArray queue = readQueue(context);
+-            JSONObject command = null;
+-            long now = System.currentTimeMillis();
+-            while (queue.length() > 0) {
+-                JSONObject candidate = queue.optJSONObject(0);
+-                queue.remove(0);
+-                long created = candidate == null ? 0L : candidate.optLong(KEY_CREATED, 0L);
+-                if (created > 0L && created <= now && now - created <= MAX_COMMAND_AGE_MS) {
+-                    command = candidate;
+-                    break;
+-                }
+-            }
+-            if (!writeQueue(context, queue) || command == null) return null;
+-            Bundle result = new Bundle();
+-            result.putInt(KEY_ACTION, command.optInt(KEY_ACTION, DesktopConfig.ACTION_NATIVE));
+-            Object target = command.opt(KEY_TARGET);
+-            if (target instanceof String value) result.putString(KEY_TARGET, value);
+-            result.putInt(KEY_TOGGLE, command.optInt(KEY_TOGGLE, 1));
+-            return result;
+-        }
+-    }
+-
+-    static Command take(Context systemUiContext) {
+-        if (systemUiContext == null) return null;
+-        try {
+-            Bundle result = systemUiContext.getContentResolver().call(contentUri(), METHOD_TAKE,
+-                    null, null);
+-            if (result == null) return null;
+-            return new Command(result.getInt(KEY_ACTION, DesktopConfig.ACTION_NATIVE),
+-                    result.getString(KEY_TARGET), result.getInt(KEY_TOGGLE, 1));
+-        } catch (Throwable error) {
+-            Log.w("FusionStatusBar", "desktop action dequeue failed", error);
+-            return null;
+-        }
+-    }
+-
+-    private static JSONArray readQueue(Context context) {
+-        String encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+-                .getString(KEY_QUEUE, "[]");
+-        try { return new JSONArray(encoded); }
+-        catch (JSONException ignored) { return new JSONArray(); }
+-    }
+-
+-    private static boolean writeQueue(Context context, JSONArray queue) {
+-        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+-                .putString(KEY_QUEUE, queue.toString()).commit();
+-    }
+-
+-    private static Bundle accepted(boolean value) {
+-        Bundle result = new Bundle();
+-        result.putBoolean(KEY_ACCEPTED, value);
+-        return result;
+-    }
+-
+-    static final class Command {
+-        final int action;
+-        final String target;
+-        final int toggle;
+-
+-        Command(int action, String target, int toggle) {
+-            this.action = action;
+-            this.target = target;
+-            this.toggle = toggle;
+-        }
++        return validated.gestureAction(0) == action && validated.isGestureComplete(0);
+     }
+ }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java
+index 1faa427..c390b23 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java
+@@ -226,7 +226,10 @@ public final class DesktopConfig {
+         if (context == null || config == null) return false;
+         if (BuildConfig.APPLICATION_ID.equals(context.getPackageName())) {
+             boolean saved = DesktopConfigStore.write(context, config);
+-            if (saved) context.getContentResolver().notifyChange(contentUri(), null);
++            if (saved) {
++                RuntimeConfigExchange.publish(context);
++                context.getContentResolver().notifyChange(contentUri(), null);
++            }
+             return saved;
+         }
+         try {
+@@ -241,18 +244,38 @@ public final class DesktopConfig {
+     }
+ 
+     public static DesktopConfig read(Context context) {
++        return read(context, () -> context.getContentResolver().call(contentUri(), METHOD_GET,
++                null, null));
++    }
++
++    static DesktopConfig readForRuntime(Context context) {
++        return context == null ? defaults() : DesktopConfigStore.read(context);
++    }
++
++    static DesktopConfig readForRuntime(Context context, boolean settingsPackageDisabled) {
++        return readForRuntime(context);
++    }
++
++    interface ProviderReader { Bundle read() throws Exception; }
++
++    static DesktopConfig read(Context context, ProviderReader reader) {
+         if (context == null) return defaults();
+         if (BuildConfig.APPLICATION_ID.equals(context.getPackageName())) {
+             return DesktopConfigStore.read(context);
+         }
+         try {
+-            Bundle result = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
+-            return result == null ? defaults() : fromBundle(result);
++            Bundle result = reader.read();
++            if (result != null) {
++                DesktopActionBridgeToken.cacheHostToken(context, result);
++                DesktopConfig loaded = fromBundle(result);
++                DesktopConfigStore.write(context, loaded);
++                return loaded;
++            }
+         } catch (Throwable error) {
+             Log.w("FusionStatusBar", "desktop settings read failed: "
+                     + error.getClass().getSimpleName());
+-            return defaults();
+         }
++        return DesktopConfigStore.read(context);
+     }
+ 
+     static int gestureForVerticalDirection(int direction, int pointerCount) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java
+index 3af33ed..fcc9681 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java
+@@ -17,7 +17,7 @@ final class DesktopConfigStore {
+ 
+     static DesktopConfig read(Context context) {
+         if (context == null) return DesktopConfig.defaults();
+-        SharedPreferences preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
++        SharedPreferences preferences = preferences(context);
+         Bundle values = new Bundle();
+         boolean legacy = preferences.getInt("desktop_schema_version", 1) < 2;
+         values.putInt("desktop_schema_version", 2);
+@@ -56,8 +56,7 @@ final class DesktopConfigStore {
+ 
+     static boolean write(Context context, DesktopConfig config) {
+         if (context == null || config == null) return false;
+-        SharedPreferences.Editor editor = context.getSharedPreferences(FILE,
+-                Context.MODE_PRIVATE).edit();
++        SharedPreferences.Editor editor = preferences(context).edit();
+         editor.putInt("desktop_schema_version", 2);
+         editor.putBoolean(KEY_HIDE_ICONS, config.hideIcons);
+         editor.putStringSet(KEY_HIDDEN_PACKAGES, new HashSet<>(config.hiddenPackages()));
+@@ -70,6 +69,12 @@ final class DesktopConfigStore {
+         return editor.commit();
+     }
+ 
++    private static SharedPreferences preferences(Context context) {
++        Context owner = BuildConfig.APPLICATION_ID.equals(context.getPackageName())
++                ? context : context.createDeviceProtectedStorageContext();
++        return owner.getSharedPreferences(FILE, Context.MODE_PRIVATE);
++    }
++
+     private static String gestureActionKey(int gestureId) {
+         return "gesture_" + gestureId + "_action";
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopShortcutCatalog.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopShortcutCatalog.java
+index dd9e103..5074346 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopShortcutCatalog.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopShortcutCatalog.java
+@@ -18,6 +18,7 @@ final class DesktopShortcutCatalog {
+     static final String METHOD_REQUEST = "desktop_shortcuts_request";
+     static final String METHOD_PUBLISH = "desktop_shortcuts_publish";
+     static final String KEY_CATALOG = "desktop_shortcuts";
++    static final String KEY_REVISION = "desktop_shortcuts_revision";
+     private static final int MAX_SHORTCUTS = 512;
+ 
+     private DesktopShortcutCatalog() { }
+@@ -26,6 +27,10 @@ final class DesktopShortcutCatalog {
+         return Uri.parse("content://" + BuildConfig.APPLICATION_ID + ".config/desktop_shortcuts");
+     }
+ 
++    static Uri requestUri() {
++        return Uri.parse("content://" + BuildConfig.APPLICATION_ID + ".config/desktop_shortcuts_request");
++    }
++
+     static void publishFromLauncher(Context context) {
+         try {
+             LauncherApps launcher = context.getSystemService(LauncherApps.class);
+@@ -58,7 +63,13 @@ final class DesktopShortcutCatalog {
+     static List<Choice> read(Context context) {
+         ArrayList<Choice> result = new ArrayList<>();
+         try {
+-            Bundle data = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
++            Bundle data = context.getContentResolver().call(contentUri(), METHOD_REQUEST, null, null);
++            long previousRevision = data == null ? 0L : data.getLong(KEY_REVISION, 0L);
++            for (int attempt = 0; attempt < 12; attempt++) {
++                if (data != null && data.getLong(KEY_REVISION, 0L) > previousRevision) break;
++                android.os.SystemClock.sleep(80L);
++                data = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
++            }
+             JSONArray catalog = new JSONArray(data == null ? "[]" : data.getString(KEY_CATALOG, "[]"));
+             for (int i = 0; i < catalog.length() && i < MAX_SHORTCUTS; i++) {
+                 JSONObject item = catalog.getJSONObject(i);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSystemActionReceiver.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSystemActionReceiver.java
+index 22cd82d..c25f3df 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSystemActionReceiver.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSystemActionReceiver.java
+@@ -1,12 +1,12 @@
+ package com.xtjm.fusionstatusbar;
+ 
+ import android.bluetooth.BluetoothAdapter;
++import android.content.BroadcastReceiver;
+ import android.content.Context;
+ import android.content.Intent;
++import android.content.IntentFilter;
+ import android.content.pm.PackageManager;
+ import android.content.res.Configuration;
+-import android.database.ContentObserver;
+-import android.net.Uri;
+ import android.hardware.camera2.CameraCharacteristics;
+ import android.hardware.camera2.CameraManager;
+ import android.location.LocationManager;
+@@ -15,6 +15,7 @@ import android.net.wifi.WifiManager;
+ import android.nfc.NfcAdapter;
+ import android.os.Handler;
+ import android.os.Looper;
++import android.os.Build;
+ import android.os.PowerManager;
+ import android.os.SystemClock;
+ import android.os.UserHandle;
+@@ -31,7 +32,7 @@ import java.util.concurrent.Executor;
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ 
+-/** Executes queued launcher gestures in SystemUI so platform actions use its UID. */
++/** Executes authenticated launcher action broadcasts in SystemUI's permission context. */
+ final class DesktopSystemActionReceiver {
+     private static final String TAG = "FusionStatusBar";
+     private static final AtomicBoolean REGISTERED = new AtomicBoolean();
+@@ -56,30 +57,53 @@ final class DesktopSystemActionReceiver {
+         }
+         try {
+             final Context systemUiContext = context;
+-            context.getContentResolver().registerContentObserver(DesktopActionQueue.contentUri(),
+-                    false, new ContentObserver(MAIN) {
+-                        @Override public void onChange(boolean selfChange, Uri uri) {
+-                            drain(systemUiContext);
+-                        }
+-                    });
+-            drain(context);
+-            Log.i(TAG, "desktop action bridge registered");
++            context.registerReceiver(new BroadcastReceiver() {
++                @Override public void onReceive(Context ignored, Intent intent) {
++                    int senderUid = Build.VERSION.SDK_INT >= 34 ? getSentFromUid() : -1;
++                    if (!receiveLauncherAction(systemUiContext, intent, senderUid)) {
++                        Log.w(TAG, "ignored untrusted desktop action broadcast");
++                    }
++                }
++            }, new IntentFilter(DesktopActionQueue.ACTION_DISPATCH), Context.RECEIVER_EXPORTED);
++            Log.i(TAG, "desktop action broadcast bridge registered");
+         } catch (Throwable error) {
+             REGISTERED.set(false);
+             Log.w(TAG, "desktop action bridge registration failed", error);
+         }
+     }
+ 
+-    private static void drain(Context context) {
+-        Runnable drain = () -> {
+-            for (int i = 0; i < 16; i++) {
+-                DesktopActionQueue.Command command = DesktopActionQueue.take(context);
+-                if (command == null) return;
+-                execute(context, command.action, command.target, command.toggle);
+-            }
+-        };
+-        if (Looper.myLooper() == Looper.getMainLooper()) drain.run();
+-        else MAIN.post(drain);
++    static boolean receiveLauncherAction(Context context, Intent intent, int senderUid) {
++        if (context == null || intent == null
++                || !DesktopActionQueue.ACTION_DISPATCH.equals(intent.getAction())
++                || !"com.android.systemui".equals(intent.getPackage())) return false;
++        int action = intent.getIntExtra(DesktopActionQueue.KEY_ACTION,
++                DesktopConfig.ACTION_NATIVE);
++        String target = intent.getStringExtra(DesktopActionQueue.KEY_TARGET);
++        int toggle = intent.getIntExtra(DesktopActionQueue.KEY_TOGGLE, 1);
++        if (!DesktopActionQueue.isValidCommand(action, target, toggle)) return false;
++        long timestamp = intent.getLongExtra(DesktopActionQueue.KEY_TIMESTAMP, 0L);
++        String nonce = intent.getStringExtra(DesktopActionQueue.KEY_NONCE);
++        String signature = intent.getStringExtra(DesktopActionQueue.KEY_SIGNATURE);
++        if (!DesktopActionBridgeToken.verify(context, action, target, toggle, timestamp,
++                    nonce, signature)
++                || Build.VERSION.SDK_INT >= 34 && !isTrustedLauncherUid(context, senderUid)) {
++            return false;
++        }
++        execute(context, action, target, toggle);
++        return true;
++    }
++
++    static boolean isTrustedLauncherUid(Context context, int uid) {
++        if (context == null || uid < 0) return false;
++        return isTrustedLauncherUid(uid, context.getPackageManager().getPackagesForUid(uid));
++    }
++
++    static boolean isTrustedLauncherUid(int uid, String[] packages) {
++        if (uid < 0 || packages == null) return false;
++        for (String packageName : packages) {
++            if ("com.miui.home".equals(packageName)) return true;
++        }
++        return false;
+     }
+ 
+     private static void execute(Context context, int action, String target, int toggle) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionActivationStatus.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionActivationStatus.java
+index a3b03e7..212ab04 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionActivationStatus.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionActivationStatus.java
+@@ -110,9 +110,7 @@ final class FusionActivationStatus {
+                 }
+             }
+             values.putBundle(KEY_FEATURES, states);
+-            Bundle result = context.getContentResolver().call(FusionConfig.contentUri(),
+-                    FusionConfig.METHOD_REPORT_APPLIED, null, values);
+-            return result != null && result.getBoolean("accepted", false);
++            return RuntimeConfigExchange.sendStatus(context, values);
+         } catch (RuntimeException error) {
+             return false;
+         }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java
+index cc4a9b2..5ff40f7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfig.java
+@@ -226,6 +226,7 @@ public final class FusionConfig {
+     }
+ 
+     static Bundle controlCenterPreviewState(Context context) {
++        if (RuntimeConfigCache.settingsPackageDisabled(context)) return null;
+         try {
+             return context.getContentResolver().call(controlCenterPreviewUri(),
+                     METHOD_PREVIEW_STATE, null, null);
+@@ -274,35 +275,48 @@ public final class FusionConfig {
+     }
+ 
+     public static FusionConfig read(Context context) {
+-        if (context == null) {
+-            return defaults();
+-        }
+-        FusionConfig providerConfig = readFromProvider(context);
+-        if (providerConfig != null) return providerConfig;
+-        try {
+-            Context packageContext = context.createPackageContext(
+-                    BuildConfig.APPLICATION_ID, Context.CONTEXT_IGNORE_SECURITY);
+-            return FusionConfigStore.read(packageContext);
+-        } catch (Throwable ignored) {
+-            return defaults();
+-        }
++        if (context == null) return defaults();
++        if (BuildConfig.APPLICATION_ID.equals(context.getPackageName()))
++            return FusionConfigStore.read(context);
++        FusionConfig cached = RuntimeConfigCache.read(context);
++        return cached == null ? defaults() : cached;
+     }
+ 
+     static FusionConfig readFromProvider(Context context) {
+-        if (context == null) return null;
+-        try {
++        return readFromProvider(context, RuntimeConfigCache.settingsPackageDisabled(context));
++    }
++
++    static FusionConfig readFromProvider(Context context, boolean preferHostCache) {
++        return readFromProvider(context, () -> {
+             Bundle request = new Bundle();
+             request.putString(FusionActivationStatus.KEY_RUNTIME_SESSION,
+                     FusionActivationStatus.runtimeSession());
+-            Bundle values = context.getContentResolver().call(
+-                    contentUri(), METHOD_GET, null, request);
++            return context.getContentResolver().call(contentUri(), METHOD_GET, null, request);
++        }, preferHostCache);
++    }
++
++    interface ProviderReader { Bundle read() throws Exception; }
++
++    static FusionConfig readFromProvider(Context context, ProviderReader reader,
++            boolean preferHostCache) {
++        if (context == null) return null;
++        boolean hostContext = !BuildConfig.APPLICATION_ID.equals(context.getPackageName());
++        if (hostContext && preferHostCache) {
++            return RuntimeConfigCache.read(context);
++        }
++        try {
++            Bundle values = reader.read();
+             if (values != null) {
+-                return fromBundle(values);
++                if (hostContext) DesktopActionBridgeToken.cacheHostToken(context, values);
++                FusionConfig loaded = fromBundle(values);
++                if (hostContext) RuntimeConfigCache.write(context, loaded);
++                return loaded;
+             }
+         } catch (Throwable error) {
+             Log.w("FusionStatusBar", "config provider read failed: "
+                     + error.getClass().getSimpleName());
+         }
++        if (hostContext) return RuntimeConfigCache.read(context);
+         return null;
+     }
+ 
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java
+index 7388c9c..1ebfc92 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java
+@@ -26,13 +26,16 @@ public final class FusionConfigProvider extends ContentProvider {
+         if (DesktopShortcutCatalog.METHOD_GET.equals(method)
+                 || DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
+             enforceCaller(caller, context == null ? null : context.getPackageName(), true);
++            android.content.SharedPreferences preferences = context.getSharedPreferences(
++                    "desktop_settings_v1", Context.MODE_PRIVATE);
+             if (DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
+-                context.getContentResolver().notifyChange(DesktopShortcutCatalog.contentUri(), null);
++                context.getContentResolver().notifyChange(DesktopShortcutCatalog.requestUri(), null);
+             }
+             Bundle catalog = new Bundle();
+             catalog.putString(DesktopShortcutCatalog.KEY_CATALOG,
+-                    context.getSharedPreferences("desktop_settings_v1", Context.MODE_PRIVATE)
+-                            .getString(DesktopShortcutCatalog.KEY_CATALOG, "[]"));
++                    preferences.getString(DesktopShortcutCatalog.KEY_CATALOG, "[]"));
++            catalog.putLong(DesktopShortcutCatalog.KEY_REVISION,
++                    preferences.getLong(DesktopShortcutCatalog.KEY_REVISION, 0L));
+             return catalog;
+         }
+         if (DesktopShortcutCatalog.METHOD_PUBLISH.equals(method)) {
+@@ -41,23 +44,22 @@ public final class FusionConfigProvider extends ContentProvider {
+             if (encoded == null || encoded.length() > 262144) {
+                 throw new IllegalArgumentException("shortcut_catalog_too_large");
+             }
+-            context.getSharedPreferences("desktop_settings_v1", Context.MODE_PRIVATE).edit()
+-                    .putString(DesktopShortcutCatalog.KEY_CATALOG, encoded).apply();
++            android.content.SharedPreferences preferences = context.getSharedPreferences(
++                    "desktop_settings_v1", Context.MODE_PRIVATE);
++            boolean saved = preferences.edit().putString(DesktopShortcutCatalog.KEY_CATALOG, encoded)
++                    .putLong(DesktopShortcutCatalog.KEY_REVISION,
++                            preferences.getLong(DesktopShortcutCatalog.KEY_REVISION, 0L) + 1L)
++                    .commit();
++            if (saved) context.getContentResolver().notifyChange(DesktopShortcutCatalog.contentUri(), null);
+             return new Bundle();
+         }
+-        if (DesktopActionQueue.METHOD_ENQUEUE.equals(method)) {
+-            enforceLauncherCaller(caller);
+-            return DesktopActionQueue.enqueueFromProvider(context, extras);
+-        }
+-        if (DesktopActionQueue.METHOD_TAKE.equals(method)) {
+-            if (!SYSTEM_UI_PACKAGE.equals(caller)) throw new SecurityException("systemui_action_take_only");
+-            return DesktopActionQueue.takeFromProvider(context);
+-        }
+         if (DesktopConfig.METHOD_GET.equals(method)) {
+             enforceDesktopReadCaller(caller, context == null ? null : context.getPackageName());
+             UserManager users = context.getSystemService(UserManager.class);
+             if (users != null && !users.isUserUnlocked()) return DesktopConfig.defaults().toBundle();
+-            return DesktopConfigStore.read(context).toBundle();
++            Bundle desktop = DesktopConfigStore.read(context).toBundle();
++            DesktopActionBridgeToken.appendModuleToken(context, desktop);
++            return desktop;
+         }
+         if (DesktopConfig.METHOD_SET.equals(method)) {
+             enforceCaller(caller, context == null ? null : context.getPackageName(), true);
+@@ -78,7 +80,10 @@ public final class FusionConfigProvider extends ContentProvider {
+             if (SYSTEM_UI_PACKAGE.equals(caller)) FusionActivationStatus.reportRead(context,
+                     config.revision, FusionActivationStatus.callerSession(
+                             android.os.Binder.getCallingUid(), android.os.Binder.getCallingPid(), extras));
+-            return config.toBundle();
++            Bundle values = config.toBundle();
++            if (SYSTEM_UI_PACKAGE.equals(caller))
++                DesktopActionBridgeToken.appendModuleToken(context, values);
++            return values;
+         }
+         if (FusionConfig.METHOD_REPORT_APPLIED.equals(method)) {
+             if (!SYSTEM_UI_PACKAGE.equals(caller)) throw new SecurityException("systemui_report_only");
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigStore.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigStore.java
+index 8d2d0ea..b714d4c 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigStore.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigStore.java
+@@ -97,6 +97,7 @@ public final class FusionConfigStore {
+ 
+     private static void notifyCommitted(Context context, WriteResult result) {
+         if (result.success) {
++            RuntimeConfigExchange.publish(context);
+             try {
+                 context.getContentResolver().notifyChange(FusionConfig.contentUri(), null);
+             } catch (RuntimeException error) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java
+index 21c30c9..e117f8b 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java
+@@ -592,10 +592,10 @@ final class LauncherHooks {
+                     }
+                 };
+                 try {
++                    if (!RuntimeConfigExchange.registerLauncher(app, LauncherHooks::refreshConfiguration))
++                        throw new IllegalStateException("launcher_config_receiver_unavailable");
+                     app.getContentResolver().registerContentObserver(
+-                            DesktopConfig.contentUri(), false, observer);
+-                    app.getContentResolver().registerContentObserver(
+-                            DesktopShortcutCatalog.contentUri(), false, new ContentObserver(MAIN) {
++                            DesktopShortcutCatalog.requestUri(), false, new ContentObserver(MAIN) {
+                                 @Override public void onChange(boolean selfChange, Uri uri) {
+                                     SHORTCUT_WORKER.execute(() -> DesktopShortcutCatalog.publishFromLauncher(app));
+                                 }
+@@ -606,8 +606,8 @@ final class LauncherHooks {
+                 }
+             }
+         }
+-        config = DesktopConfig.read(activity);
+-        SHORTCUT_WORKER.execute(() -> DesktopShortcutCatalog.publishFromLauncher(app));
++        RuntimeConfigExchange.request(app);
++        config = DesktopConfig.readForRuntime(activity);
+         updateShakeRegistration();
+         applyDesktopIcons(activity.getWindow() == null
+                 ? null : activity.getWindow().getDecorView());
+@@ -619,7 +619,7 @@ final class LauncherHooks {
+             Activity activity = currentActivity.get();
+             if (activity == null) return;
+             Context context = activity.getApplicationContext();
+-            config = DesktopConfig.read(context);
++            config = DesktopConfig.readForRuntime(context);
+             updateShakeRegistration();
+             applyDesktopIcons(activity.getWindow() == null
+                     ? null : activity.getWindow().getDecorView());
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+index 4a0789b..aaa893e 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+@@ -13,6 +13,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+     private static final int REQUEST_EXPORT_LOGS = 1027;
+     private android.view.View activationIndicator;
+     private android.database.ContentObserver activationObserver;
++    private AutoCloseable runtimeConfigExchange;
+     private android.widget.TextView activationSummary;
+     private android.widget.TextView activationTitle;
+     private android.widget.Switch hideLauncherIconSwitch;
+@@ -157,6 +158,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+     @Override // android.app.Activity
+     protected void onCreate(android.os.Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
++        runtimeConfigExchange = RuntimeConfigExchange.registerSettings(this);
+         setContentView(com.xtjm.fusionstatusbar.R.layout.activity_main);
+         installStartupOverlay();
+         editorPage = new ControlCenterPageCoordinator(new ControlCenterDraftStore(this), this::updateSettingsSummaries);
+@@ -3326,6 +3328,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+     }
+ 
+     @Override protected void onDestroy() {
++        if (runtimeConfigExchange != null) {
++            try { runtimeConfigExchange.close(); }
++            catch (Exception error) {
++                android.util.Log.w("FusionStatusBar", "settings config exchange release failed", error);
++            }
++            runtimeConfigExchange = null;
++        }
+         if (utilitySheets != null) utilitySheets.close();
+         if (desktopSettingsPage != null) desktopSettingsPage.close();
+         if (diagnosticExportCancellation != null) diagnosticExportCancellation.set(true);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeAcknowledgements.java b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeAcknowledgements.java
+index 2663dec..4152307 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeAcknowledgements.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeAcknowledgements.java
+@@ -66,6 +66,12 @@ final class RuntimeAcknowledgements {
+         latest.clear();
+     }
+ 
++    synchronized void resetSource() {
++        for (Report report : latest.values()) cancelRetry(report);
++        latest.clear();
++        revision = -1;
++    }
++
+     void report(Context context, long value, String feature, String state, String reason) {
+         if (!knownFeature(feature) || value < 0) return;
+         Report next;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigCoordinator.java b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigCoordinator.java
+index 74ac8df..812b663 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigCoordinator.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeConfigCoordinator.java
+@@ -6,7 +6,7 @@ import android.os.Looper;
+ import java.util.concurrent.Executor;
+ import java.util.concurrent.RejectedExecutionException;
+ 
+-/** Serial provider IO; only the newest requested, non-regressing snapshot reaches views. */
++/** Serial host snapshot IO; only the newest snapshot from the current source reaches views. */
+ final class RuntimeConfigCoordinator {
+     interface Reader { FusionConfig read(); }
+     interface Listener {
+@@ -22,13 +22,17 @@ final class RuntimeConfigCoordinator {
+     private long appliedRevision = -1;
+     private Delivery pendingDelivery;
+     private boolean deliveryPosted;
++    private Context sourceContext;
++    private String sourceToken;
+ 
+     private record Delivery(long request, FusionConfig config) { }
+ 
+     RuntimeConfigCoordinator(Context context, Listener listener) {
+         this(new RuntimeWorkQueue("fusion-config", 4),
+                 mainExecutor(new Handler(Looper.getMainLooper())),
+-                () -> FusionConfig.readFromProvider(context), listener);
++                () -> FusionConfig.read(context), listener);
++        sourceContext = context;
++        sourceToken = DesktopActionBridgeToken.cachedToken(context);
+     }
+ 
+     RuntimeConfigCoordinator(RuntimeWorkQueue work, Executor main, Reader reader, Listener listener) {
+@@ -43,7 +47,17 @@ final class RuntimeConfigCoordinator {
+ 
+     void reload() {
+         long request;
+-        synchronized (this) { request = ++generation; }
++        synchronized (this) {
++            if (sourceContext != null) {
++                String nextToken = DesktopActionBridgeToken.cachedToken(sourceContext);
++                if (!java.util.Objects.equals(sourceToken, nextToken)) {
++                    sourceToken = nextToken;
++                    appliedRevision = -1;
++                }
++            }
++            acknowledgements.resetSource();
++            request = ++generation;
++        }
+         if (!work.execute("read", this::readLatest)) offerDelivery(request, null);
+     }
+ 
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeObserverRegistration.java b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeObserverRegistration.java
+index b1db21b..0cd6431 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeObserverRegistration.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/RuntimeObserverRegistration.java
+@@ -19,8 +19,11 @@ final class RuntimeObserverRegistration {
+ 
+     RuntimeObserverRegistration(Context context, Handler main, Runnable reload, Runnable preview) {
+         this((task, delay) -> main.postDelayed(task, delay),
+-                () -> context.getContentResolver().registerContentObserver(
+-                        FusionConfig.contentUri(), true, observer(main, reload)),
++                () -> {
++                    if (!RuntimeConfigExchange.registerSystemUi(context, reload))
++                        throw new IllegalStateException("host_config_receiver_unavailable");
++                    RuntimeConfigExchange.request(context);
++                },
+                 () -> context.getContentResolver().registerContentObserver(
+                         FusionConfig.controlCenterPreviewUri(), true, observer(main, preview)),
+                 () -> context.registerReceiver(new BroadcastReceiver() {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index 0703bf4..33a94c7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -2865,7 +2865,7 @@ public final class SystemUiHooks {
+                     }
+ 
+                     @Override public void requestPreview(Context source) {
+-                        requestControlCenterPreviewCapture(source);
++                        PREVIEW_CAPTURE.requestFromSettings(source);
+                     }
+                         });
+             }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java
+index ba85729..b2dfcab 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAnimationTest.java
+@@ -98,6 +98,23 @@ public class ControlCenterRuntimeAnimationTest {
+         assertEquals(0, host.requests);
+     }
+ 
++    @Test public void openingHeightResetIsRepairedWithoutAnotherLayoutCallback() throws Exception {
++        assertTrue("The RecyclerView carrier must be attached for frame callbacks", host.isAttachedToWindow());
++        holder.frame(0.4f, 0.8f, 64f);
++        host.getLayoutParams().height = 64;
++        host.setLayoutParams(host.getLayoutParams());
++        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
++                ControlCenterRuntimeGrid.GridView.class}, host, grid);
++        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(80));
++        assertEquals(64, host.getLayoutParams().height);
++
++        holder.frame(1f, 1f, 0f);
++        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(32));
++
++        assertEquals("The mounted carrier must reserve all rows before the native edit item",
++                grid.renderedHeight(), host.getLayoutParams().height);
++    }
++
+     @Test public void collapseFramesDoNotFightNativeHeightUpdates() throws Exception {
+         holder.frame(0.3f, 0.8f, 100f);
+         host.getLayoutParams().height = 64;
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java
+index 91fe2dc..c47b0d5 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java
+@@ -136,27 +136,17 @@ public class DesktopConfigTest {
+         assertEquals(12, context.getResources().getIntArray(R.array.desktop_toggle_values).length);
+     }
+ 
+-    @Test public void actionQueueAllowsOnlyLauncherRequestsAndPreservesOrder() {
++    @Test public void desktopActionCommandsAreValidatedBeforeBroadcast() {
+         FusionConfigProvider.enforceLauncherCaller("com.miui.home");
+         assertThrows(SecurityException.class,
+                 () -> FusionConfigProvider.enforceLauncherCaller("malicious.app"));
+         assertThrows(SecurityException.class,
+                 () -> FusionConfigProvider.enforceLauncherCaller(BuildConfig.APPLICATION_ID));
+-        Bundle first = new Bundle();
+-        first.putInt(DesktopActionQueue.KEY_ACTION, DesktopConfig.ACTION_NOTIFICATIONS);
+-        assertTrue(DesktopActionQueue.enqueueFromProvider(context, first)
+-                .getBoolean(DesktopActionQueue.KEY_ACCEPTED));
+-        Bundle second = new Bundle();
+-        second.putInt(DesktopActionQueue.KEY_ACTION, DesktopConfig.ACTION_TOGGLE);
+-        second.putInt(DesktopActionQueue.KEY_TOGGLE, 12);
+-        assertTrue(DesktopActionQueue.enqueueFromProvider(context, second)
+-                .getBoolean(DesktopActionQueue.KEY_ACCEPTED));
+-        assertEquals(DesktopConfig.ACTION_NOTIFICATIONS,
+-                DesktopActionQueue.takeFromProvider(context).getInt(DesktopActionQueue.KEY_ACTION));
+-        Bundle takenToggle = DesktopActionQueue.takeFromProvider(context);
+-        assertEquals(DesktopConfig.ACTION_TOGGLE, takenToggle.getInt(DesktopActionQueue.KEY_ACTION));
+-        assertEquals(12, takenToggle.getInt(DesktopActionQueue.KEY_TOGGLE));
+-        assertEquals(null, DesktopActionQueue.takeFromProvider(context));
++        assertTrue(DesktopActionQueue.isValidCommand(DesktopConfig.ACTION_NOTIFICATIONS, null, 1));
++        assertTrue(DesktopActionQueue.isValidCommand(DesktopConfig.ACTION_TOGGLE, null,
++                DesktopConfig.TOGGLE_COUNT));
++        assertFalse(DesktopActionQueue.isValidCommand(DesktopConfig.ACTION_TOGGLE, null,
++                DesktopConfig.TOGGLE_COUNT + 1));
+     }
+ 
+     @Test public void upgradePreservesOldNotificationAndApplicationAssignments() {
+@@ -175,14 +165,5 @@ public class DesktopConfigTest {
+         assertEquals(upgraded, DesktopConfigStore.read(context));
+     }
+ 
+-    @Test public void queuedCommandsExpireInsteadOfExecutingAfterSystemUiRestarts() {
+-        long expiredAt = System.currentTimeMillis() - DesktopActionQueue.MAX_COMMAND_AGE_MS - 1L;
+-        String expired = "[{\"desktop_action\":4,\"created_at\":" + expiredAt + "}]";
+-        context.getSharedPreferences("desktop_settings_v1", android.content.Context.MODE_PRIVATE)
+-                .edit().putString("pending_desktop_actions", expired).commit();
+-        assertEquals(null, DesktopActionQueue.takeFromProvider(context));
+-        assertEquals("[]", context.getSharedPreferences("desktop_settings_v1", android.content.Context.MODE_PRIVATE)
+-                .getString("pending_desktop_actions", "missing"));
+-    }
+ }
+ 
