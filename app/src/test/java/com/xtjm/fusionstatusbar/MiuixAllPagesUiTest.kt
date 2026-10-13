@@ -33,7 +33,7 @@ class MiuixAllPagesUiTest {
         compose.onNodeWithTag("miuix_sheet_confirm").performClick()
         compose.onNodeWithTag("navigation_2").performClick()
         compose.onNodeWithTag("preference_通知中心时间").assertExists()
-        compose.onNodeWithTag("navigation_4").performClick()
+        compose.onNodeWithTag("navigation_5").performClick()
         compose.onNodeWithTag("preference_重启系统桌面").assertExists()
     }
 

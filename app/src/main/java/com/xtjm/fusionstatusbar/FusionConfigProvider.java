@@ -23,6 +23,18 @@ public final class FusionConfigProvider extends ContentProvider {
     @Override public Bundle call(String method, String arg, Bundle extras) {
         Context context = getContext();
         String caller = getCallingPackage();
+        if (MiscConfig.METHOD_GET.equals(method)) {
+            enforceMiscReadCaller(caller, context == null ? null : context.getPackageName());
+            return MiscConfigStore.read(context).toBundle();
+        }
+        if (MiscConfig.METHOD_SET.equals(method)) {
+            enforceCaller(caller, context == null ? null : context.getPackageName(), true);
+            boolean accepted = MiscConfigStore.write(context, MiscConfig.fromBundle(extras));
+            Bundle result = new Bundle();
+            result.putBoolean(MiscConfig.KEY_ACCEPTED, accepted);
+            if (accepted) MiscConfig.notifyChanged(context);
+            return result;
+        }
         if (DesktopShortcutCatalog.METHOD_GET.equals(method)
                 || DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
             enforceCaller(caller, context == null ? null : context.getPackageName(), true);
@@ -136,6 +148,13 @@ public final class FusionConfigProvider extends ContentProvider {
     static void enforceDesktopReadCaller(String caller, String ownPackage) {
         if (caller == null || !(caller.equals(ownPackage) || LAUNCHER_PACKAGE.equals(caller))) {
             throw new SecurityException("desktop_config_caller_not_authorized");
+        }
+    }
+
+    static void enforceMiscReadCaller(String caller, String ownPackage) {
+        if (caller == null || !(caller.equals(ownPackage)
+                || "android".equals(caller))) {
+            throw new SecurityException("misc_config_caller_not_authorized");
         }
     }
 

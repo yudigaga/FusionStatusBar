@@ -16,6 +16,17 @@ public final class FusionModule extends XposedModule {
     }
 
     @Override
+    public void onSystemServerStarting(XposedModuleInterface.SystemServerStartingParam param) {
+        try {
+            int installed = SystemStartConfirmationHooks.install(this, param.getClassLoader());
+            log(Log.INFO, TAG, "system start confirmation hooks version=" + BuildConfig.VERSION_NAME
+                    + " installed=" + installed);
+        } catch (Throwable error) {
+            log(Log.ERROR, TAG, "system start confirmation hooks failed", error);
+        }
+    }
+
+    @Override
     public void onPackageLoaded(XposedModuleInterface.PackageLoadedParam param) {
         if (!"com.android.systemui".equals(param.getPackageName())) {
             return;

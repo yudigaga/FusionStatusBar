@@ -60,14 +60,14 @@ public class SystemSurfaceSettingsUiTest {
         assertNotNull(field("desktopSettingsPage"));
         assertEquals("Desktop controls now belong to Compose", 0, pages[0].getChildCount());
 
-        navigation[4].performClick();
-        assertTrue(navigation[4].isSelected());
+        navigation[5].performClick();
+        assertTrue(navigation[5].isSelected());
         for (String title : new String[] {"设置", "模块状态", "隐藏应用图标", "设备信息",
                 "关于", "模块维护", "重启系统桌面", "重启系统界面"}) {
             assertTrue("Settings page should contain " + title, MiuixTestActions.exists(compose, title));
         }
         for (String removed : new String[] {"权限", "电话状态权限", "应用权限管理"}) {
-            assertNull("Settings page should not contain " + removed, findText(pages[4], removed));
+            assertNull("Settings page should not contain " + removed, findText(pages[5], removed));
         }
     }
 

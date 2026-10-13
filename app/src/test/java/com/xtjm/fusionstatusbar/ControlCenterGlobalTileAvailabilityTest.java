@@ -25,6 +25,7 @@ import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
+@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
 public class ControlCenterGlobalTileAvailabilityTest {
     @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
     private static final String APPLICATION_SPEC = "custom(com.example.global/.apptile)";

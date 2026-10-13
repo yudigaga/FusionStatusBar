@@ -12,6 +12,24 @@ SPEC.loader.exec_module(validate_build)
 
 
 class ValidateBuildTests(unittest.TestCase):
+    def test_android_alone_does_not_enable_the_system_server_hook(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scopes = root / "app/src/main/resources/META-INF/xposed/scope.list"
+            scopes.parent.mkdir(parents=True)
+            scopes.write_text("android\ncom.android.systemui\n", encoding="utf-8")
+            with self.assertRaisesRegex(validate_build.ValidationError, "requires Xposed scope 'system'"):
+                validate_build.source_scopes(root)
+            scopes.write_text("# System server is a separate LSPosed scope\nsystem\n", encoding="utf-8")
+            self.assertEqual({"system"}, validate_build.source_scopes(root))
+
+    def test_current_source_declares_system_server_scope(self):
+        self.assertIn("system", validate_build.source_scopes(MODULE.parent.parent))
+
+    def test_xposed_scope_list_rejects_duplicate_entries(self):
+        with self.assertRaisesRegex(validate_build.ValidationError, "Duplicate Xposed scope"):
+            validate_build.xposed_scopes("system\nandroid\nsystem\n")
+
     def test_source_identity_reads_literal_android_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,15 +2,15 @@
 
 面向 SystemUI 的 LibXposed 模块，提供融合图标、双排状态栏、时钟天气、遥测，以及控制中心布局与外观编辑。
 
-当前正式版本为 0.3.193，修复控制中心动画后的网格高度恢复，并将运行时配置和桌面动作移至 SystemUI 与桌面宿主，减少对设置应用进程的依赖。见 [0.3.192 到 0.3.193 更新说明及升级步骤](docs/release-notes-v0.3.193.md)。
+当前正式版本为 0.3.197，新增杂项页面、可选的链式启动确认移除和毛玻璃悬浮底栏，修正 system_server 作用域。见 [0.3.193 到 0.3.197 完整更新说明及升级步骤](docs/release-notes-v0.3.197.md)。
 
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 组件：[Miuix](https://github.com/compose-miuix-ui/miuix) 0.8.8，Apache-2.0；自定义预览与画布通过 View/Compose 互操作复用。
-- 最新正式版：[FusionStatusBar 0.3.193](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.193)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/207-0.3.193)
-- [0.3.192 到 0.3.193 更新说明](docs/release-notes-v0.3.193.md)
+- 最新正式版：[FusionStatusBar 0.3.197](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.197)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/211-0.3.197)
+- [0.3.193 到 0.3.197 完整更新说明](docs/release-notes-v0.3.197.md)
 
 ## 构建
 

@@ -1,0 +1,676 @@
+diff --git a/README.md b/README.md
+index a007d6e..9cc9043 100644
+--- a/README.md
++++ b/README.md
+@@ -4,6 +4,8 @@
+ 
+ 当前正式版本为 0.3.193，修复控制中心动画后的网格高度恢复，并将运行时配置和桌面动作移至 SystemUI 与桌面宿主，减少对设置应用进程的依赖。见 [0.3.192 到 0.3.193 更新说明及升级步骤](docs/release-notes-v0.3.193.md)。
+ 
++本地新增构建 0.3.197：移除不需要的 `android` 作用域，仅保留链式启动所需的 `system` 作用域，见 [0.3.197 版本说明](docs/chain-start-scope-v0.3.197.md)。毛玻璃悬浮底栏与杂项开关保留。
++
+ ## 开源项目
+ 
+ - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
+diff --git a/app/build.gradle b/app/build.gradle
+index ec7c634..848fea3 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 207
+-        versionName "0.3.193"
++        versionCode 211
++        versionName "0.3.197"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt
+index 98f8bb4..75bd127 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt
+@@ -82,6 +82,11 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     private var desktopView: ComposeView? = null
+     private var popupView: ComposeView? = null
+     private var closed = false
++    private var navigationPadding by mutableIntStateOf(108)
++
++    fun setNavigationHeight(height: Int) {
++        navigationPadding = (height / activity.resources.displayMetrics.density).toInt()
++    }
+ 
+     fun installInto(page: LinearLayout) {
+         page.removeAllViews()
+@@ -123,7 +128,7 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     private fun DesktopContent() {
+         LazyColumn(
+             modifier = Modifier.fillMaxSize().testTag("desktop_page"),
+-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 108.dp)
++            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = navigationPadding.dp)
+         ) {
+             item { Text("桌面", fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                 modifier = Modifier.testTag("desktop_heading")) }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java
+index 1ebfc92..703c936 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionConfigProvider.java
+@@ -23,6 +23,18 @@ public final class FusionConfigProvider extends ContentProvider {
+     @Override public Bundle call(String method, String arg, Bundle extras) {
+         Context context = getContext();
+         String caller = getCallingPackage();
++        if (MiscConfig.METHOD_GET.equals(method)) {
++            enforceMiscReadCaller(caller, context == null ? null : context.getPackageName());
++            return MiscConfigStore.read(context).toBundle();
++        }
++        if (MiscConfig.METHOD_SET.equals(method)) {
++            enforceCaller(caller, context == null ? null : context.getPackageName(), true);
++            boolean accepted = MiscConfigStore.write(context, MiscConfig.fromBundle(extras));
++            Bundle result = new Bundle();
++            result.putBoolean(MiscConfig.KEY_ACCEPTED, accepted);
++            if (accepted) MiscConfig.notifyChanged(context);
++            return result;
++        }
+         if (DesktopShortcutCatalog.METHOD_GET.equals(method)
+                 || DesktopShortcutCatalog.METHOD_REQUEST.equals(method)) {
+             enforceCaller(caller, context == null ? null : context.getPackageName(), true);
+@@ -139,6 +151,13 @@ public final class FusionConfigProvider extends ContentProvider {
+         }
+     }
+ 
++    static void enforceMiscReadCaller(String caller, String ownPackage) {
++        if (caller == null || !(caller.equals(ownPackage)
++                || "android".equals(caller))) {
++            throw new SecurityException("misc_config_caller_not_authorized");
++        }
++    }
++
+     static void enforceLauncherCaller(String caller) {
+         if (!LAUNCHER_PACKAGE.equals(caller)) throw new SecurityException("launcher_action_only");
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionModule.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionModule.java
+index 59433d7..4ebf646 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionModule.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionModule.java
+@@ -15,6 +15,17 @@ public final class FusionModule extends XposedModule {
+         super();
+     }
+ 
++    @Override
++    public void onSystemServerStarting(XposedModuleInterface.SystemServerStartingParam param) {
++        try {
++            int installed = SystemStartConfirmationHooks.install(this, param.getClassLoader());
++            log(Log.INFO, TAG, "system start confirmation hooks version=" + BuildConfig.VERSION_NAME
++                    + " installed=" + installed);
++        } catch (Throwable error) {
++            log(Log.ERROR, TAG, "system start confirmation hooks failed", error);
++        }
++    }
++
+     @Override
+     public void onPackageLoaded(XposedModuleInterface.PackageLoadedParam param) {
+         if (!"com.android.systemui".equals(param.getPackageName())) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+index aaa893e..737b3a9 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+@@ -17,6 +17,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+     private android.widget.TextView activationSummary;
+     private android.widget.TextView activationTitle;
+     private android.widget.Switch hideLauncherIconSwitch;
++    private android.widget.Switch floatingNavigationSwitch;
++    private android.widget.Switch chainStartSwitch;
++    private boolean updatingAuxiliarySwitches;
+     private android.widget.TextView clockSettingsSummary;
+     private com.xtjm.fusionstatusbar.FusionConfig config;
+     private android.widget.LinearLayout controlCenterActivePreview;
+@@ -93,8 +96,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+     private static final java.lang.String[] CONTROL_TILE_LABELS = {"移动网络", "Wi-Fi", "蓝牙", "飞行模式", "静音", "手电筒", "截屏", "省电模式", "自动旋转", "设备控制", "录屏", "个人热点", "卫星通信", "自动亮度", "旋转锁定", "夜间显示", "勿扰模式", "位置", "NFC", "同步", "振动", "编辑", "设置", "电子钱包", "互联网"};
+     private final android.widget.Switch[] telemetrySwitches = new android.widget.Switch[3];
+     private final SettingsChoiceSelector[] telemetryPositions = new SettingsChoiceSelector[3];
+-    private final android.widget.LinearLayout[] pages = new android.widget.LinearLayout[5];
+-    private final android.widget.LinearLayout[] navigationItems = new android.widget.LinearLayout[5];
++    private final android.widget.LinearLayout[] pages = new android.widget.LinearLayout[6];
++    private final android.widget.LinearLayout[] navigationItems = new android.widget.LinearLayout[6];
+     private long lastControlCenterPreviewFailure = -1;
+     private final java.util.ArrayList<java.lang.String> controlCenterCapturedSpecs = new java.util.ArrayList<>();
+     private final java.util.ArrayList<java.lang.String> controlCenterNativeCatalog = new java.util.ArrayList<>();
+@@ -159,6 +162,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+     protected void onCreate(android.os.Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+         runtimeConfigExchange = RuntimeConfigExchange.registerSettings(this);
++        MiscSystemConfigExchange.publish(this, MiscConfig.read(this));
+         setContentView(com.xtjm.fusionstatusbar.R.layout.activity_main);
+         installStartupOverlay();
+         editorPage = new ControlCenterPageCoordinator(new ControlCenterDraftStore(this), this::updateSettingsSummaries);
+@@ -567,7 +571,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+         this.notificationListSummary = (android.widget.TextView) listRow.getTag();
+         android.widget.LinearLayout controlCenterPage = newPage(root, 3, "控制中心");
+         installControlCenterPage(controlCenterPage);
+-        android.widget.LinearLayout settingsPage = newPage(root, 4, "设置");
++        android.widget.LinearLayout miscellaneousPage = newPage(root, 4, "杂项");
++        miscellaneousPage.addView(sectionTitle("应用启动"));
++        android.widget.LinearLayout miscellaneousCard = card();
++        miscellaneousPage.addView(miscellaneousCard, matchWrap());
++        chainStartSwitch = addSwitch(miscellaneousCard, "移除链式启动弹窗",
++                "直接允许应用间启动；需在 LSPosed 勾选系统（system / system_server）并重启手机",
++                MiscConfig.read(this).removeChainStartDialog, this::setChainStartDialogRemoved);
++        android.widget.LinearLayout settingsPage = newPage(root, 5, "设置");
+         settingsPage.addView(sectionTitle("模块状态"));
+         android.widget.LinearLayout linearLayoutCard = card();
+         settingsPage.addView(linearLayoutCard, matchWrap());
+@@ -588,6 +599,11 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+         android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
+                 .getParent()).getChildAt(0);
+         launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
++        settingsPage.addView(sectionTitle("界面"));
++        android.widget.LinearLayout appearanceCard = card();
++        settingsPage.addView(appearanceCard, matchWrap());
++        floatingNavigationSwitch = addSwitch(appearanceCard, "毛玻璃悬浮底栏", "",
++                AppAppearanceSettings.floatingNavigation(this), this::setFloatingNavigation);
+         settingsPage.addView(sectionTitle("设备信息"));
+         android.widget.LinearLayout deviceCard = card();
+         settingsPage.addView(deviceCard, matchWrap());
+@@ -648,8 +664,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+         navigationBackground.setStroke(dp(1), android.graphics.Color.parseColor(isNightMode() ? "#FF3A3A3D" : "#FFE6E8EB"));
+         navigation.setBackground(navigationBackground);
+         navigation.setElevation(dp(12));
+-        int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_manage};
+-        java.lang.String[] labels = {"桌面", "状态栏", "通知栏", "控制中心", "设置"};
++        int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_more, android.R.drawable.ic_menu_manage};
++        java.lang.String[] labels = {"桌面", "状态栏", "通知栏", "控制中心", "杂项", "设置"};
+         int i = 0;
+         while (i < this.pages.length) {
+             final int page = i;
+@@ -684,12 +700,39 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+         navigation.setVisibility(View.GONE);
+         frameLayout.addView(navigation, navigationParams);
+         miuixNavigation = new MiuixNavigation(this, this::selectPage);
++        miuixNavigation.setFloating(AppAppearanceSettings.floatingNavigation(this));
++        miuixNavigation.setHeightListener(height -> {
++            root.setPadding(root.getPaddingLeft(), root.getPaddingTop(), root.getPaddingRight(), height + dp(16));
++            desktopSettingsPage.setNavigationHeight(height + dp(16));
++        });
+         frameLayout.addView(miuixNavigation.getView(),
+                 new android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.BOTTOM));
+         selectPage(0);
+         refreshOverview();
+     }
+ 
++    private void setFloatingNavigation(boolean enabled) {
++        if (updatingAuxiliarySwitches) return;
++        if (!AppAppearanceSettings.setFloatingNavigation(this, enabled)) {
++            updatingAuxiliarySwitches = true;
++            floatingNavigationSwitch.setChecked(!enabled);
++            updatingAuxiliarySwitches = false;
++            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
++            return;
++        }
++        if (miuixNavigation != null) miuixNavigation.setFloating(enabled);
++    }
++
++    private void setChainStartDialogRemoved(boolean enabled) {
++        if (updatingAuxiliarySwitches) return;
++        if (!MiscConfig.save(this, MiscConfig.read(this).withRemoveChainStartDialog(enabled))) {
++            updatingAuxiliarySwitches = true;
++            chainStartSwitch.setChecked(!enabled);
++            updatingAuxiliarySwitches = false;
++            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
++        }
++    }
++
+     public void lambda$installMiuixSettingsUi$11(android.view.View v) {
+         showFusionDialog();
+     }
+@@ -2606,6 +2649,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+         if (miuixNavigation != null) miuixNavigation.select(index);
+         desktopSettingsPage.setVisible(index == 0);
+         pageScroll.setVisibility(index == 0 ? View.GONE : View.VISIBLE);
++        if (miuixNavigation != null) miuixNavigation.setBackdropSource(index == 0
++                ? findViewById(R.id.desktop_miuix_page) : pageScroll);
+         int i = 0;
+         while (i < this.pages.length) {
+             this.pages[i].setVisibility(i == index ? View.VISIBLE : View.GONE);
+@@ -2630,7 +2675,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$selectPage$24();
+             }
+         });
+-        if (index == 4) {
++        if (index == 5) {
+             refreshOverview();
+         }
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/MiuixNavigation.kt b/app/src/main/java/com/xtjm/fusionstatusbar/MiuixNavigation.kt
+index 0dd23f8..cbac0ee 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/MiuixNavigation.kt
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/MiuixNavigation.kt
+@@ -1,83 +1,179 @@
+ package com.xtjm.fusionstatusbar
+ 
++import android.view.View
++import android.widget.FrameLayout
+ import androidx.activity.ComponentActivity
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
+ import androidx.compose.foundation.isSystemInDarkTheme
++import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.selection.selectable
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.Edit
+ import androidx.compose.material.icons.filled.Home
+ import androidx.compose.material.icons.filled.Menu
++import androidx.compose.material.icons.filled.MoreVert
+ import androidx.compose.material.icons.filled.Notifications
+ import androidx.compose.material.icons.filled.Settings
+ import androidx.compose.runtime.*
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.ColorFilter
+ import androidx.compose.ui.platform.ComposeView
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalDensity
+-import androidx.compose.foundation.layout.BoxWithConstraints
+-import androidx.compose.foundation.layout.height
++import androidx.compose.ui.platform.ViewCompositionStrategy
++import androidx.compose.ui.platform.testTag
++import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.semantics.contentDescription
++import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.rememberTextMeasurer
++import androidx.compose.ui.text.style.TextAlign
+ import androidx.compose.ui.unit.Constraints
+ import androidx.compose.ui.unit.dp
+-import androidx.compose.ui.platform.ViewCompositionStrategy
+-import androidx.compose.ui.platform.testTag
+-import androidx.compose.ui.semantics.semantics
+-import androidx.compose.ui.semantics.selected
+-import androidx.compose.ui.semantics.contentDescription
+-import androidx.compose.ui.semantics.onClick
+-import androidx.compose.ui.semantics.role
+-import androidx.compose.ui.semantics.Role
+-import top.yukonga.miuix.kmp.basic.NavigationBar
++import androidx.compose.ui.unit.sp
++import androidx.core.view.ViewCompat
++import androidx.core.view.WindowInsetsCompat
+ import top.yukonga.miuix.kmp.basic.NavigationBarDefaults
+-import top.yukonga.miuix.kmp.basic.NavigationBarItem
++import top.yukonga.miuix.kmp.basic.Text
+ import top.yukonga.miuix.kmp.theme.MiuixTheme
+ import top.yukonga.miuix.kmp.theme.darkColorScheme
+ import top.yukonga.miuix.kmp.theme.lightColorScheme
+ import java.util.function.IntConsumer
++import kotlin.math.roundToInt
+ 
+ class MiuixNavigation(activity: ComponentActivity, callback: IntConsumer) {
+     private var selection by mutableIntStateOf(0)
+-    val view = ComposeView(activity).apply {
+-        id = R.id.miuix_navigation
+-        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+-        setContent {
+-            MiuixTheme(colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
+-                val icons = listOf(Icons.Default.Home, Icons.Default.Edit, Icons.Default.Notifications,
+-                    Icons.Default.Menu, Icons.Default.Settings)
+-                val labels = listOf("桌面", "状态栏", "通知栏", "控制中心", "设置")
+-                val largeText = LocalConfiguration.current.fontScale > 1.3f
+-                val displayLabels = labels.mapIndexed { index, label ->
+-                    if (largeText && index == 3) "控制\n中心" else label
+-                }
+-                BoxWithConstraints {
+-                    val density = LocalDensity.current
+-                    val measurer = rememberTextMeasurer()
+-                    val textHeight = displayLabels.maxOf { label ->
+-                        measurer.measure(label, style = MiuixTheme.textStyles.main.copy(
+-                            fontSize = NavigationBarDefaults.LabelFontSize, fontWeight = FontWeight.Bold),
+-                            constraints = Constraints(maxWidth = with(density) {
+-                                (maxWidth / labels.size).roundToPx().coerceAtLeast(1)
+-                            })).size.height
+-                    }
+-                    val itemHeight = maxOf(NavigationBarDefaults.ItemHeight, with(density) { textHeight.toDp() } +
+-                        NavigationBarDefaults.IconTopPadding + NavigationBarDefaults.IconSize +
+-                        NavigationBarDefaults.BottomPadding + 2.dp)
+-                    NavigationBar {
+-                        labels.forEachIndexed { index, label ->
+-                            NavigationBarItem(selected = selection == index, onClick = { callback.accept(index) },
+-                                icon = icons[index], label = displayLabels[index],
+-                                modifier = Modifier.height(itemHeight)
+-                                    .testTag("navigation_$index").semantics {
+-                                    selected = selection == index
+-                                    contentDescription = label
+-                                    role = Role.Tab
+-                                    onClick(label) { callback.accept(index); true }
+-                                })
++    private var floatingEnabled by mutableStateOf(false)
++    private var bottomInset = 0
++    private var heightListener: IntConsumer? = null
++    private val host = NavigationBackdropHost(activity)
++    val view: FrameLayout get() = host
++
++    init {
++        host.id = R.id.miuix_navigation
++        val content = ComposeView(activity).apply {
++            elevation = dp(8).toFloat()
++            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
++            setContent {
++                val night = isSystemInDarkTheme()
++                MiuixTheme(colors = if (night) darkColorScheme() else lightColorScheme()) {
++                    SideEffect { host.setNightMode(night) }
++                    val icons = listOf(Icons.Default.Home, Icons.Default.Edit, Icons.Default.Notifications,
++                        Icons.Default.Menu, Icons.Default.MoreVert, Icons.Default.Settings)
++                    val labels = listOf("桌面", "状态栏", "通知栏", "控制中心", "杂项", "设置")
++                    val largeText = LocalConfiguration.current.fontScale > 1.3f
++                    BoxWithConstraints {
++                        val density = LocalDensity.current
++                        val measurer = rememberTextMeasurer()
++                        val labelWidth = with(density) {
++                            ((maxWidth - 8.dp) / labels.size - 6.dp).roundToPx().coerceAtLeast(1)
++                        }
++                        val baseStyle = MiuixTheme.textStyles.main.copy(
++                            fontSize = NavigationBarDefaults.LabelFontSize, fontWeight = FontWeight.Bold,
++                            letterSpacing = 0.sp)
++                        val controlWidth = measurer.measure(labels[3], style = baseStyle).size.width
++                        val displayLabels = labels.mapIndexed { index, label ->
++                            if (index == 3 && (largeText || controlWidth > labelWidth)) "控制\n中心" else label
++                        }
++                        var fontSize = NavigationBarDefaults.LabelFontSize.value
++                        while (fontSize > 8f && displayLabels.any { label ->
++                                label.lineSequence().any {
++                                    measurer.measure(it, style = baseStyle.copy(fontSize = fontSize.sp))
++                                        .size.width > labelWidth
++                                }
++                            }) fontSize -= 0.5f
++                        val textHeight = displayLabels.maxOf { label ->
++                            measurer.measure(label, style = baseStyle.copy(fontSize = fontSize.sp),
++                                constraints = Constraints(maxWidth = labelWidth)).size.height
++                        }
++                        val itemHeight = maxOf(NavigationBarDefaults.ItemHeight,
++                            with(density) { textHeight.toDp() } + NavigationBarDefaults.IconSize + 20.dp)
++                        Row(Modifier.fillMaxWidth()
++                            .background(if (floatingEnabled) Color.Transparent else MiuixTheme.colorScheme.surface)
++                            .padding(horizontal = 4.dp)) {
++                            labels.forEachIndexed { index, label ->
++                                val selected = selection == index
++                                val tint = if (floatingEnabled && selected) Color(0xFF3478F6)
++                                    else MiuixTheme.colorScheme.onSurfaceContainer.copy(
++                                        alpha = if (selected || floatingEnabled) 1f else 0.4f)
++                                val selectedFill = if (floatingEnabled && selected)
++                                    if (night) Color(0x33FFFFFF) else Color(0x22747480) else Color.Transparent
++                                Box(Modifier.weight(1f).height(itemHeight)
++                                    .padding(horizontal = 2.dp, vertical = if (floatingEnabled) 4.dp else 0.dp)
++                                    .background(selectedFill, RoundedCornerShape(50))
++                                    .testTag("navigation_$index")
++                                    .selectable(selected = selected, role = Role.Tab,
++                                        onClick = { callback.accept(index) })
++                                    .semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
++                                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
++                                        verticalArrangement = Arrangement.Center) {
++                                        Image(imageVector = icons[index], contentDescription = null,
++                                            colorFilter = ColorFilter.tint(tint),
++                                            modifier = Modifier.size(NavigationBarDefaults.IconSize))
++                                        Spacer(Modifier.height(2.dp))
++                                        Text(displayLabels[index], modifier = Modifier.fillMaxWidth(), color = tint, textAlign = TextAlign.Center,
++                                            fontSize = fontSize.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
++                                            style = baseStyle.copy(fontSize = fontSize.sp),
++                                            letterSpacing = 0.sp, maxLines = 2, softWrap = false)
++                                    }
++                                }
++                            }
+                         }
+                     }
+                 }
+             }
+         }
++        host.addView(content, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
++            FrameLayout.LayoutParams.WRAP_CONTENT))
++        ViewCompat.setOnApplyWindowInsetsListener(host) { _, insets ->
++            val safeInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars() or
++                WindowInsetsCompat.Type.displayCutout())
++            bottomInset = safeInsets.bottom
++            updatePadding(safeInsets.left, safeInsets.right)
++            insets
++        }
++        host.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
++            if (bottom != oldBottom || heightListener != null) notifyHeight()
++        }
++    }
++
++    fun select(index: Int) { selection = index.coerceIn(0, 5) }
++
++    fun setFloating(enabled: Boolean) {
++        if (floatingEnabled == enabled) return
++        floatingEnabled = enabled
++        host.setFloating(enabled)
++        val safeInsets = ViewCompat.getRootWindowInsets(host)?.getInsets(
++            WindowInsetsCompat.Type.navigationBars() or WindowInsetsCompat.Type.displayCutout())
++        bottomInset = safeInsets?.bottom ?: bottomInset
++        updatePadding(safeInsets?.left ?: 0, safeInsets?.right ?: 0)
+     }
+-    fun select(index: Int) { selection = index }
++
++    fun isFloating(): Boolean = floatingEnabled
++
++    /** Pass the common page container; the navigation host excludes itself during capture. */
++    fun setBackdropSource(source: View) { host.setBackdropSource(source) }
++
++    fun setOnReservedHeightChanged(listener: IntConsumer) {
++        heightListener = listener
++        if (host.height > 0) notifyHeight()
++    }
++
++    fun setHeightListener(listener: IntConsumer) { setOnReservedHeightChanged(listener) }
++
++    fun getReservedHeight(): Int = host.height + dp(8)
++
++    private fun updatePadding(leftInset: Int, rightInset: Int) {
++        val side = if (floatingEnabled) dp(12) else 0
++        host.setPadding(leftInset + side, if (floatingEnabled) dp(6) else 0, rightInset + side,
++            bottomInset + if (floatingEnabled) dp(12) else 0)
++        host.requestLayout()
++    }
++
++    private fun notifyHeight() { heightListener?.accept(getReservedHeight()) }
++    private fun dp(value: Int): Int = (value * host.resources.displayMetrics.density).roundToInt()
+ }
+diff --git a/app/src/main/resources/META-INF/xposed/scope.list b/app/src/main/resources/META-INF/xposed/scope.list
+index aea71d6..38fca6c 100644
+--- a/app/src/main/resources/META-INF/xposed/scope.list
++++ b/app/src/main/resources/META-INF/xposed/scope.list
+@@ -1,3 +1,4 @@
++system
+ com.android.systemui
+ miui.systemui.plugin
+ com.miui.home
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java
+index c528255..fad4c93 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java
+@@ -25,6 +25,7 @@ import static org.junit.Assert.*;
+ 
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
++@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+ public class ControlCenterGlobalTileAvailabilityTest {
+     @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
+     private static final String APPLICATION_SPEC = "custom(com.example.global/.apptile)";
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSettingsUiFlowTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSettingsUiFlowTest.java
+index 7743f7b..78fd23f 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSettingsUiFlowTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSettingsUiFlowTest.java
+@@ -33,13 +33,14 @@ import static org.junit.Assert.*;
+ 
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
++@GraphicsMode(GraphicsMode.Mode.NATIVE)
+ public class ControlCenterSettingsUiFlowTest {
+     @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
+ 
+     private Dialog latestDialog() { compose.waitForIdle(); return MiuixTestWindows.latest(); }
+     @Test public void aboutSectionShowsRepositoryAndMiuixCreditLinks() throws Exception {
+         launchOverview();
+-        MiuixTestActions.click(compose, "navigation_4");
++        MiuixTestActions.click(compose, "navigation_5");
+         assertTrue(MiuixTestActions.exists(compose, "项目仓库"));
+         assertTrue(MiuixTestActions.exists(compose, "FusionStatusBar"));
+         assertEquals(1, texts(activity.getWindow().getDecorView(),
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/EditorPlatformMatrixTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/EditorPlatformMatrixTest.java
+index 06002e5..282afc1 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/EditorPlatformMatrixTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/EditorPlatformMatrixTest.java
+@@ -23,6 +23,7 @@ import static org.junit.Assert.*;
+ 
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = {33, 34, 35}, qualifiers = "w320dp-h640dp-mdpi")
++@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+ public class EditorPlatformMatrixTest {
+     private ActivityController<MainActivity> controller;
+ 
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/LauncherIconVisibilityTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/LauncherIconVisibilityTest.java
+index 5b4493a..67b2eb5 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/LauncherIconVisibilityTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/LauncherIconVisibilityTest.java
+@@ -23,6 +23,7 @@ import static org.junit.Assert.*;
+ 
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
++@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+ public class LauncherIconVisibilityTest {
+     private Context context;
+     private ActivityController<MainActivity> controller;
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesRenderingTest.kt b/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesRenderingTest.kt
+index 6a6bcb6..4425fcd 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesRenderingTest.kt
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesRenderingTest.kt
+@@ -37,7 +37,7 @@ class MiuixAllPagesRenderingTest {
+     private fun render(theme: String) {
+         compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
+         val folder = File("build/reports/miuix-all-pages").apply { mkdirs() }
+-        for (index in 1..4) {
++        for (index in 1..5) {
+             compose.onNodeWithTag("navigation_$index").performClick()
+             compose.onNodeWithTag("navigation_$index").assertIsSelected()
+             val layouts = mutableListOf<TextLayoutResult>()
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesUiTest.kt b/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesUiTest.kt
+index 0a75cff..786d357 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesUiTest.kt
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/MiuixAllPagesUiTest.kt
+@@ -33,7 +33,7 @@ class MiuixAllPagesUiTest {
+         compose.onNodeWithTag("miuix_sheet_confirm").performClick()
+         compose.onNodeWithTag("navigation_2").performClick()
+         compose.onNodeWithTag("preference_通知中心时间").assertExists()
+-        compose.onNodeWithTag("navigation_4").performClick()
++        compose.onNodeWithTag("navigation_5").performClick()
+         compose.onNodeWithTag("preference_重启系统桌面").assertExists()
+     }
+ 
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceSettingsUiTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceSettingsUiTest.java
+index 3b7cdbf..bd24360 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceSettingsUiTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/SystemSurfaceSettingsUiTest.java
+@@ -60,14 +60,14 @@ public class SystemSurfaceSettingsUiTest {
+         assertNotNull(field("desktopSettingsPage"));
+         assertEquals("Desktop controls now belong to Compose", 0, pages[0].getChildCount());
+ 
+-        navigation[4].performClick();
+-        assertTrue(navigation[4].isSelected());
++        navigation[5].performClick();
++        assertTrue(navigation[5].isSelected());
+         for (String title : new String[] {"设置", "模块状态", "隐藏应用图标", "设备信息",
+                 "关于", "模块维护", "重启系统桌面", "重启系统界面"}) {
+             assertTrue("Settings page should contain " + title, MiuixTestActions.exists(compose, title));
+         }
+         for (String removed : new String[] {"权限", "电话状态权限", "应用权限管理"}) {
+-            assertNull("Settings page should not contain " + removed, findText(pages[4], removed));
++            assertNull("Settings page should not contain " + removed, findText(pages[5], removed));
+         }
+     }
+ 
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/SystemUiRestartSaveTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/SystemUiRestartSaveTest.java
+index 38b1e8c..f76373d 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/SystemUiRestartSaveTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/SystemUiRestartSaveTest.java
+@@ -18,6 +18,7 @@ import static org.junit.Assert.*;
+ 
+ @RunWith(RobolectricTestRunner.class)
+ @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
++@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+ public class SystemUiRestartSaveTest {
+     private ActivityController<MainActivity> controller;
+     private MainActivity activity;
+diff --git a/tools/tests/test_validate_build.py b/tools/tests/test_validate_build.py
+index 4c536cb..934cd73 100644
+--- a/tools/tests/test_validate_build.py
++++ b/tools/tests/test_validate_build.py
+@@ -12,6 +12,24 @@ SPEC.loader.exec_module(validate_build)
+ 
+ 
+ class ValidateBuildTests(unittest.TestCase):
++    def test_android_alone_does_not_enable_the_system_server_hook(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            scopes = root / "app/src/main/resources/META-INF/xposed/scope.list"
++            scopes.parent.mkdir(parents=True)
++            scopes.write_text("android\ncom.android.systemui\n", encoding="utf-8")
++            with self.assertRaisesRegex(validate_build.ValidationError, "requires Xposed scope 'system'"):
++                validate_build.source_scopes(root)
++            scopes.write_text("# System server is a separate LSPosed scope\nsystem\n", encoding="utf-8")
++            self.assertEqual({"system"}, validate_build.source_scopes(root))
++
++    def test_current_source_declares_system_server_scope(self):
++        self.assertIn("system", validate_build.source_scopes(MODULE.parent.parent))
++
++    def test_xposed_scope_list_rejects_duplicate_entries(self):
++        with self.assertRaisesRegex(validate_build.ValidationError, "Duplicate Xposed scope"):
++            validate_build.xposed_scopes("system\nandroid\nsystem\n")
++
+     def test_source_identity_reads_literal_android_identity(self):
+         with tempfile.TemporaryDirectory() as directory:
+             root = Path(directory)
+diff --git a/tools/validate-build.py b/tools/validate-build.py
+index 5d27067..547123b 100644
+--- a/tools/validate-build.py
++++ b/tools/validate-build.py
+@@ -26,6 +26,22 @@ def source_identity(project):
+     return identity
+ 
+ 
++def xposed_scopes(text):
++    scopes = [line.strip() for line in text.splitlines()
++              if line.strip() and not line.lstrip().startswith("#")]
++    if len(scopes) != len(set(scopes)):
++        raise ValidationError("Duplicate Xposed scope")
++    return set(scopes)
++
++
++def source_scopes(project):
++    path = project / "app/src/main/resources/META-INF/xposed/scope.list"
++    scopes = xposed_scopes(path.read_text(encoding="utf-8"))
++    if "system" not in scopes:
++        raise ValidationError("The system_server hook requires Xposed scope 'system'; 'android' is a separate target")
++    return scopes
++
++
+ def test_totals(directory):
+     files = sorted(directory.glob("TEST-*.xml"))
+     if not files:
+@@ -98,6 +114,9 @@ def validate_variant(project, variant, identity, policy):
+             raise ValidationError(f"Hook BuildConfig {field} mismatch: {variant}")
+     with zipfile.ZipFile(apk) as archive:
+         module = archive.read("META-INF/xposed/module.prop").decode("utf-8")
++        scopes = xposed_scopes(archive.read("META-INF/xposed/scope.list").decode("utf-8"))
++        if scopes != source_scopes(project):
++            raise ValidationError(f"Packaged Xposed scopes differ from source: {variant}")
+     properties = dict(line.split("=", 1) for line in module.splitlines()
+                       if "=" in line and not line.lstrip().startswith("#"))
+     for field, value in (("id", identity["applicationId"]), ("version", identity["versionName"]),
+@@ -108,7 +127,8 @@ def validate_variant(project, variant, identity, policy):
+     tests = test_totals(project / f"app/build/test-results/test{name}UnitTest")
+     lint = lint_totals(project, project / f"app/build/reports/lint-results-{variant}.xml", policy)
+     return dict(apk=str(apk), apkSha256=hashlib.sha256(apk.read_bytes()).hexdigest(),
+-                apkSize=apk.stat().st_size, tests=tests, lint=lint, debuggable=variant == "debug")
++                apkSize=apk.stat().st_size, tests=tests, lint=lint, debuggable=variant == "debug",
++                xposedScopes=sorted(scopes))
+ 
+ 
+ def validate_build(project, expected_package, expected_namespace):

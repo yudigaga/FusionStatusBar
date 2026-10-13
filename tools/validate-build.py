@@ -26,6 +26,22 @@ def source_identity(project):
     return identity
 
 
+def xposed_scopes(text):
+    scopes = [line.strip() for line in text.splitlines()
+              if line.strip() and not line.lstrip().startswith("#")]
+    if len(scopes) != len(set(scopes)):
+        raise ValidationError("Duplicate Xposed scope")
+    return set(scopes)
+
+
+def source_scopes(project):
+    path = project / "app/src/main/resources/META-INF/xposed/scope.list"
+    scopes = xposed_scopes(path.read_text(encoding="utf-8"))
+    if "system" not in scopes:
+        raise ValidationError("The system_server hook requires Xposed scope 'system'; 'android' is a separate target")
+    return scopes
+
+
 def test_totals(directory):
     files = sorted(directory.glob("TEST-*.xml"))
     if not files:
@@ -98,6 +114,9 @@ def validate_variant(project, variant, identity, policy):
             raise ValidationError(f"Hook BuildConfig {field} mismatch: {variant}")
     with zipfile.ZipFile(apk) as archive:
         module = archive.read("META-INF/xposed/module.prop").decode("utf-8")
+        scopes = xposed_scopes(archive.read("META-INF/xposed/scope.list").decode("utf-8"))
+        if scopes != source_scopes(project):
+            raise ValidationError(f"Packaged Xposed scopes differ from source: {variant}")
     properties = dict(line.split("=", 1) for line in module.splitlines()
                       if "=" in line and not line.lstrip().startswith("#"))
     for field, value in (("id", identity["applicationId"]), ("version", identity["versionName"]),
@@ -108,7 +127,8 @@ def validate_variant(project, variant, identity, policy):
     tests = test_totals(project / f"app/build/test-results/test{name}UnitTest")
     lint = lint_totals(project, project / f"app/build/reports/lint-results-{variant}.xml", policy)
     return dict(apk=str(apk), apkSha256=hashlib.sha256(apk.read_bytes()).hexdigest(),
-                apkSize=apk.stat().st_size, tests=tests, lint=lint, debuggable=variant == "debug")
+                apkSize=apk.stat().st_size, tests=tests, lint=lint, debuggable=variant == "debug",
+                xposedScopes=sorted(scopes))
 
 
 def validate_build(project, expected_package, expected_namespace):

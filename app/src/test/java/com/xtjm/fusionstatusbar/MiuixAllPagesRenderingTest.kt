@@ -37,7 +37,7 @@ class MiuixAllPagesRenderingTest {
     private fun render(theme: String) {
         compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
         val folder = File("build/reports/miuix-all-pages").apply { mkdirs() }
-        for (index in 1..4) {
+        for (index in 1..5) {
             compose.onNodeWithTag("navigation_$index").performClick()
             compose.onNodeWithTag("navigation_$index").assertIsSelected()
             val layouts = mutableListOf<TextLayoutResult>()

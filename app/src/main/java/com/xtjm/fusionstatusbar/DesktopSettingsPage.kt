@@ -82,6 +82,11 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
     private var desktopView: ComposeView? = null
     private var popupView: ComposeView? = null
     private var closed = false
+    private var navigationPadding by mutableIntStateOf(108)
+
+    fun setNavigationHeight(height: Int) {
+        navigationPadding = (height / activity.resources.displayMetrics.density).toInt()
+    }
 
     fun installInto(page: LinearLayout) {
         page.removeAllViews()
@@ -123,7 +128,7 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
     private fun DesktopContent() {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("desktop_page"),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 108.dp)
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = navigationPadding.dp)
         ) {
             item { Text("桌面", fontSize = 28.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.testTag("desktop_heading")) }

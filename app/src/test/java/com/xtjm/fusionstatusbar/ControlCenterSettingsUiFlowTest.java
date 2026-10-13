@@ -33,13 +33,14 @@ import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ControlCenterSettingsUiFlowTest {
     @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
 
     private Dialog latestDialog() { compose.waitForIdle(); return MiuixTestWindows.latest(); }
     @Test public void aboutSectionShowsRepositoryAndMiuixCreditLinks() throws Exception {
         launchOverview();
-        MiuixTestActions.click(compose, "navigation_4");
+        MiuixTestActions.click(compose, "navigation_5");
         assertTrue(MiuixTestActions.exists(compose, "项目仓库"));
         assertTrue(MiuixTestActions.exists(compose, "FusionStatusBar"));
         assertEquals(1, texts(activity.getWindow().getDecorView(),

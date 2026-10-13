@@ -17,6 +17,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private android.widget.TextView activationSummary;
     private android.widget.TextView activationTitle;
     private android.widget.Switch hideLauncherIconSwitch;
+    private android.widget.Switch floatingNavigationSwitch;
+    private android.widget.Switch chainStartSwitch;
+    private boolean updatingAuxiliarySwitches;
     private android.widget.TextView clockSettingsSummary;
     private com.xtjm.fusionstatusbar.FusionConfig config;
     private android.widget.LinearLayout controlCenterActivePreview;
@@ -93,8 +96,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private static final java.lang.String[] CONTROL_TILE_LABELS = {"移动网络", "Wi-Fi", "蓝牙", "飞行模式", "静音", "手电筒", "截屏", "省电模式", "自动旋转", "设备控制", "录屏", "个人热点", "卫星通信", "自动亮度", "旋转锁定", "夜间显示", "勿扰模式", "位置", "NFC", "同步", "振动", "编辑", "设置", "电子钱包", "互联网"};
     private final android.widget.Switch[] telemetrySwitches = new android.widget.Switch[3];
     private final SettingsChoiceSelector[] telemetryPositions = new SettingsChoiceSelector[3];
-    private final android.widget.LinearLayout[] pages = new android.widget.LinearLayout[5];
-    private final android.widget.LinearLayout[] navigationItems = new android.widget.LinearLayout[5];
+    private final android.widget.LinearLayout[] pages = new android.widget.LinearLayout[6];
+    private final android.widget.LinearLayout[] navigationItems = new android.widget.LinearLayout[6];
     private long lastControlCenterPreviewFailure = -1;
     private final java.util.ArrayList<java.lang.String> controlCenterCapturedSpecs = new java.util.ArrayList<>();
     private final java.util.ArrayList<java.lang.String> controlCenterNativeCatalog = new java.util.ArrayList<>();
@@ -159,6 +162,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     protected void onCreate(android.os.Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         runtimeConfigExchange = RuntimeConfigExchange.registerSettings(this);
+        MiscSystemConfigExchange.publish(this, MiscConfig.read(this));
         setContentView(com.xtjm.fusionstatusbar.R.layout.activity_main);
         installStartupOverlay();
         editorPage = new ControlCenterPageCoordinator(new ControlCenterDraftStore(this), this::updateSettingsSummaries);
@@ -567,7 +571,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         this.notificationListSummary = (android.widget.TextView) listRow.getTag();
         android.widget.LinearLayout controlCenterPage = newPage(root, 3, "控制中心");
         installControlCenterPage(controlCenterPage);
-        android.widget.LinearLayout settingsPage = newPage(root, 4, "设置");
+        android.widget.LinearLayout miscellaneousPage = newPage(root, 4, "杂项");
+        miscellaneousPage.addView(sectionTitle("应用启动"));
+        android.widget.LinearLayout miscellaneousCard = card();
+        miscellaneousPage.addView(miscellaneousCard, matchWrap());
+        chainStartSwitch = addSwitch(miscellaneousCard, "移除链式启动弹窗",
+                "直接允许应用间启动；需在 LSPosed 勾选系统（system / system_server）并重启手机",
+                MiscConfig.read(this).removeChainStartDialog, this::setChainStartDialogRemoved);
+        android.widget.LinearLayout settingsPage = newPage(root, 5, "设置");
         settingsPage.addView(sectionTitle("模块状态"));
         android.widget.LinearLayout linearLayoutCard = card();
         settingsPage.addView(linearLayoutCard, matchWrap());
@@ -588,6 +599,11 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
                 .getParent()).getChildAt(0);
         launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+        settingsPage.addView(sectionTitle("界面"));
+        android.widget.LinearLayout appearanceCard = card();
+        settingsPage.addView(appearanceCard, matchWrap());
+        floatingNavigationSwitch = addSwitch(appearanceCard, "毛玻璃悬浮底栏", "",
+                AppAppearanceSettings.floatingNavigation(this), this::setFloatingNavigation);
         settingsPage.addView(sectionTitle("设备信息"));
         android.widget.LinearLayout deviceCard = card();
         settingsPage.addView(deviceCard, matchWrap());
@@ -648,8 +664,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         navigationBackground.setStroke(dp(1), android.graphics.Color.parseColor(isNightMode() ? "#FF3A3A3D" : "#FFE6E8EB"));
         navigation.setBackground(navigationBackground);
         navigation.setElevation(dp(12));
-        int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_manage};
-        java.lang.String[] labels = {"桌面", "状态栏", "通知栏", "控制中心", "设置"};
+        int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_more, android.R.drawable.ic_menu_manage};
+        java.lang.String[] labels = {"桌面", "状态栏", "通知栏", "控制中心", "杂项", "设置"};
         int i = 0;
         while (i < this.pages.length) {
             final int page = i;
@@ -684,10 +700,37 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         navigation.setVisibility(View.GONE);
         frameLayout.addView(navigation, navigationParams);
         miuixNavigation = new MiuixNavigation(this, this::selectPage);
+        miuixNavigation.setFloating(AppAppearanceSettings.floatingNavigation(this));
+        miuixNavigation.setHeightListener(height -> {
+            root.setPadding(root.getPaddingLeft(), root.getPaddingTop(), root.getPaddingRight(), height + dp(16));
+            desktopSettingsPage.setNavigationHeight(height + dp(16));
+        });
         frameLayout.addView(miuixNavigation.getView(),
                 new android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.BOTTOM));
         selectPage(0);
         refreshOverview();
+    }
+
+    private void setFloatingNavigation(boolean enabled) {
+        if (updatingAuxiliarySwitches) return;
+        if (!AppAppearanceSettings.setFloatingNavigation(this, enabled)) {
+            updatingAuxiliarySwitches = true;
+            floatingNavigationSwitch.setChecked(!enabled);
+            updatingAuxiliarySwitches = false;
+            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (miuixNavigation != null) miuixNavigation.setFloating(enabled);
+    }
+
+    private void setChainStartDialogRemoved(boolean enabled) {
+        if (updatingAuxiliarySwitches) return;
+        if (!MiscConfig.save(this, MiscConfig.read(this).withRemoveChainStartDialog(enabled))) {
+            updatingAuxiliarySwitches = true;
+            chainStartSwitch.setChecked(!enabled);
+            updatingAuxiliarySwitches = false;
+            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
+        }
     }
 
     public void lambda$installMiuixSettingsUi$11(android.view.View v) {
@@ -2606,6 +2649,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         if (miuixNavigation != null) miuixNavigation.select(index);
         desktopSettingsPage.setVisible(index == 0);
         pageScroll.setVisibility(index == 0 ? View.GONE : View.VISIBLE);
+        if (miuixNavigation != null) miuixNavigation.setBackdropSource(index == 0
+                ? findViewById(R.id.desktop_miuix_page) : pageScroll);
         int i = 0;
         while (i < this.pages.length) {
             this.pages[i].setVisibility(i == index ? View.VISIBLE : View.GONE);
@@ -2630,7 +2675,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$selectPage$24();
             }
         });
-        if (index == 4) {
+        if (index == 5) {
             refreshOverview();
         }
     }
