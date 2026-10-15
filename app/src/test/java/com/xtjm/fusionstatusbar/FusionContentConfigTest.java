@@ -12,6 +12,28 @@ public class FusionContentConfigTest {
         assertEquals(100, config.batteryScale);
         assertEquals(100, config.networkScale);
         assertEquals(100, config.signalScale);
+        assertEquals(0, config.wifiOffsetYPercent);
+        assertEquals(0, config.mobileOffsetYPercent);
+    }
+
+    @Test public void networkVerticalOffsetsAreIndependentBoundedAndCompared() {
+        FusionContentConfig defaults = FusionContentConfig.defaults();
+        FusionContentConfig config = defaults.withWifiOffsetYPercent(-7)
+                .withMobileOffsetYPercent(12);
+        assertEquals(-7, config.wifiOffsetYPercent);
+        assertEquals(12, config.mobileOffsetYPercent);
+        assertFalse(defaults.sameAs(config));
+        assertFalse(config.sameAs(config.withWifiOffsetYPercent(-6)));
+        assertFalse(config.sameAs(config.withMobileOffsetYPercent(11)));
+        assertTrue(config.sameAs(defaults.withWifiOffsetYPercent(-7).withMobileOffsetYPercent(12)));
+        assertEquals(-20, config.withWifiOffsetYPercent(Integer.MIN_VALUE).wifiOffsetYPercent);
+        assertEquals(20, config.withWifiOffsetYPercent(Integer.MAX_VALUE).wifiOffsetYPercent);
+        assertEquals(-20, config.withMobileOffsetYPercent(Integer.MIN_VALUE).mobileOffsetYPercent);
+        assertEquals(20, config.withMobileOffsetYPercent(Integer.MAX_VALUE).mobileOffsetYPercent);
+        FusionContentConfig movedAndScaled = config.withPosition(FusionContentConfig.NETWORK,
+                FusionContentConfig.TOP).withScale(FusionContentConfig.NETWORK, 125);
+        assertEquals(-7, movedAndScaled.wifiOffsetYPercent);
+        assertEquals(12, movedAndScaled.mobileOffsetYPercent);
     }
 
     @Test public void movingOnePartSwapsTheOtherPartRatherThanOverlappingIt() {
@@ -45,7 +67,8 @@ public class FusionContentConfigTest {
                 .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP)
                 .withFusionContentScale(FusionContentConfig.BATTERY, 75)
                 .withFusionContentScale(FusionContentConfig.NETWORK, 120)
-                .withFusionContentScale(FusionContentConfig.SIGNAL, 90);
+                .withFusionContentScale(FusionContentConfig.SIGNAL, 90)
+                .withFusionWifiOffsetYPercent(-7).withFusionMobileOffsetYPercent(12);
         FusionConfig changed = source.withIconScale(140).withStatusBarHeight(72)
                 .withDoubleRow(true).withSpanRows(true).withStrokeScale(115)
                 .withStatusClockSizeSp(21).withControlCenter(ControlCenterConfig.defaults())
@@ -60,6 +83,8 @@ public class FusionContentConfigTest {
         assertEquals(90, next.fusionContent.signalScale);
         assertEquals(140, next.iconScale);
         assertEquals(37, next.revision);
+        assertEquals(-7, next.fusionContent.wifiOffsetYPercent);
+        assertEquals(12, next.fusionContent.mobileOffsetYPercent);
         assertEquals(50, next.withFusionContentScale(FusionContentConfig.NETWORK, -1)
                 .fusionContent.networkScale);
     }

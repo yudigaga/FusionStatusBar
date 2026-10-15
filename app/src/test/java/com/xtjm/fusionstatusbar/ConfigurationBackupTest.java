@@ -16,6 +16,39 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {33, 34, 35})
 public class ConfigurationBackupTest {
+    @Test public void networkVerticalOffsetsRoundTripAndPreviousSchemaSixBackupDefaultsToZero() throws Exception {
+        FusionConfig source = FusionConfig.defaults().withFusionWifiOffsetYPercent(-6)
+                .withFusionMobileOffsetYPercent(11).withFusionContentScale(FusionContentConfig.NETWORK, 125);
+        byte[] bytes = ConfigurationBackupCodec.encode(source);
+        FusionConfig restored = ConfigurationBackupCodec.decode(bytes);
+        assertEquals(-6, restored.fusionContent.wifiOffsetYPercent);
+        assertEquals(11, restored.fusionContent.mobileOffsetYPercent);
+        JSONObject backup = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+        JSONObject previous = backup.getJSONObject("config");
+        previous.remove(FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT);
+        previous.remove(FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT);
+        restored = decode(backup.toString());
+        assertEquals(6, restored.toBundle().getInt(FusionConfig.KEY_SCHEMA_VERSION));
+        assertEquals(0, restored.fusionContent.wifiOffsetYPercent);
+        assertEquals(0, restored.fusionContent.mobileOffsetYPercent);
+        assertEquals(125, restored.fusionContent.networkScale);
+        previous.remove(FusionContentConfig.KEY_NETWORK_SCALE);
+        assertThrows(IOException.class, () -> decode(backup.toString()));
+    }
+
+    @Test public void backupRejectsOutOfRangeOrWrongTypeNetworkOffsets() throws Exception {
+        JSONObject backup = new JSONObject(new String(ConfigurationBackupCodec.encode(FusionConfig.defaults()),
+                StandardCharsets.UTF_8));
+        JSONObject config = backup.getJSONObject("config");
+        config.put(FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT, -21);
+        assertThrows(IOException.class, () -> decode(backup.toString()));
+        config.put(FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT, 0);
+        config.put(FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT, 21);
+        assertThrows(IOException.class, () -> decode(backup.toString()));
+        config.put(FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT, "3");
+        assertThrows(IOException.class, () -> decode(backup.toString()));
+    }
+
     @Test public void fusionContentOrderAndIndependentSizesSurviveBackupAndSchemaFiveMigration() throws Exception {
         FusionConfig source = FusionConfig.defaults()
                 .withFusionContentPosition(FusionContentConfig.NETWORK, FusionContentConfig.BOTTOM)

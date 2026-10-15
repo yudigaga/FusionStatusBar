@@ -23,6 +23,32 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
 public class FusionConfigProtocolTest {
+    @Test public void networkVerticalOffsetsSurviveProviderBundleAndAtomicStore() throws Exception {
+        FusionConfig source = FusionConfig.defaults().withFusionWifiOffsetYPercent(-8)
+                .withFusionMobileOffsetYPercent(13).withRevision(7);
+        FusionConfig bundle = FusionConfig.fromBundle(source.toBundle());
+        assertTrue(source.fusionContent.sameAs(bundle.fusionContent));
+        assertEquals(7, bundle.revision);
+        MemoryFile file = new MemoryFile();
+        assertTrue(FusionConfigStore.write(file, source, FusionConfig.defaults()).success);
+        FusionConfig stored = FusionConfigStore.read(file, FusionConfig.defaults());
+        assertEquals(-8, stored.fusionContent.wifiOffsetYPercent);
+        assertEquals(13, stored.fusionContent.mobileOffsetYPercent);
+        FusionConfig previous = FusionConfigStore.decode("{\"config_schema_version\":6,"
+                + "\"fusion_network_content_scale\":125}");
+        assertEquals(0, previous.fusionContent.wifiOffsetYPercent);
+        assertEquals(0, previous.fusionContent.mobileOffsetYPercent);
+        assertEquals(125, previous.fusionContent.networkScale);
+        Bundle invalid = source.toBundle();
+        invalid.putInt(FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT, -100);
+        invalid.putInt(FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT, 100);
+        FusionConfig bounded = FusionConfig.fromBundle(invalid);
+        assertEquals(-20, bounded.fusionContent.wifiOffsetYPercent);
+        assertEquals(20, bounded.fusionContent.mobileOffsetYPercent);
+        invalid.putString(FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT, "invalid");
+        assertEquals(0, FusionConfig.fromBundle(invalid).fusionContent.wifiOffsetYPercent);
+    }
+
     @Test public void fusionContentConfigurationRoundTripsAndOldSnapshotsUseOriginalComposition() throws Exception {
         FusionConfig source = FusionConfig.defaults()
                 .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP)

@@ -38,6 +38,8 @@ GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug
 
 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
 
+版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本次为 `214`。
+
 ## 模块关系
 
 设置页面负责输入与展示；编辑会话负责草稿、撤销与发布基线；配置存储负责版本迁移和完整快照；Provider 负责受限的跨进程传输；SystemUI 配置协调负责后台读取和修订号回执；Hook 注册与宿主适配负责能力探测；运行时网格负责挂载与释放。

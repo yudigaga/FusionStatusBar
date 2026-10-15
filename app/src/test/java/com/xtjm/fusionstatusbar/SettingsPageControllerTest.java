@@ -80,6 +80,42 @@ public class SettingsPageControllerTest {
         assertEquals(2, config.fusionContent.signalPosition);
     }
 
+    @Test public void fusionNetworkOffsetsUpdateIndependentlyAndReadingsChangeImmediately() {
+        config = config.withFusionWifiOffsetYPercent(-4).withFusionMobileOffsetYPercent(6);
+        pages.showFusion();
+        SeekBar wifi = (SeekBar) find("Wi-Fi 上下微调");
+        SeekBar mobile = (SeekBar) find("5G 上下微调");
+        View wifiBlock = (View) wifi.getParent();
+        View mobileBlock = (View) mobile.getParent();
+        assertEquals(40, wifi.getMax());
+        assertEquals(40, mobile.getMax());
+        assertEquals(16, wifi.getProgress());
+        assertEquals(26, mobile.getProgress());
+        assertTrue(hasVisibleText(wifiBlock, "-4%"));
+        assertTrue(hasVisibleText(mobileBlock, "6%"));
+        assertEquals(0, modelUpdates);
+
+        Shadows.shadowOf(wifi).getOnSeekBarChangeListener().onProgressChanged(wifi, -11 + 20, true);
+        assertEquals(-11, config.fusionContent.wifiOffsetYPercent);
+        assertEquals(6, config.fusionContent.mobileOffsetYPercent);
+        assertTrue(hasVisibleText(wifiBlock, "-11%"));
+        assertTrue(hasVisibleText(mobileBlock, "6%"));
+
+        config = config.withIconScale(125);
+        Shadows.shadowOf(mobile).getOnSeekBarChangeListener().onProgressChanged(mobile, 13 + 20, true);
+        assertEquals(-11, config.fusionContent.wifiOffsetYPercent);
+        assertEquals(13, config.fusionContent.mobileOffsetYPercent);
+        assertEquals(125, config.iconScale);
+        assertTrue(hasVisibleText(wifiBlock, "-11%"));
+        assertTrue(hasVisibleText(mobileBlock, "13%"));
+        assertEquals(2, modelUpdates);
+
+        pages.showFusion();
+        assertEquals(9, ((SeekBar) find("Wi-Fi 上下微调")).getProgress());
+        assertEquals(33, ((SeekBar) find("5G 上下微调")).getProgress());
+        assertEquals(2, modelUpdates);
+    }
+
     @Test public void clockFormatRejectsInvalidTextAndPreservesOtherSettings() {
         pages.showClock();
         Switch custom = (Switch) find("自定义时间格式");

@@ -13,7 +13,9 @@ public class RuntimeConfigDiffTest {
     @Test public void fusionContentOrderAndSizeRefreshOnlyTheStatusBar() {
         for (FusionConfig changed : new FusionConfig[] {
                 FusionConfig.defaults().withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP),
-                FusionConfig.defaults().withFusionContentScale(FusionContentConfig.NETWORK, 125)}) {
+                FusionConfig.defaults().withFusionContentScale(FusionContentConfig.NETWORK, 125),
+                FusionConfig.defaults().withFusionWifiOffsetYPercent(-5),
+                FusionConfig.defaults().withFusionMobileOffsetYPercent(7)}) {
             RuntimeConfigDiff diff = RuntimeConfigDiff.between(FusionConfig.defaults(), changed);
             assertTrue(diff.statusBar);
             assertFalse(diff.statusClock);

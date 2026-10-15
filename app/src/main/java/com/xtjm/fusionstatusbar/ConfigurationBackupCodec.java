@@ -103,6 +103,13 @@ final class ConfigurationBackupCodec {
                 SystemSurfaceConfig.KEY_COMPACT_VOLUME}) {
             if (!object.has(key)) expectedFields--;
         }
+        if (!controlCenterOnly) {
+            // Complete schema-six backups from before independent offsets keep their original placement.
+            for (String key : new String[] {FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT,
+                    FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT}) {
+                if (!object.has(key)) expectedFields--;
+            }
+        }
         if (current && object.length() != expectedFields) throw new IOException("incomplete_configuration");
         if (!current) {
             expected.putInt(FusionConfig.KEY_LEGACY_BATTERY_SCALE, 100);

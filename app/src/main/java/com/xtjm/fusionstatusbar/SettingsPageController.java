@@ -56,6 +56,13 @@ final class SettingsPageController {
                             }
                         });
             }
+            section(content, "上下微调");
+            slider(content, "Wi-Fi 上下微调", "相对融合图标高度；负值上移，正值下移", -20, 20,
+                    initial.fusionContent.wifiOffsetYPercent, "%",
+                    value -> edit(current -> current.withFusionWifiOffsetYPercent(value)));
+            slider(content, "5G 上下微调", "移动网络文字；负值上移，正值下移", -20, 20,
+                    initial.fusionContent.mobileOffsetYPercent, "%",
+                    value -> edit(current -> current.withFusionMobileOffsetYPercent(value)));
             section(content, "内容大小");
             slider(content, "电量百分比大小", "电量数值", 50, 150,
                     initial.fusionContent.batteryScale, "%",

@@ -133,6 +133,7 @@ public final class SystemUiHooks {
             StatusBarLayoutPlan.from(currentConfig);
     private static volatile RuntimeConfigLifecycle configLifecycle;
     private static WeakReference<ViewGroup> currentStatusRoot = new WeakReference<>(null);
+    private static WeakReference<ViewGroup> currentKeyguardStatusRoot = new WeakReference<>(null);
     private static final Map<View, Integer> NATIVE_SPEED_VISIBILITY = new WeakHashMap<>();
     private static final Map<ViewGroup, Boolean> NATIVE_ICON_LAYOUT_LOGGED = new WeakHashMap<>();
     private static final Map<Class<?>, Method> SLOT_METHOD_CACHE = new WeakHashMap<>();
@@ -174,6 +175,9 @@ public final class SystemUiHooks {
     private static final LatestRootRefreshScheduler<ViewGroup> STATUS_BAR_REFRESH =
             new LatestRootRefreshScheduler<>(MAIN_HANDLER::post,
                     SystemUiHooks::reapplyStatusBarViews);
+    private static final LatestRootRefreshScheduler<ViewGroup> KEYGUARD_STATUS_BAR_REFRESH =
+            new LatestRootRefreshScheduler<>(MAIN_HANDLER::post,
+                    SystemUiHooks::reapplyKeyguardStatusBarViews);
     private static final Map<String, Long> RECENT_DIAGNOSTICS = new java.util.LinkedHashMap<>();
 
     private SystemUiHooks() {
@@ -436,6 +440,7 @@ public final class SystemUiHooks {
             case STATUS_WINDOW_REFRESH_HEIGHT -> SystemUiHooks::statusWindowRefreshHeight;
             case KEYGUARD_ATTACHED -> SystemUiHooks::keyguardAttach;
             case KEYGUARD_LAYOUT -> SystemUiHooks::keyguardLayout;
+            case KEYGUARD_MEASURE -> SystemUiHooks::keyguardMeasure;
         };
     }
 
@@ -2542,7 +2547,7 @@ public final class SystemUiHooks {
 
     private static Object keyguardAttach(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
-        if (chain.getThisObject() instanceof ViewGroup root) {
+        if (chain.getThisObject() instanceof ViewGroup root && isKeyguardStatusBar(root)) {
             applyKeyguardStatusBar(root);
         }
         return result;
@@ -2550,16 +2555,38 @@ public final class SystemUiHooks {
 
     private static Object keyguardLayout(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
-        if (chain.getThisObject() instanceof ViewGroup root) {
+        if (chain.getThisObject() instanceof ViewGroup root && isKeyguardStatusBar(root)) {
             applyKeyguardStatusBar(root);
         }
         return result;
     }
 
+    private static Object keyguardMeasure(XposedInterface.Chain chain) throws Throwable {
+        if (!(chain.getThisObject() instanceof ViewGroup root) || !isKeyguardStatusBar(root)) {
+            return chain.proceed();
+        }
+        ensureConfigObserver(root.getContext());
+        applyStatusBarHeight(root);
+        KeyguardStatusBarHeightController.apply(root, findSystemView(root, "battery"), currentConfig);
+        Object[] args = chain.getArgs().toArray();
+        if (args.length > 1 && args[1] instanceof Integer) {
+            int height = Math.min((1 << 30) - 1,
+                    KeyguardStatusBarHeightController.heightPx(root, currentConfig));
+            args[1] = View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY);
+        }
+        Object result = chain.proceed(args);
+        applyKeyguardStatusBar(root);
+        return result;
+    }
+
     private static void applyKeyguardStatusBar(ViewGroup root) {
         try {
+            currentKeyguardStatusRoot = new WeakReference<>(root);
             ensureConfigObserver(root.getContext());
             View battery = findSystemView(root, "battery");
+            // Lockscreen layouts do not necessarily contain the phone bar's two columns.
+            applyStatusBarHeight(root);
+            KeyguardStatusBarHeightController.apply(root, battery, currentConfig);
             if (battery != null) {
                 ensureFusionIcon(battery);
                 if (battery instanceof ViewGroup group) {
@@ -2575,7 +2602,6 @@ public final class SystemUiHooks {
             if (findSystemView(root, "phone_status_bar_left_container") != null
                     && findSystemView(root, "system_icon_area") != null) {
                 DualRowStatusBarLayout.apply(root, currentConfig);
-                applyStatusBarHeight(root);
             }
         } catch (Throwable error) {
             log(Log.WARN, "keyguard status-bar refresh failed", error);
@@ -2969,6 +2995,7 @@ public final class SystemUiHooks {
         if (changes.statusBar) {
             SPAN_MEASURE_LOGGED.set(false);
             scheduleStatusBarRefresh(currentStatusRoot.get());
+            KEYGUARD_STATUS_BAR_REFRESH.request(currentKeyguardStatusRoot.get());
         }
         if (!changes.statusBar || currentStatusRoot.get() == null) reportStatusBarApplication();
         if (changes.controlCenterLayout) {
@@ -3030,6 +3057,7 @@ public final class SystemUiHooks {
 
     private static void reportStatusBarApplication() {
         ViewGroup root = currentStatusRoot.get();
+        if (root == null || !root.isAttachedToWindow()) root = currentKeyguardStatusRoot.get();
         reportFeature(RuntimeApplicationPolicy.statusBar(
                 batteryClass != null && HANDLES.hasHook(batteryClass, "onAttachedToWindow"),
                 root != null && root.isAttachedToWindow(), currentConfig.customClock,
@@ -3470,6 +3498,13 @@ public final class SystemUiHooks {
         STATUS_BAR_REFRESH.request(root);
     }
 
+    private static void reapplyKeyguardStatusBarViews(ViewGroup root) {
+        if (root == null) return;
+        applyKeyguardStatusBar(root);
+        root.requestLayout();
+        reportStatusBarApplication();
+    }
+
     private static void reapplyStatusBarViews(ViewGroup root) {
         try {
             if (root == null) return;
@@ -3487,6 +3522,14 @@ public final class SystemUiHooks {
 
     private static boolean isPhoneStatusBar(Object value) {
         return value != null && PHONE_STATUS_BAR_CLASS.equals(value.getClass().getName());
+    }
+
+    private static boolean isKeyguardStatusBar(Object value) {
+        for (Class<?> type = value == null ? null : value.getClass(); type != null;
+                type = type.getSuperclass()) {
+            if (KEYGUARD_STATUS_BAR_CLASS.equals(type.getName())) return true;
+        }
+        return false;
     }
 
     private static boolean isViewNamed(View view, String name) {

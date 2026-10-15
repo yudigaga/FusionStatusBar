@@ -447,6 +447,14 @@ public final class FusionConfig {
         return withFusionContent(fusionContent.withScale(part, scale));
     }
 
+    FusionConfig withFusionWifiOffsetYPercent(int value) {
+        return withFusionContent(fusionContent.withWifiOffsetYPercent(value));
+    }
+
+    FusionConfig withFusionMobileOffsetYPercent(int value) {
+        return withFusionContent(fusionContent.withMobileOffsetYPercent(value));
+    }
+
     FusionConfig withRevision(long revision) {
         return new FusionConfig(this, revision);
     }

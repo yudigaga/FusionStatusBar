@@ -112,6 +112,10 @@ final class FusionIconGeometry {
             float anchor = part == FusionContentConfig.NETWORK && showWifi
                     && config.networkPosition == FusionContentConfig.TOP
                     ? WIFI_CONTENT_Y : slots[config.positionFor(part)];
+            if (part == FusionContentConfig.NETWORK) {
+                int offsetPercent = showWifi ? config.wifiOffsetYPercent : config.mobileOffsetYPercent;
+                anchor += DESIGN_H * offsetPercent / 100f;
+            }
             centers[part] = Math.max(halfHeights[part] + 1f,
                     Math.min(DESIGN_H - halfHeights[part] - 1f, anchor));
         }

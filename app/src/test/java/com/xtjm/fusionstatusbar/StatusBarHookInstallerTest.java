@@ -32,8 +32,8 @@ public class StatusBarHookInstallerTest {
         assertEquals(13, result.batteryHooks);
         assertEquals(4, result.containerHooks);
         assertEquals(2, result.batteryContainerHooks);
-        assertEquals(10, result.layoutHooks);
-        assertEquals(29, registrar.handles.size());
+        assertEquals(12, result.layoutHooks);
+        assertEquals(31, registrar.handles.size());
         assertTrue(registrar.contains("BatteryFixture#onMeasure",
                 BatteryFixture.class.getDeclaredMethod("onMeasure", int.class, int.class)));
         Method layout = BatteryFixture.class.getDeclaredMethod("onLayout", boolean.class,
@@ -41,6 +41,12 @@ public class StatusBarHookInstallerTest {
         assertTrue(registrar.contains("BatteryFixture#onLayout", layout));
         assertTrue(registrar.contains("PhoneBaseFixture#onMeasure",
                 PhoneBaseFixture.class.getDeclaredMethod("onMeasure", int.class, int.class)));
+        assertTrue(registrar.contains("KeyguardFixture#onMeasure",
+                KeyguardFixture.class.getDeclaredMethod("onMeasure", int.class, int.class)));
+        assertTrue(registrar.contains("KeyguardFixture#onAttachedToWindow",
+                KeyguardFixture.class.getDeclaredMethod("onAttachedToWindow")));
+        assertTrue(registrar.contains("KeyguardFixture#miuiOnAttachedToWindow",
+                KeyguardFixture.class.getDeclaredMethod("miuiOnAttachedToWindow")));
         assertTrue(registrar.contains("StatusWindowFixture#getBarLayoutParamsForRotation",
                 StatusWindowFixture.class.getDeclaredMethod("getBarLayoutParamsForRotation", int.class)));
         assertTrue(registrar.contains("StatusWindowFixture#apply",
@@ -53,7 +59,7 @@ public class StatusBarHookInstallerTest {
         StatusBarHookInstaller.Result repeated = installer.install(targets);
         assertEquals(0, repeated.batteryHooks + repeated.containerHooks
                 + repeated.batteryContainerHooks + repeated.layoutHooks);
-        assertEquals("Repeated installation retains the existing registrations", 29,
+        assertEquals("Repeated installation retains the existing registrations", 31,
                 registrar.handles.size());
     }
 
@@ -71,8 +77,8 @@ public class StatusBarHookInstallerTest {
         assertTrue(result.missingClasses.contains(StatusBarHookInstaller.BATTERY_CLASS));
         assertEquals(0, result.batteryHooks);
         assertEquals(4, result.containerHooks);
-        assertEquals(10, result.layoutHooks);
-        assertEquals(16, registrar.handles.size());
+        assertEquals(12, result.layoutHooks);
+        assertEquals(18, registrar.handles.size());
     }
 
     @Test public void missingMethodDoesNotPreventOtherMethodsInItsGroup() throws Exception {
@@ -89,7 +95,28 @@ public class StatusBarHookInstallerTest {
         assertTrue(result.missingMethods.contains("PartialBatteryFixture#onMeasure"));
         assertTrue(registrar.contains("PartialBatteryFixture#onAttachedToWindow",
                 PartialBatteryFixture.class.getDeclaredMethod("onAttachedToWindow")));
-        assertEquals(17, registrar.handles.size());
+        assertEquals(19, registrar.handles.size());
+    }
+
+    @Test public void registersInheritedKeyguardMeasureAndAttachMethods() throws Exception {
+        Resolver resolver = completeResolver();
+        resolver.classes.put(StatusBarHookInstaller.KEYGUARD_CLASS,
+                InheritedKeyguardFixture.class);
+        Registrar registrar = new Registrar();
+        StatusBarHookInstaller installer = new StatusBarHookInstaller(resolver, registrar,
+                callback -> NO_OP);
+
+        StatusBarHookInstaller.Result result = installer.install(
+                installer.resolve(getClass().getClassLoader()));
+
+        assertEquals(12, result.layoutHooks);
+        assertTrue(registrar.contains("InheritedKeyguardFixture#onMeasure",
+                KeyguardFixture.class.getDeclaredMethod("onMeasure", int.class, int.class)));
+        assertTrue(registrar.contains("InheritedKeyguardFixture#onAttachedToWindow",
+                KeyguardFixture.class.getDeclaredMethod("onAttachedToWindow")));
+        assertTrue(registrar.contains("InheritedKeyguardFixture#miuiOnAttachedToWindow",
+                KeyguardFixture.class.getDeclaredMethod("miuiOnAttachedToWindow")));
+        assertTrue(result.missingMethods.isEmpty());
     }
 
     @Test public void retriesOnlyTheFailedRegistrationAndKeepsClassLoaderResultsSeparate()
@@ -241,7 +268,11 @@ public class StatusBarHookInstallerTest {
     }
 
     public static class KeyguardFixture {
+        void onAttachedToWindow() { }
         void miuiOnAttachedToWindow() { }
+        void onMeasure(int widthSpec, int heightSpec) { }
         void onLayout(boolean changed, int l, int t, int r, int b) { }
     }
+
+    public static class InheritedKeyguardFixture extends KeyguardFixture { }
 }

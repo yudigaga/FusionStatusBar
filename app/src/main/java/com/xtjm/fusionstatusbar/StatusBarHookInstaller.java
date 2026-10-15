@@ -48,6 +48,7 @@ final class StatusBarHookInstaller {
         STATUS_WINDOW_APPLY,
         STATUS_WINDOW_REFRESH_HEIGHT,
         KEYGUARD_ATTACHED,
+        KEYGUARD_MEASURE,
         KEYGUARD_LAYOUT
     }
 
@@ -222,7 +223,10 @@ final class StatusBarHookInstaller {
 
     private int installKeyguard(Class<?> type) {
         int count = 0;
+        count += exact(type, "onAttachedToWindow", new Class<?>[0], Callback.KEYGUARD_ATTACHED);
         count += exact(type, "miuiOnAttachedToWindow", new Class<?>[0], Callback.KEYGUARD_ATTACHED);
+        count += exact(type, "onMeasure", new Class<?>[] {int.class, int.class},
+                Callback.KEYGUARD_MEASURE);
         count += exact(type, "onLayout",
                 new Class<?>[] {boolean.class, int.class, int.class, int.class, int.class},
                 Callback.KEYGUARD_LAYOUT);
