@@ -14,6 +14,7 @@ import android.net.wifi.WifiManager;
 import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.telephony.SignalStrength;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -43,6 +44,8 @@ public final class StatusMonitor {
         public final int signalLevel2;
         public final int wifiLevel;
         public final boolean charging;
+        public final boolean fastCharging;
+        public final boolean powerSave;
 
         Snapshot(int batteryPercent, boolean showWifi, String networkLabel, int signalLevel) {
             this(batteryPercent, showWifi, networkLabel, signalLevel, 0, 0, false);
@@ -60,6 +63,20 @@ public final class StatusMonitor {
 
         Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
                 int signalLevel, int signalLevel2, int wifiLevel, boolean charging) {
+            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2,
+                    wifiLevel, charging, false, false);
+        }
+
+        Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
+                int signalLevel, int signalLevel2, boolean charging,
+                boolean fastCharging, boolean powerSave) {
+            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2,
+                    0, charging, fastCharging, powerSave);
+        }
+
+        Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
+                int signalLevel, int signalLevel2, int wifiLevel, boolean charging,
+                boolean fastCharging, boolean powerSave) {
             this.batteryPercent = batteryPercent;
             this.showWifi = showWifi;
             this.networkLabel = networkLabel == null ? "" : networkLabel;
@@ -67,6 +84,8 @@ public final class StatusMonitor {
             this.signalLevel2 = signalLevel2;
             this.wifiLevel = wifiLevel;
             this.charging = charging;
+            this.fastCharging = charging && fastCharging;
+            this.powerSave = powerSave;
         }
     }
 
@@ -88,9 +107,12 @@ public final class StatusMonitor {
     private static boolean started;
     private static boolean transportsRegistered;
     private static boolean batteryRegistered;
+    private static boolean powerSaveRegistered;
     private static boolean dirty;
     private static int batteryPercent = -1;
     private static boolean charging;
+    private static boolean fastCharging;
+    private static boolean powerSave;
     private static boolean showWifi;
     private static String networkLabel = "";
     private static int signalLevel;
@@ -163,12 +185,13 @@ public final class StatusMonitor {
     public static Snapshot snapshot() {
         synchronized (LOCK) {
             return new Snapshot(batteryPercent, showWifi, networkLabel, signalLevel,
-                    signalLevel2, renderedWifiLevel, charging);
+                    signalLevel2, renderedWifiLevel, charging, fastCharging, powerSave);
         }
     }
 
     private static void register(Context context) {
         registerBattery(context);
+        registerPowerSave(context);
         registerTransports(context);
         registerTelephony(context);
     }
@@ -196,6 +219,46 @@ public final class StatusMonitor {
             applyBattery(sticky);
         } catch (Throwable error) {
             Log.e(TAG, "battery monitor failed", error);
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private static void registerPowerSave(Context context) {
+        synchronized (LOCK) {
+            if (powerSaveRegistered) {
+                return;
+            }
+            powerSaveRegistered = true;
+        }
+        try {
+            context.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context receiverContext, Intent intent) {
+                    refreshPowerSave(receiverContext);
+                }
+            }, new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                    null, mainHandler, Context.RECEIVER_NOT_EXPORTED);
+        } catch (Throwable error) {
+            Log.w(TAG, "power save monitor failed", error);
+        }
+        // The change broadcast is not sticky; always prime the current state.
+        refreshPowerSave(context);
+    }
+
+    private static void refreshPowerSave(Context context) {
+        try {
+            PowerManager power = context.getSystemService(PowerManager.class);
+            boolean enabled = power != null && power.isPowerSaveMode();
+            synchronized (LOCK) {
+                if (powerSave == enabled) {
+                    return;
+                }
+                powerSave = enabled;
+                dirty = true;
+            }
+            publish();
+        } catch (Throwable error) {
+            Log.w(TAG, "power save state unavailable", error);
         }
     }
 
@@ -444,27 +507,44 @@ public final class StatusMonitor {
         }
         int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
         int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-        if (level < 0 || scale <= 0) {
-            return;
-        }
-        int percent = Math.round(level * 100f / scale);
-        if (percent < 0) {
-            percent = 0;
-        } else if (percent > 100) {
-            percent = 100;
-        }
+        int percent = level < 0 || scale <= 0 ? -1
+                : Math.max(0, Math.min(100, Math.round(level * 100f / scale)));
         int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS,
                 BatteryManager.BATTERY_STATUS_UNKNOWN);
         boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING;
+        // An explicit unplugged update wins even if a vendor leaves stale status extras.
+        if (intent.hasExtra(BatteryManager.EXTRA_PLUGGED)
+                && intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) == 0) {
+            isCharging = false;
+        }
+        boolean isFastCharging = isFastCharging(intent, isCharging);
         synchronized (LOCK) {
-            if (batteryPercent == percent && charging == isCharging) {
+            if (percent < 0) {
+                percent = batteryPercent;
+            }
+            if (batteryPercent == percent && charging == isCharging
+                    && fastCharging == isFastCharging) {
                 return;
             }
             batteryPercent = percent;
             charging = isCharging;
+            fastCharging = isFastCharging;
             dirty = true;
         }
         publish();
+    }
+
+    private static boolean isFastCharging(Intent intent, boolean isCharging) {
+        if (!isCharging) {
+            return false;
+        }
+        // AOSP ACTION_BATTERY_CHANGED charger capability extras, in microamps/microvolts.
+        // Use the SettingsLib classic 7.5 W threshold; missing capabilities stay regular.
+        // This does not infer an OEM charging protocol or measure instantaneous power.
+        int current = intent.getIntExtra("max_charging_current", -1);
+        int voltage = intent.getIntExtra("max_charging_voltage", -1);
+        return current > 0 && voltage > 0
+                && (long) current * voltage > 7_500_000_000_000L;
     }
 
     private static void setWifiNetwork(Network network, boolean connected, int level) {

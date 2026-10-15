@@ -5,14 +5,17 @@ final class FusionIconGeometry {
     static final float DESIGN_W = 271f;
     static final float DESIGN_H = 282f;
     static final float RING_CENTER_X = DESIGN_W / 2f;
-    static final float RING_CENTER_Y = 137f;
-    static final float RING_RADIUS = 98f;
-    static final float RING_STROKE_WIDTH = 18f;
+    static final float RING_CENTER_Y = 142f;
+    static final float RING_RADIUS = 102f;
+    static final float RING_STROKE_WIDTH = 28f;
     static final float SIGNAL_ROW_EXTRA_GAP = 6f;
-    static final float SIGNAL_DOT_SPACING = 34f;
+    static final float SIGNAL_DOT_SPACING = 32.5f;
     static final float SIGNAL_DOT_CURVE = 9f;
-    static final float WIFI_ANCHOR_Y = RING_CENTER_Y + 9.5f;
-    static final float BATTERY_CONTENT_Y = 62f;
+    static final float WIFI_ANCHOR_Y = 76f;
+    static final float WIFI_CONTENT_Y = 54f;
+    static final float HEADER_CONTENT_Y = 43f;
+    static final float MIDDLE_CONTENT_Y = 151f;
+    static final float BATTERY_CONTENT_Y = MIDDLE_CONTENT_Y;
 
     static final class ContentLayout {
         private final float[] centers;
@@ -54,26 +57,43 @@ final class FusionIconGeometry {
     }
 
     static float contentSourceY(int part, int strokeScale) {
+        return contentSourceY(part, strokeScale, true);
+    }
+
+    static float contentSourceY(int part, int strokeScale, boolean showWifi) {
         if (part == FusionContentConfig.BATTERY) return BATTERY_CONTENT_Y;
-        if (part == FusionContentConfig.NETWORK) return RING_CENTER_Y;
+        if (part == FusionContentConfig.NETWORK) {
+            return showWifi ? WIFI_CONTENT_Y : MIDDLE_CONTENT_Y;
+        }
         return (innerSignalRowY(strokeScale) + outerSignalRowY(strokeScale)) / 2f;
     }
 
     static ContentLayout contentLayout(FusionContentConfig config, int strokeScale) {
+        return contentLayout(config, strokeScale, true);
+    }
+
+    static ContentLayout contentLayout(FusionContentConfig config, int strokeScale,
+            boolean showWifi) {
         float[] halfHeights = {
-                31f * config.batteryScale / 100f,
-                43f * config.networkScale / 100f,
+                (config.batteryPosition == FusionContentConfig.MIDDLE ? 54f : 37f)
+                        * config.batteryScale / 100f,
+                (showWifi ? 35f
+                        : config.networkPosition == FusionContentConfig.MIDDLE ? 50f : 35f)
+                        * config.networkScale / 100f,
                 ((outerSignalRowY(strokeScale) - innerSignalRowY(strokeScale)) / 2f
-                        + SIGNAL_DOT_CURVE + stroke(8.5f, strokeScale))
+                        + SIGNAL_DOT_CURVE + stroke(10.5f, strokeScale))
                         * config.signalScale / 100f
         };
-        float[] slots = {BATTERY_CONTENT_Y, RING_CENTER_Y,
+        float[] slots = {HEADER_CONTENT_Y, MIDDLE_CONTENT_Y,
                 contentSourceY(FusionContentConfig.SIGNAL, strokeScale)};
         float[] centers = new float[3];
         // Keep each part's size independent; only constrain its own anchor at the frame edges.
         for (int part = 0; part < 3; part++) {
+            float anchor = part == FusionContentConfig.NETWORK && showWifi
+                    && config.networkPosition == FusionContentConfig.TOP
+                    ? WIFI_CONTENT_Y : slots[config.positionFor(part)];
             centers[part] = Math.max(halfHeights[part] + 1f,
-                    Math.min(DESIGN_H - halfHeights[part] - 1f, slots[config.positionFor(part)]));
+                    Math.min(DESIGN_H - halfHeights[part] - 1f, anchor));
         }
         return new ContentLayout(centers, halfHeights);
     }

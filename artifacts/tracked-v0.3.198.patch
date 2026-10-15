@@ -1,0 +1,798 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index 848fea3..71b30f0 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 211
+-        versionName "0.3.197"
++        versionCode 212
++        versionName "0.3.198"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java
+index c36ca87..9457038 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconGeometry.java
+@@ -5,14 +5,17 @@ final class FusionIconGeometry {
+     static final float DESIGN_W = 271f;
+     static final float DESIGN_H = 282f;
+     static final float RING_CENTER_X = DESIGN_W / 2f;
+-    static final float RING_CENTER_Y = 137f;
+-    static final float RING_RADIUS = 98f;
+-    static final float RING_STROKE_WIDTH = 18f;
++    static final float RING_CENTER_Y = 142f;
++    static final float RING_RADIUS = 102f;
++    static final float RING_STROKE_WIDTH = 28f;
+     static final float SIGNAL_ROW_EXTRA_GAP = 6f;
+-    static final float SIGNAL_DOT_SPACING = 34f;
++    static final float SIGNAL_DOT_SPACING = 32.5f;
+     static final float SIGNAL_DOT_CURVE = 9f;
+-    static final float WIFI_ANCHOR_Y = RING_CENTER_Y + 9.5f;
+-    static final float BATTERY_CONTENT_Y = 62f;
++    static final float WIFI_ANCHOR_Y = 76f;
++    static final float WIFI_CONTENT_Y = 54f;
++    static final float HEADER_CONTENT_Y = 43f;
++    static final float MIDDLE_CONTENT_Y = 151f;
++    static final float BATTERY_CONTENT_Y = MIDDLE_CONTENT_Y;
+ 
+     static final class ContentLayout {
+         private final float[] centers;
+@@ -54,26 +57,43 @@ final class FusionIconGeometry {
+     }
+ 
+     static float contentSourceY(int part, int strokeScale) {
++        return contentSourceY(part, strokeScale, true);
++    }
++
++    static float contentSourceY(int part, int strokeScale, boolean showWifi) {
+         if (part == FusionContentConfig.BATTERY) return BATTERY_CONTENT_Y;
+-        if (part == FusionContentConfig.NETWORK) return RING_CENTER_Y;
++        if (part == FusionContentConfig.NETWORK) {
++            return showWifi ? WIFI_CONTENT_Y : MIDDLE_CONTENT_Y;
++        }
+         return (innerSignalRowY(strokeScale) + outerSignalRowY(strokeScale)) / 2f;
+     }
+ 
+     static ContentLayout contentLayout(FusionContentConfig config, int strokeScale) {
++        return contentLayout(config, strokeScale, true);
++    }
++
++    static ContentLayout contentLayout(FusionContentConfig config, int strokeScale,
++            boolean showWifi) {
+         float[] halfHeights = {
+-                31f * config.batteryScale / 100f,
+-                43f * config.networkScale / 100f,
++                (config.batteryPosition == FusionContentConfig.MIDDLE ? 54f : 37f)
++                        * config.batteryScale / 100f,
++                (showWifi ? 35f
++                        : config.networkPosition == FusionContentConfig.MIDDLE ? 50f : 35f)
++                        * config.networkScale / 100f,
+                 ((outerSignalRowY(strokeScale) - innerSignalRowY(strokeScale)) / 2f
+-                        + SIGNAL_DOT_CURVE + stroke(8.5f, strokeScale))
++                        + SIGNAL_DOT_CURVE + stroke(10.5f, strokeScale))
+                         * config.signalScale / 100f
+         };
+-        float[] slots = {BATTERY_CONTENT_Y, RING_CENTER_Y,
++        float[] slots = {HEADER_CONTENT_Y, MIDDLE_CONTENT_Y,
+                 contentSourceY(FusionContentConfig.SIGNAL, strokeScale)};
+         float[] centers = new float[3];
+         // Keep each part's size independent; only constrain its own anchor at the frame edges.
+         for (int part = 0; part < 3; part++) {
++            float anchor = part == FusionContentConfig.NETWORK && showWifi
++                    && config.networkPosition == FusionContentConfig.TOP
++                    ? WIFI_CONTENT_Y : slots[config.positionFor(part)];
+             centers[part] = Math.max(halfHeights[part] + 1f,
+-                    Math.min(DESIGN_H - halfHeights[part] - 1f, slots[config.positionFor(part)]));
++                    Math.min(DESIGN_H - halfHeights[part] - 1f, anchor));
+         }
+         return new ContentLayout(centers, halfHeights);
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
+index 3e5fafc..a680fd7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
+@@ -5,6 +5,7 @@ import android.database.ContentObserver;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
+ import android.graphics.Paint;
++import android.graphics.Path;
+ import android.graphics.Typeface;
+ import android.os.Handler;
+ import android.os.Looper;
+@@ -18,22 +19,29 @@ public class FusionIconView extends View {
+     private static final float RING_CENTER_Y = FusionIconGeometry.RING_CENTER_Y;
+     private static final float RING_RADIUS = FusionIconGeometry.RING_RADIUS;
+     private static final float RING_STROKE_WIDTH = FusionIconGeometry.RING_STROKE_WIDTH;
+-    // The Wi-Fi arcs extend further above their anchor than the dot extends below it.
++    private static final float BATTERY_SIDE_SWEEP = 75f;
+     private static final float WIFI_ANCHOR_Y = FusionIconGeometry.WIFI_ANCHOR_Y;
+-    private static final float TEXT_MAX_WIDTH = 116f;
+-    private static final float BATTERY_TEXT_SIZE = 62f;
+-    private static final float LABEL_MAX_WIDTH = 172f;
+-    private static final float NETWORK_LABEL_TEXT_SIZE = 70f;
++    private static final float TEXT_MAX_WIDTH = 132f;
++    private static final float BATTERY_TEXT_SIZE = 108f;
++    private static final float HEADER_TEXT_SIZE = 74f;
++    private static final float CENTER_CONTENT_Y = 151f;
++    private static final int CHARGING_COLOR = Color.rgb(68, 141, 70);
++    private static final int FAST_CHARGING_COLOR = Color.rgb(246, 195, 75);
++    private static final int POWER_SAVE_COLOR = Color.rgb(191, 155, 39);
++    private static final int DANGER_COLOR = Color.rgb(240, 68, 61);
+     private static final Typeface BASE_TYPEFACE = Typeface.create("sans-serif", Typeface.NORMAL);
+ 
+     private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
+     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
++    private final Path lightning = new Path();
+     private final StatusMonitor.Listener listener = this::onStatus;
+ 
+     private boolean preview;
+     private int batteryPercent = -1;
+     private boolean charging;
++    private boolean fastCharging;
++    private boolean powerSave;
+     private boolean showWifi;
+     private int wifiLevel;
+     private String networkLabel = "";
+@@ -42,7 +50,7 @@ public class FusionIconView extends View {
+     private int tint = Color.WHITE;
+     private FusionConfig displayConfig = FusionConfig.defaults();
+     private FusionIconGeometry.ContentLayout contentLayout = FusionIconGeometry.contentLayout(
+-            displayConfig.fusionContent, displayConfig.strokeScale);
++            displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
+     private ContentObserver configObserver;
+ 
+     public FusionIconView(Context context) {
+@@ -61,9 +69,21 @@ public class FusionIconView extends View {
+         body.setStyle(Paint.Style.STROKE);
+         body.setStrokeJoin(Paint.Join.ROUND);
+         body.setStrokeCap(Paint.Cap.ROUND);
+-        text.setTypeface(Typeface.create(BASE_TYPEFACE, Typeface.BOLD));
++        text.setTypeface(Typeface.create(BASE_TYPEFACE, 600, false));
+         text.setTextAlign(Paint.Align.CENTER);
+         text.setStyle(Paint.Style.FILL);
++        lightning.moveTo(147f, 105f);
++        lightning.lineTo(99f, 159f);
++        lightning.quadTo(96f, 163f, 102f, 163f);
++        lightning.lineTo(130f, 163f);
++        lightning.lineTo(122f, 197f);
++        lightning.quadTo(120f, 203f, 125f, 198f);
++        lightning.lineTo(173f, 144f);
++        lightning.quadTo(176f, 140f, 170f, 140f);
++        lightning.lineTo(142f, 140f);
++        lightning.lineTo(150f, 107f);
++        lightning.quadTo(151f, 101f, 147f, 105f);
++        lightning.close();
+     }
+ 
+     public void showSample(int battery, boolean wifi, String label, int level, int color) {
+@@ -77,16 +97,15 @@ public class FusionIconView extends View {
+ 
+     void showSample(int battery, boolean wifi, String label, int wifiStrength,
+             int level1, int level2, int color) {
++        showSample(new StatusMonitor.Snapshot(battery, wifi, label, level1, level2,
++                clamp(wifiStrength), false), color);
++    }
++
++    void showSample(StatusMonitor.Snapshot snapshot, int color) {
+         preview = true;
+         StatusMonitor.removeListener(listener);
+-        batteryPercent = battery;
+-        showWifi = wifi;
+-        wifiLevel = clamp(wifiStrength);
+-        networkLabel = label == null ? "" : label;
+-        signalLevel = clamp(level1);
+-        signalLevel2 = clamp(level2);
+         tint = color;
+-        setContentDescription(describe());
++        render(snapshot);
+         requestLayout();
+         invalidate();
+     }
+@@ -106,9 +125,9 @@ public class FusionIconView extends View {
+     void setDisplayConfig(FusionConfig config) {
+         displayConfig = config == null ? FusionConfig.defaults() : config;
+         contentLayout = FusionIconGeometry.contentLayout(
+-                displayConfig.fusionContent, displayConfig.strokeScale);
++                displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
+         int weight = Math.max(400, Math.min(900,
+-                700 + (displayConfig.strokeScale - 100) * 5));
++                600 + (displayConfig.strokeScale - 100) * 5));
+         text.setTypeface(Typeface.create(BASE_TYPEFACE, weight, false));
+         requestLayout();
+         invalidate();
+@@ -204,10 +223,10 @@ public class FusionIconView extends View {
+         canvas.scale(scale, scale);
+         drawBattery(canvas);
+         saveContentTransform(canvas, FusionContentConfig.BATTERY);
+-        drawPercent(canvas);
++        drawBatteryContent(canvas);
+         canvas.restore();
+         saveContentTransform(canvas, FusionContentConfig.NETWORK);
+-        drawCenter(canvas);
++        drawNetworkContent(canvas);
+         canvas.restore();
+         saveContentTransform(canvas, FusionContentConfig.SIGNAL);
+         drawSignals(canvas);
+@@ -222,32 +241,32 @@ public class FusionIconView extends View {
+         canvas.translate(FusionIconGeometry.RING_CENTER_X, contentLayout.centerY(part));
+         canvas.scale(size, flip ? -size : size);
+         canvas.translate(-FusionIconGeometry.RING_CENTER_X,
+-                -FusionIconGeometry.contentSourceY(part, displayConfig.strokeScale));
++                -FusionIconGeometry.contentSourceY(part, displayConfig.strokeScale, showWifi));
+     }
+ 
+     private void drawBattery(Canvas canvas) {
+-        float cx = 135.5f;
++        float cx = FusionIconGeometry.RING_CENTER_X;
+         float cy = RING_CENTER_Y;
+-        body.setColor(renderTint());
++        body.setColor(tint);
+         body.setStyle(Paint.Style.STROKE);
+         body.setStrokeWidth(stroke(RING_STROKE_WIDTH));
+         body.setStrokeCap(Paint.Cap.ROUND);
+-        body.setAlpha(72);
++        body.setAlpha(Math.round(Color.alpha(tint) * 0.24f));
+         canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
+                 cx + RING_RADIUS, cy + RING_RADIUS,
+-                225f, -90f, false, body);
++                225f, -BATTERY_SIDE_SWEEP, false, body);
+         canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
+                 cx + RING_RADIUS, cy + RING_RADIUS,
+-                315f, 90f, false, body);
+-        body.setAlpha(255);
+-        float progress = batteryPercent < 0 ? 180f
+-                : 180f * Math.max(0, Math.min(100, batteryPercent)) / 100f;
+-        float leftProgress = Math.min(90f, progress);
+-        float rightProgress = Math.max(0f, progress - 90f);
++                315f, BATTERY_SIDE_SWEEP, false, body);
++        body.setColor(batteryTint());
++        float progress = batteryPercent < 0 ? BATTERY_SIDE_SWEEP * 2f
++                : BATTERY_SIDE_SWEEP * 2f * Math.max(0, Math.min(100, batteryPercent)) / 100f;
++        float leftProgress = Math.min(BATTERY_SIDE_SWEEP, progress);
++        float rightProgress = Math.max(0f, progress - BATTERY_SIDE_SWEEP);
+         if (leftProgress > 0f) {
+             canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
+                     cx + RING_RADIUS, cy + RING_RADIUS,
+-                    225f, -leftProgress, false, body);
++                    225f - BATTERY_SIDE_SWEEP, leftProgress, false, body);
+         }
+         if (rightProgress > 0f) {
+             canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
+@@ -256,69 +275,87 @@ public class FusionIconView extends View {
+         }
+     }
+ 
+-    private void drawPercent(Canvas canvas) {
+-        if (batteryPercent < 0) {
++    private void drawBatteryContent(Canvas canvas) {
++        if (charging) {
++            drawLightning(canvas);
+             return;
+         }
+-        float centerX = 135.5f;
+-        float centerY = FusionIconGeometry.BATTERY_CONTENT_Y;
+-        String value = Integer.toString(Math.max(0, Math.min(100, batteryPercent)));
+-        text.setColor(renderTint());
+-        text.setTextSize(BATTERY_TEXT_SIZE);
+-        if (value.length() >= 3) {
+-            float measured = text.measureText(value);
+-            if (measured > TEXT_MAX_WIDTH) {
+-                text.setTextSize(BATTERY_TEXT_SIZE * TEXT_MAX_WIDTH / measured);
+-            }
+-        }
+-        Paint.FontMetrics metrics = text.getFontMetrics();
+-        float baseline = centerY - (metrics.ascent + metrics.descent) / 2f;
+-        canvas.drawText(value, centerX, baseline, text);
++        boolean middle = displayConfig.fusionContent.batteryPosition == FusionContentConfig.MIDDLE;
++        drawPercent(canvas, FusionIconGeometry.BATTERY_CONTENT_Y,
++                middle ? BATTERY_TEXT_SIZE : HEADER_TEXT_SIZE, middle ? TEXT_MAX_WIDTH : 110f);
+     }
+ 
+-    private void drawCenter(Canvas canvas) {
+-        float centerX = 135.5f;
++    private void drawNetworkContent(Canvas canvas) {
+         if (showWifi) {
+-            if (!displayConfig.wifiIcon) {
+-                return;
+-            }
+-            float cx = centerX;
+-            float cy = WIFI_ANCHOR_Y;
+-            int strength = clamp(wifiLevel);
+-            body.setColor(renderTint());
+-            body.setStyle(Paint.Style.STROKE);
+-            body.setStrokeCap(Paint.Cap.ROUND);
+-            body.setStrokeWidth(stroke(8f));
+-            int outerArcAlpha = strength >= 4 ? 255 : strength == 3 ? 160 : 52;
+-            drawWifiArc(canvas, cx, cy, 53f, outerArcAlpha);
+-            drawWifiArc(canvas, cx, cy, 34f, strength >= 2 ? 255 : 52);
+-            fill.setStyle(Paint.Style.FILL);
+-            fill.setColor(renderTint());
+-            fill.setAlpha(strength >= 1 ? 255 : 52);
+-            canvas.drawCircle(cx, cy + 17f, stroke(11f), fill);
+-            fill.setAlpha(255);
+-            return;
++            if (displayConfig.wifiIcon) drawWifi(canvas);
++        } else if (!networkLabel.isEmpty()) {
++            boolean middle = displayConfig.fusionContent.networkPosition == FusionContentConfig.MIDDLE;
++            drawText(canvas, networkLabel, FusionIconGeometry.MIDDLE_CONTENT_Y,
++                    middle ? 100f : 70f, TEXT_MAX_WIDTH);
+         }
+-        if (networkLabel == null || networkLabel.isEmpty()) {
+-            return;
++    }
++
++    private void drawPercent(Canvas canvas, float centerY, float size, float maxWidth) {
++        if (batteryPercent >= 0) {
++            drawText(canvas, Integer.toString(Math.max(0, Math.min(100, batteryPercent))),
++                    centerY, size, maxWidth);
+         }
+-        text.setColor(renderTint());
+-        text.setTextSize(NETWORK_LABEL_TEXT_SIZE);
+-        float measured = text.measureText(networkLabel);
+-        if (measured > LABEL_MAX_WIDTH) {
+-            text.setTextSize(NETWORK_LABEL_TEXT_SIZE * LABEL_MAX_WIDTH / measured);
++    }
++
++    private void drawText(Canvas canvas, String value, float centerY, float size, float maxWidth) {
++        text.setColor(tint);
++        text.setTextSize(size);
++        float measured = text.measureText(value);
++        if (measured > maxWidth) {
++            text.setTextSize(size * maxWidth / measured);
+         }
+         Paint.FontMetrics metrics = text.getFontMetrics();
+-        float y = RING_CENTER_Y - (metrics.ascent + metrics.descent) / 2f;
+-        canvas.drawText(networkLabel, centerX, y, text);
++        canvas.drawText(value, FusionIconGeometry.RING_CENTER_X,
++                centerY - (metrics.ascent + metrics.descent) / 2f, text);
++    }
++
++    private void drawWifi(Canvas canvas) {
++        float cx = FusionIconGeometry.RING_CENTER_X;
++        float cy = WIFI_ANCHOR_Y;
++        int strength = clamp(wifiLevel);
++        body.setColor(tint);
++        body.setStyle(Paint.Style.STROKE);
++        body.setStrokeCap(Paint.Cap.ROUND);
++        body.setStrokeWidth(stroke(12f));
++        int outerArcAlpha = strength >= 4 ? 255 : strength == 3 ? 160 : 52;
++        drawWifiArc(canvas, cx, cy, 46f, outerArcAlpha);
++        drawWifiArc(canvas, cx, cy, 25f, strength >= 2 ? 255 : 52);
++        fill.setStyle(Paint.Style.FILL);
++        fill.setColor(tint);
++        fill.setAlpha(Math.round(Color.alpha(tint) * (strength >= 1 ? 1f : 52f / 255f)));
++        canvas.drawCircle(cx, cy, stroke(8.5f), fill);
++    }
++
++    private void drawLightning(Canvas canvas) {
++        body.setColor(fastCharging ? FAST_CHARGING_COLOR : tint);
++        body.setStyle(Paint.Style.FILL_AND_STROKE);
++        body.setStrokeWidth(stroke(5f));
++        body.setStrokeJoin(Paint.Join.ROUND);
++        canvas.save();
++        boolean middle = displayConfig.fusionContent.batteryPosition == FusionContentConfig.MIDDLE;
++        if (!middle) {
++            canvas.translate(FusionIconGeometry.RING_CENTER_X, CENTER_CONTENT_Y);
++            canvas.scale(0.65f, 0.65f);
++            canvas.translate(-FusionIconGeometry.RING_CENTER_X, -CENTER_CONTENT_Y);
++        } else if (displayConfig.fusionContent.signalPosition == FusionContentConfig.BOTTOM) {
++            // Heavier signal dots reach further into the center; keep the bolt clear of them.
++            canvas.translate(0f, -Math.max(0, displayConfig.strokeScale - 100) * 0.32f);
++        }
++        canvas.drawPath(lightning, body);
++        canvas.restore();
+     }
+ 
+     private void drawWifiArc(Canvas canvas, float centerX, float centerY,
+             float radius, int alpha) {
+-        body.setAlpha(alpha);
+-        canvas.drawArc(centerX - radius, centerY - radius + 13f,
+-                centerX + radius, centerY + radius + 13f, 220f, 100f, false, body);
+-        body.setAlpha(255);
++        body.setAlpha(Math.round(Color.alpha(tint) * alpha / 255f));
++        canvas.drawArc(centerX - radius, centerY - radius,
++                centerX + radius, centerY + radius, 220f, 100f, false, body);
++        body.setAlpha(Color.alpha(tint));
+     }
+ 
+     private void drawSignals(Canvas canvas) {
+@@ -331,7 +368,7 @@ public class FusionIconView extends View {
+     private void drawSignalRow(Canvas canvas, int level, float centerY) {
+         // Keep both rows on one axis, while following the shallow U shape of the reference icon.
+         int lit = clamp(level);
+-        int activeTint = renderTint();
++        int activeTint = tint;
+         int solid = Color.alpha(activeTint);
+         int dim = Math.round(solid * 0.22f);
+         fill.setStyle(Paint.Style.FILL);
+@@ -341,16 +378,19 @@ public class FusionIconView extends View {
+                     Color.blue(activeTint)));
+             float x = FusionIconGeometry.signalX(i);
+             float y = FusionIconGeometry.signalY(centerY, i);
+-            canvas.drawCircle(x, y, stroke(8.5f), fill);
++            canvas.drawCircle(x, y, stroke(10.5f), fill);
+         }
+     }
+ 
+-    private int renderTint() {
++    private int batteryTint() {
+         if (charging) {
+-            return Color.rgb(50, 220, 96);
++            return CHARGING_COLOR;
+         }
+         if (batteryPercent >= 0 && batteryPercent <= 20) {
+-            return Color.rgb(245, 65, 62);
++            return DANGER_COLOR;
++        }
++        if (powerSave) {
++            return POWER_SAVE_COLOR;
+         }
+         return tint;
+     }
+@@ -365,11 +405,15 @@ public class FusionIconView extends View {
+     private void render(StatusMonitor.Snapshot snapshot) {
+         batteryPercent = snapshot.batteryPercent;
+         charging = snapshot.charging;
++        fastCharging = snapshot.fastCharging;
++        powerSave = snapshot.powerSave;
+         showWifi = snapshot.showWifi;
+         wifiLevel = clamp(snapshot.wifiLevel);
+         networkLabel = snapshot.networkLabel;
+-        signalLevel = snapshot.signalLevel;
+-        signalLevel2 = snapshot.signalLevel2;
++        signalLevel = clamp(snapshot.signalLevel);
++        signalLevel2 = clamp(snapshot.signalLevel2);
++        contentLayout = FusionIconGeometry.contentLayout(
++                displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
+         setContentDescription(describe());
+         invalidate();
+     }
+@@ -379,6 +423,11 @@ public class FusionIconView extends View {
+         if (batteryPercent >= 0) {
+             builder.append("\u7535\u91cf ").append(batteryPercent);
+         }
++        if (charging) {
++            appendPart(builder, fastCharging ? "快充" : "充电");
++        } else if (powerSave) {
++            appendPart(builder, "省电");
++        }
+         if (showWifi) {
+             appendPart(builder, "Wi-Fi " + clamp(wifiLevel) + "/4");
+         } else if (networkLabel != null && !networkLabel.isEmpty()) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java b/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java
+index fc404e0..4ea45d3 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/StatusMonitor.java
+@@ -14,6 +14,7 @@ import android.net.wifi.WifiManager;
+ import android.os.BatteryManager;
+ import android.os.Handler;
+ import android.os.Looper;
++import android.os.PowerManager;
+ import android.telephony.SignalStrength;
+ import android.telephony.SubscriptionInfo;
+ import android.telephony.SubscriptionManager;
+@@ -43,6 +44,8 @@ public final class StatusMonitor {
+         public final int signalLevel2;
+         public final int wifiLevel;
+         public final boolean charging;
++        public final boolean fastCharging;
++        public final boolean powerSave;
+ 
+         Snapshot(int batteryPercent, boolean showWifi, String networkLabel, int signalLevel) {
+             this(batteryPercent, showWifi, networkLabel, signalLevel, 0, 0, false);
+@@ -60,6 +63,20 @@ public final class StatusMonitor {
+ 
+         Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
+                 int signalLevel, int signalLevel2, int wifiLevel, boolean charging) {
++            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2,
++                    wifiLevel, charging, false, false);
++        }
++
++        Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
++                int signalLevel, int signalLevel2, boolean charging,
++                boolean fastCharging, boolean powerSave) {
++            this(batteryPercent, showWifi, networkLabel, signalLevel, signalLevel2,
++                    0, charging, fastCharging, powerSave);
++        }
++
++        Snapshot(int batteryPercent, boolean showWifi, String networkLabel,
++                int signalLevel, int signalLevel2, int wifiLevel, boolean charging,
++                boolean fastCharging, boolean powerSave) {
+             this.batteryPercent = batteryPercent;
+             this.showWifi = showWifi;
+             this.networkLabel = networkLabel == null ? "" : networkLabel;
+@@ -67,6 +84,8 @@ public final class StatusMonitor {
+             this.signalLevel2 = signalLevel2;
+             this.wifiLevel = wifiLevel;
+             this.charging = charging;
++            this.fastCharging = charging && fastCharging;
++            this.powerSave = powerSave;
+         }
+     }
+ 
+@@ -88,9 +107,12 @@ public final class StatusMonitor {
+     private static boolean started;
+     private static boolean transportsRegistered;
+     private static boolean batteryRegistered;
++    private static boolean powerSaveRegistered;
+     private static boolean dirty;
+     private static int batteryPercent = -1;
+     private static boolean charging;
++    private static boolean fastCharging;
++    private static boolean powerSave;
+     private static boolean showWifi;
+     private static String networkLabel = "";
+     private static int signalLevel;
+@@ -163,12 +185,13 @@ public final class StatusMonitor {
+     public static Snapshot snapshot() {
+         synchronized (LOCK) {
+             return new Snapshot(batteryPercent, showWifi, networkLabel, signalLevel,
+-                    signalLevel2, renderedWifiLevel, charging);
++                    signalLevel2, renderedWifiLevel, charging, fastCharging, powerSave);
+         }
+     }
+ 
+     private static void register(Context context) {
+         registerBattery(context);
++        registerPowerSave(context);
+         registerTransports(context);
+         registerTelephony(context);
+     }
+@@ -199,6 +222,46 @@ public final class StatusMonitor {
+         }
+     }
+ 
++    @SuppressLint("MissingPermission")
++    private static void registerPowerSave(Context context) {
++        synchronized (LOCK) {
++            if (powerSaveRegistered) {
++                return;
++            }
++            powerSaveRegistered = true;
++        }
++        try {
++            context.registerReceiver(new BroadcastReceiver() {
++                @Override
++                public void onReceive(Context receiverContext, Intent intent) {
++                    refreshPowerSave(receiverContext);
++                }
++            }, new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
++                    null, mainHandler, Context.RECEIVER_NOT_EXPORTED);
++        } catch (Throwable error) {
++            Log.w(TAG, "power save monitor failed", error);
++        }
++        // The change broadcast is not sticky; always prime the current state.
++        refreshPowerSave(context);
++    }
++
++    private static void refreshPowerSave(Context context) {
++        try {
++            PowerManager power = context.getSystemService(PowerManager.class);
++            boolean enabled = power != null && power.isPowerSaveMode();
++            synchronized (LOCK) {
++                if (powerSave == enabled) {
++                    return;
++                }
++                powerSave = enabled;
++                dirty = true;
++            }
++            publish();
++        } catch (Throwable error) {
++            Log.w(TAG, "power save state unavailable", error);
++        }
++    }
++
+     @SuppressLint("MissingPermission")
+     private static void registerTransports(Context context) {
+         synchronized (LOCK) {
+@@ -444,29 +507,46 @@ public final class StatusMonitor {
+         }
+         int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+         int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+-        if (level < 0 || scale <= 0) {
+-            return;
+-        }
+-        int percent = Math.round(level * 100f / scale);
+-        if (percent < 0) {
+-            percent = 0;
+-        } else if (percent > 100) {
+-            percent = 100;
+-        }
++        int percent = level < 0 || scale <= 0 ? -1
++                : Math.max(0, Math.min(100, Math.round(level * 100f / scale)));
+         int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS,
+                 BatteryManager.BATTERY_STATUS_UNKNOWN);
+         boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING;
++        // An explicit unplugged update wins even if a vendor leaves stale status extras.
++        if (intent.hasExtra(BatteryManager.EXTRA_PLUGGED)
++                && intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) == 0) {
++            isCharging = false;
++        }
++        boolean isFastCharging = isFastCharging(intent, isCharging);
+         synchronized (LOCK) {
+-            if (batteryPercent == percent && charging == isCharging) {
++            if (percent < 0) {
++                percent = batteryPercent;
++            }
++            if (batteryPercent == percent && charging == isCharging
++                    && fastCharging == isFastCharging) {
+                 return;
+             }
+             batteryPercent = percent;
+             charging = isCharging;
++            fastCharging = isFastCharging;
+             dirty = true;
+         }
+         publish();
+     }
+ 
++    private static boolean isFastCharging(Intent intent, boolean isCharging) {
++        if (!isCharging) {
++            return false;
++        }
++        // AOSP ACTION_BATTERY_CHANGED charger capability extras, in microamps/microvolts.
++        // Use the SettingsLib classic 7.5 W threshold; missing capabilities stay regular.
++        // This does not infer an OEM charging protocol or measure instantaneous power.
++        int current = intent.getIntExtra("max_charging_current", -1);
++        int voltage = intent.getIntExtra("max_charging_voltage", -1);
++        return current > 0 && voltage > 0
++                && (long) current * voltage > 7_500_000_000_000L;
++    }
++
+     private static void setWifiNetwork(Network network, boolean connected, int level) {
+         synchronized (LOCK) {
+             if (connected) {
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java
+index bcf4be2..58df830 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconGeometryTest.java
+@@ -6,12 +6,31 @@ import static org.junit.Assert.assertEquals;
+ import static org.junit.Assert.assertTrue;
+ 
+ public class FusionIconGeometryTest {
+-    @Test public void defaultContentTransformPreservesTheOriginalCoordinates() {
++    @Test public void defaultContentPositionsKeepBatteryAtTheTopAndNetworkInTheMiddle() {
+         FusionIconGeometry.ContentLayout layout = FusionIconGeometry.contentLayout(
+                 FusionContentConfig.defaults(), 100);
+-        for (int part = 0; part < 3; part++) {
+-            assertEquals(FusionIconGeometry.contentSourceY(part, 100), layout.centerY(part), 0.001f);
+-        }
++        assertEquals(43f, layout.centerY(FusionContentConfig.BATTERY), 0.001f);
++        assertEquals(151f, layout.centerY(FusionContentConfig.NETWORK), 0.001f);
++        assertEquals(FusionIconGeometry.contentSourceY(FusionContentConfig.SIGNAL, 100),
++                layout.centerY(FusionContentConfig.SIGNAL), 0.001f);
++    }
++
++    @Test public void wifiAtTheTopKeepsItsFullGlyphCenteredWithoutChangingConfiguredPositions() {
++        FusionContentConfig config = FusionContentConfig.defaults()
++                .withPosition(FusionContentConfig.NETWORK, FusionContentConfig.TOP);
++        FusionIconGeometry.ContentLayout wifi = FusionIconGeometry.contentLayout(config, 100, true);
++        FusionIconGeometry.ContentLayout mobile = FusionIconGeometry.contentLayout(config, 100, false);
++        assertEquals(FusionContentConfig.MIDDLE, config.batteryPosition);
++        assertEquals(FusionContentConfig.TOP, config.networkPosition);
++        assertEquals(151f, wifi.centerY(FusionContentConfig.BATTERY), 0.001f);
++        assertEquals(FusionIconGeometry.WIFI_CONTENT_Y,
++                wifi.centerY(FusionContentConfig.NETWORK), 0.001f);
++        assertEquals(43f, mobile.centerY(FusionContentConfig.NETWORK), 0.001f);
++        assertEquals(151f, mobile.centerY(FusionContentConfig.BATTERY), 0.001f);
++        assertEquals(FusionIconGeometry.WIFI_CONTENT_Y,
++                FusionIconGeometry.contentSourceY(FusionContentConfig.NETWORK, 100, true), 0.001f);
++        assertEquals(151f,
++                FusionIconGeometry.contentSourceY(FusionContentConfig.NETWORK, 100, false), 0.001f);
+     }
+ 
+     @Test public void enlargedContentInAllOrdersStaysInsideTheFixedDesignSpace() {
+@@ -80,8 +99,8 @@ public class FusionIconGeometryTest {
+         float inner = FusionIconGeometry.innerSignalRowY(100);
+         float outer = FusionIconGeometry.outerSignalRowY(100);
+ 
+-        assertEquals(24f, outer - inner, 0.001f);
+-        assertEquals(36f,
++        assertEquals(34f, outer - inner, 0.001f);
++        assertEquals(51f,
+                 FusionIconGeometry.outerSignalRowY(150)
+                         - FusionIconGeometry.innerSignalRowY(150), 0.001f);
+     }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java
+index eba72fe..7d216c4 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java
+@@ -79,10 +79,13 @@ public class FusionIconViewTest {
+         Bitmap swapped = draw(FusionConfig.defaults()
+                 .withFusionContentPosition(FusionContentConfig.NETWORK, FusionContentConfig.TOP),
+                 -1, true, 0, 0, 271, 282);
+-        assertTrue(Color.alpha(original.getPixel(135, 163)) > 200);
+-        assertEquals(0, Color.alpha(original.getPixel(135, 88)));
+-        assertTrue(Color.alpha(swapped.getPixel(135, 88)) > 200);
+-        assertEquals(0, Color.alpha(swapped.getPixel(135, 163)));
++        int originalDotY = Math.round(FusionIconGeometry.WIFI_ANCHOR_Y
++                + FusionIconGeometry.MIDDLE_CONTENT_Y - FusionIconGeometry.WIFI_CONTENT_Y);
++        int swappedDotY = Math.round(FusionIconGeometry.WIFI_ANCHOR_Y);
++        assertTrue(Color.alpha(original.getPixel(135, originalDotY)) > 200);
++        assertEquals(0, Color.alpha(original.getPixel(135, swappedDotY)));
++        assertTrue(Color.alpha(swapped.getPixel(135, swappedDotY)) > 200);
++        assertEquals(0, Color.alpha(swapped.getPixel(135, originalDotY)));
+     }
+ 
+     @Test public void wifiArcsShowWifiStrengthWithoutChangingCellularSignalRows() throws Exception {
+@@ -93,15 +96,15 @@ public class FusionIconViewTest {
+         Bitmap strong = drawWifiStrength(4, 1, 3);
+ 
+         assertTrue("The weakest connected Wi-Fi level activates only the dot",
+-                Color.alpha(minimum.getPixel(135, 163)) > Color.alpha(none.getPixel(135, 163)));
+-        assertEquals(Color.alpha(none.getPixel(135, 143)),
+-                Color.alpha(minimum.getPixel(135, 143)));
++                Color.alpha(minimum.getPixel(135, 173)) > Color.alpha(none.getPixel(135, 173)));
++        assertEquals(Color.alpha(none.getPixel(135, 148)),
++                Color.alpha(minimum.getPixel(135, 148)));
+         assertTrue("Moderate Wi-Fi activates the inner arc",
+-                Color.alpha(weak.getPixel(135, 125)) > Color.alpha(none.getPixel(135, 125)));
++                Color.alpha(weak.getPixel(135, 148)) > Color.alpha(none.getPixel(135, 148)));
+         assertTrue("Good Wi-Fi lights the outer arc partially",
+-                Color.alpha(medium.getPixel(135, 106)) > Color.alpha(none.getPixel(135, 106)));
++                Color.alpha(medium.getPixel(135, 127)) > Color.alpha(none.getPixel(135, 127)));
+         assertTrue("Strong Wi-Fi lights the outer arc fully",
+-                Color.alpha(strong.getPixel(135, 106)) > Color.alpha(medium.getPixel(135, 106)));
++                Color.alpha(strong.getPixel(135, 127)) > Color.alpha(medium.getPixel(135, 127)));
+         assertSamePixels(none, strong, 0, 200, 271, 282);
+ 
+         Bitmap sheet = Bitmap.createBitmap(1500, 334, Bitmap.Config.ARGB_8888);
+@@ -131,11 +134,11 @@ public class FusionIconViewTest {
+     @Test public void cellularRowsCanChangeWhileTheWifiGlyphKeepsItsOwnStrength() {
+         Bitmap first = drawWifiStrength(2, 1, 3);
+         Bitmap next = drawWifiStrength(2, 4, 0);
+-        assertSamePixels(first, next, 75, 96, 199, 180);
++        assertSamePixels(first, next, 75, 112, 199, 188);
+         assertTrue("SIM one changes its own signal row",
+-                Color.alpha(next.getPixel(118, 226)) > Color.alpha(first.getPixel(118, 226)));
++                Color.alpha(next.getPixel(119, 225)) > Color.alpha(first.getPixel(119, 225)));
+         assertTrue("SIM two changes its own signal row",
+-                Color.alpha(next.getPixel(118, 250)) < Color.alpha(first.getPixel(118, 250)));
++                Color.alpha(next.getPixel(119, 259)) < Color.alpha(first.getPixel(119, 259)));
+         first.recycle();
+         next.recycle();
+     }
+@@ -159,9 +162,9 @@ public class FusionIconViewTest {
+         Bitmap swapped = draw(FusionConfig.defaults()
+                 .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP),
+                 -1, false, 4, 0, 271, 282);
+-        assertTrue("The active inner SIM row faces the center", Color.alpha(swapped.getPixel(118, 65)) > 200);
+-        assertTrue("The curve flips vertically at the top", Color.alpha(swapped.getPixel(84, 83)) > 200);
+-        int outerAlpha = Color.alpha(swapped.getPixel(118, 41));
++        assertTrue("The active inner SIM row faces the center", Color.alpha(swapped.getPixel(119, 51)) > 200);
++        assertTrue("The curve flips vertically at the top", Color.alpha(swapped.getPixel(87, 69)) > 200);
++        int outerAlpha = Color.alpha(swapped.getPixel(119, 17));
+         assertTrue("The inactive outer SIM row stays outside", outerAlpha > 0 && outerAlpha < 100);
+     }
+ 
+@@ -169,10 +172,10 @@ public class FusionIconViewTest {
+         Bitmap original = draw(FusionConfig.defaults(), 80, true, 4, 3, 271, 282);
+         Bitmap smaller = draw(FusionConfig.defaults()
+                 .withFusionContentScale(FusionContentConfig.NETWORK, 50), 80, true, 4, 3, 271, 282);
+-        assertSamePixels(original, smaller, 78, 25, 193, 93);
+-        assertSamePixels(original, smaller, 65, 188, 207, 274);
+-        assertTrue(opaquePixels(original, 75, 96, 199, 180)
+-                > opaquePixels(smaller, 75, 96, 199, 180) * 2);
++        assertSamePixels(original, smaller, 78, 5, 193, 83);
++        assertSamePixels(original, smaller, 65, 205, 207, 280);
++        assertTrue(opaquePixels(original, 75, 112, 199, 190)
++                > opaquePixels(smaller, 75, 112, 199, 190) * 2);
+     }
+ 
+     @Test public void growingNetworkContentDoesNotShrinkTheOuterRingOrChangeOtherContent() {
+@@ -180,8 +183,8 @@ public class FusionIconViewTest {
+         Bitmap bigger = draw(FusionConfig.defaults()
+                 .withFusionContentScale(FusionContentConfig.NETWORK, 150), 80, true, 4, 3, 271, 282);
+         assertSamePixels(original, bigger, 0, 20, 43, 260);
+-        assertSamePixels(original, bigger, 78, 25, 193, 75);
+-        assertSamePixels(original, bigger, 65, 200, 207, 274);
++        assertSamePixels(original, bigger, 78, 5, 193, 83);
++        assertSamePixels(original, bigger, 65, 205, 207, 280);
+     }
+ 
+     @Test public void oneOuterTransformScalesEveryPartAndPreservesItsArrangement() {

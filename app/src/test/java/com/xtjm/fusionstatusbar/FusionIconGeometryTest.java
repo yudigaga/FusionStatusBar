@@ -6,12 +6,31 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class FusionIconGeometryTest {
-    @Test public void defaultContentTransformPreservesTheOriginalCoordinates() {
+    @Test public void defaultContentPositionsKeepBatteryAtTheTopAndNetworkInTheMiddle() {
         FusionIconGeometry.ContentLayout layout = FusionIconGeometry.contentLayout(
                 FusionContentConfig.defaults(), 100);
-        for (int part = 0; part < 3; part++) {
-            assertEquals(FusionIconGeometry.contentSourceY(part, 100), layout.centerY(part), 0.001f);
-        }
+        assertEquals(43f, layout.centerY(FusionContentConfig.BATTERY), 0.001f);
+        assertEquals(151f, layout.centerY(FusionContentConfig.NETWORK), 0.001f);
+        assertEquals(FusionIconGeometry.contentSourceY(FusionContentConfig.SIGNAL, 100),
+                layout.centerY(FusionContentConfig.SIGNAL), 0.001f);
+    }
+
+    @Test public void wifiAtTheTopKeepsItsFullGlyphCenteredWithoutChangingConfiguredPositions() {
+        FusionContentConfig config = FusionContentConfig.defaults()
+                .withPosition(FusionContentConfig.NETWORK, FusionContentConfig.TOP);
+        FusionIconGeometry.ContentLayout wifi = FusionIconGeometry.contentLayout(config, 100, true);
+        FusionIconGeometry.ContentLayout mobile = FusionIconGeometry.contentLayout(config, 100, false);
+        assertEquals(FusionContentConfig.MIDDLE, config.batteryPosition);
+        assertEquals(FusionContentConfig.TOP, config.networkPosition);
+        assertEquals(151f, wifi.centerY(FusionContentConfig.BATTERY), 0.001f);
+        assertEquals(FusionIconGeometry.WIFI_CONTENT_Y,
+                wifi.centerY(FusionContentConfig.NETWORK), 0.001f);
+        assertEquals(43f, mobile.centerY(FusionContentConfig.NETWORK), 0.001f);
+        assertEquals(151f, mobile.centerY(FusionContentConfig.BATTERY), 0.001f);
+        assertEquals(FusionIconGeometry.WIFI_CONTENT_Y,
+                FusionIconGeometry.contentSourceY(FusionContentConfig.NETWORK, 100, true), 0.001f);
+        assertEquals(151f,
+                FusionIconGeometry.contentSourceY(FusionContentConfig.NETWORK, 100, false), 0.001f);
     }
 
     @Test public void enlargedContentInAllOrdersStaysInsideTheFixedDesignSpace() {
@@ -80,8 +99,8 @@ public class FusionIconGeometryTest {
         float inner = FusionIconGeometry.innerSignalRowY(100);
         float outer = FusionIconGeometry.outerSignalRowY(100);
 
-        assertEquals(24f, outer - inner, 0.001f);
-        assertEquals(36f,
+        assertEquals(34f, outer - inner, 0.001f);
+        assertEquals(51f,
                 FusionIconGeometry.outerSignalRowY(150)
                         - FusionIconGeometry.innerSignalRowY(150), 0.001f);
     }

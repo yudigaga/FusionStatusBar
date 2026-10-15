@@ -5,6 +5,7 @@ import android.database.ContentObserver;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
@@ -18,22 +19,29 @@ public class FusionIconView extends View {
     private static final float RING_CENTER_Y = FusionIconGeometry.RING_CENTER_Y;
     private static final float RING_RADIUS = FusionIconGeometry.RING_RADIUS;
     private static final float RING_STROKE_WIDTH = FusionIconGeometry.RING_STROKE_WIDTH;
-    // The Wi-Fi arcs extend further above their anchor than the dot extends below it.
+    private static final float BATTERY_SIDE_SWEEP = 75f;
     private static final float WIFI_ANCHOR_Y = FusionIconGeometry.WIFI_ANCHOR_Y;
-    private static final float TEXT_MAX_WIDTH = 116f;
-    private static final float BATTERY_TEXT_SIZE = 62f;
-    private static final float LABEL_MAX_WIDTH = 172f;
-    private static final float NETWORK_LABEL_TEXT_SIZE = 70f;
+    private static final float TEXT_MAX_WIDTH = 132f;
+    private static final float BATTERY_TEXT_SIZE = 108f;
+    private static final float HEADER_TEXT_SIZE = 74f;
+    private static final float CENTER_CONTENT_Y = 151f;
+    private static final int CHARGING_COLOR = Color.rgb(68, 141, 70);
+    private static final int FAST_CHARGING_COLOR = Color.rgb(246, 195, 75);
+    private static final int POWER_SAVE_COLOR = Color.rgb(191, 155, 39);
+    private static final int DANGER_COLOR = Color.rgb(240, 68, 61);
     private static final Typeface BASE_TYPEFACE = Typeface.create("sans-serif", Typeface.NORMAL);
 
     private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path lightning = new Path();
     private final StatusMonitor.Listener listener = this::onStatus;
 
     private boolean preview;
     private int batteryPercent = -1;
     private boolean charging;
+    private boolean fastCharging;
+    private boolean powerSave;
     private boolean showWifi;
     private int wifiLevel;
     private String networkLabel = "";
@@ -42,7 +50,7 @@ public class FusionIconView extends View {
     private int tint = Color.WHITE;
     private FusionConfig displayConfig = FusionConfig.defaults();
     private FusionIconGeometry.ContentLayout contentLayout = FusionIconGeometry.contentLayout(
-            displayConfig.fusionContent, displayConfig.strokeScale);
+            displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
     private ContentObserver configObserver;
 
     public FusionIconView(Context context) {
@@ -61,9 +69,21 @@ public class FusionIconView extends View {
         body.setStyle(Paint.Style.STROKE);
         body.setStrokeJoin(Paint.Join.ROUND);
         body.setStrokeCap(Paint.Cap.ROUND);
-        text.setTypeface(Typeface.create(BASE_TYPEFACE, Typeface.BOLD));
+        text.setTypeface(Typeface.create(BASE_TYPEFACE, 600, false));
         text.setTextAlign(Paint.Align.CENTER);
         text.setStyle(Paint.Style.FILL);
+        lightning.moveTo(147f, 105f);
+        lightning.lineTo(99f, 159f);
+        lightning.quadTo(96f, 163f, 102f, 163f);
+        lightning.lineTo(130f, 163f);
+        lightning.lineTo(122f, 197f);
+        lightning.quadTo(120f, 203f, 125f, 198f);
+        lightning.lineTo(173f, 144f);
+        lightning.quadTo(176f, 140f, 170f, 140f);
+        lightning.lineTo(142f, 140f);
+        lightning.lineTo(150f, 107f);
+        lightning.quadTo(151f, 101f, 147f, 105f);
+        lightning.close();
     }
 
     public void showSample(int battery, boolean wifi, String label, int level, int color) {
@@ -77,16 +97,15 @@ public class FusionIconView extends View {
 
     void showSample(int battery, boolean wifi, String label, int wifiStrength,
             int level1, int level2, int color) {
+        showSample(new StatusMonitor.Snapshot(battery, wifi, label, level1, level2,
+                clamp(wifiStrength), false), color);
+    }
+
+    void showSample(StatusMonitor.Snapshot snapshot, int color) {
         preview = true;
         StatusMonitor.removeListener(listener);
-        batteryPercent = battery;
-        showWifi = wifi;
-        wifiLevel = clamp(wifiStrength);
-        networkLabel = label == null ? "" : label;
-        signalLevel = clamp(level1);
-        signalLevel2 = clamp(level2);
         tint = color;
-        setContentDescription(describe());
+        render(snapshot);
         requestLayout();
         invalidate();
     }
@@ -106,9 +125,9 @@ public class FusionIconView extends View {
     void setDisplayConfig(FusionConfig config) {
         displayConfig = config == null ? FusionConfig.defaults() : config;
         contentLayout = FusionIconGeometry.contentLayout(
-                displayConfig.fusionContent, displayConfig.strokeScale);
+                displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
         int weight = Math.max(400, Math.min(900,
-                700 + (displayConfig.strokeScale - 100) * 5));
+                600 + (displayConfig.strokeScale - 100) * 5));
         text.setTypeface(Typeface.create(BASE_TYPEFACE, weight, false));
         requestLayout();
         invalidate();
@@ -204,10 +223,10 @@ public class FusionIconView extends View {
         canvas.scale(scale, scale);
         drawBattery(canvas);
         saveContentTransform(canvas, FusionContentConfig.BATTERY);
-        drawPercent(canvas);
+        drawBatteryContent(canvas);
         canvas.restore();
         saveContentTransform(canvas, FusionContentConfig.NETWORK);
-        drawCenter(canvas);
+        drawNetworkContent(canvas);
         canvas.restore();
         saveContentTransform(canvas, FusionContentConfig.SIGNAL);
         drawSignals(canvas);
@@ -222,32 +241,32 @@ public class FusionIconView extends View {
         canvas.translate(FusionIconGeometry.RING_CENTER_X, contentLayout.centerY(part));
         canvas.scale(size, flip ? -size : size);
         canvas.translate(-FusionIconGeometry.RING_CENTER_X,
-                -FusionIconGeometry.contentSourceY(part, displayConfig.strokeScale));
+                -FusionIconGeometry.contentSourceY(part, displayConfig.strokeScale, showWifi));
     }
 
     private void drawBattery(Canvas canvas) {
-        float cx = 135.5f;
+        float cx = FusionIconGeometry.RING_CENTER_X;
         float cy = RING_CENTER_Y;
-        body.setColor(renderTint());
+        body.setColor(tint);
         body.setStyle(Paint.Style.STROKE);
         body.setStrokeWidth(stroke(RING_STROKE_WIDTH));
         body.setStrokeCap(Paint.Cap.ROUND);
-        body.setAlpha(72);
+        body.setAlpha(Math.round(Color.alpha(tint) * 0.24f));
         canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
                 cx + RING_RADIUS, cy + RING_RADIUS,
-                225f, -90f, false, body);
+                225f, -BATTERY_SIDE_SWEEP, false, body);
         canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
                 cx + RING_RADIUS, cy + RING_RADIUS,
-                315f, 90f, false, body);
-        body.setAlpha(255);
-        float progress = batteryPercent < 0 ? 180f
-                : 180f * Math.max(0, Math.min(100, batteryPercent)) / 100f;
-        float leftProgress = Math.min(90f, progress);
-        float rightProgress = Math.max(0f, progress - 90f);
+                315f, BATTERY_SIDE_SWEEP, false, body);
+        body.setColor(batteryTint());
+        float progress = batteryPercent < 0 ? BATTERY_SIDE_SWEEP * 2f
+                : BATTERY_SIDE_SWEEP * 2f * Math.max(0, Math.min(100, batteryPercent)) / 100f;
+        float leftProgress = Math.min(BATTERY_SIDE_SWEEP, progress);
+        float rightProgress = Math.max(0f, progress - BATTERY_SIDE_SWEEP);
         if (leftProgress > 0f) {
             canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
                     cx + RING_RADIUS, cy + RING_RADIUS,
-                    225f, -leftProgress, false, body);
+                    225f - BATTERY_SIDE_SWEEP, leftProgress, false, body);
         }
         if (rightProgress > 0f) {
             canvas.drawArc(cx - RING_RADIUS, cy - RING_RADIUS,
@@ -256,69 +275,87 @@ public class FusionIconView extends View {
         }
     }
 
-    private void drawPercent(Canvas canvas) {
-        if (batteryPercent < 0) {
+    private void drawBatteryContent(Canvas canvas) {
+        if (charging) {
+            drawLightning(canvas);
             return;
         }
-        float centerX = 135.5f;
-        float centerY = FusionIconGeometry.BATTERY_CONTENT_Y;
-        String value = Integer.toString(Math.max(0, Math.min(100, batteryPercent)));
-        text.setColor(renderTint());
-        text.setTextSize(BATTERY_TEXT_SIZE);
-        if (value.length() >= 3) {
-            float measured = text.measureText(value);
-            if (measured > TEXT_MAX_WIDTH) {
-                text.setTextSize(BATTERY_TEXT_SIZE * TEXT_MAX_WIDTH / measured);
-            }
-        }
-        Paint.FontMetrics metrics = text.getFontMetrics();
-        float baseline = centerY - (metrics.ascent + metrics.descent) / 2f;
-        canvas.drawText(value, centerX, baseline, text);
+        boolean middle = displayConfig.fusionContent.batteryPosition == FusionContentConfig.MIDDLE;
+        drawPercent(canvas, FusionIconGeometry.BATTERY_CONTENT_Y,
+                middle ? BATTERY_TEXT_SIZE : HEADER_TEXT_SIZE, middle ? TEXT_MAX_WIDTH : 110f);
     }
 
-    private void drawCenter(Canvas canvas) {
-        float centerX = 135.5f;
+    private void drawNetworkContent(Canvas canvas) {
         if (showWifi) {
-            if (!displayConfig.wifiIcon) {
-                return;
-            }
-            float cx = centerX;
-            float cy = WIFI_ANCHOR_Y;
-            int strength = clamp(wifiLevel);
-            body.setColor(renderTint());
-            body.setStyle(Paint.Style.STROKE);
-            body.setStrokeCap(Paint.Cap.ROUND);
-            body.setStrokeWidth(stroke(8f));
-            int outerArcAlpha = strength >= 4 ? 255 : strength == 3 ? 160 : 52;
-            drawWifiArc(canvas, cx, cy, 53f, outerArcAlpha);
-            drawWifiArc(canvas, cx, cy, 34f, strength >= 2 ? 255 : 52);
-            fill.setStyle(Paint.Style.FILL);
-            fill.setColor(renderTint());
-            fill.setAlpha(strength >= 1 ? 255 : 52);
-            canvas.drawCircle(cx, cy + 17f, stroke(11f), fill);
-            fill.setAlpha(255);
-            return;
+            if (displayConfig.wifiIcon) drawWifi(canvas);
+        } else if (!networkLabel.isEmpty()) {
+            boolean middle = displayConfig.fusionContent.networkPosition == FusionContentConfig.MIDDLE;
+            drawText(canvas, networkLabel, FusionIconGeometry.MIDDLE_CONTENT_Y,
+                    middle ? 100f : 70f, TEXT_MAX_WIDTH);
         }
-        if (networkLabel == null || networkLabel.isEmpty()) {
-            return;
+    }
+
+    private void drawPercent(Canvas canvas, float centerY, float size, float maxWidth) {
+        if (batteryPercent >= 0) {
+            drawText(canvas, Integer.toString(Math.max(0, Math.min(100, batteryPercent))),
+                    centerY, size, maxWidth);
         }
-        text.setColor(renderTint());
-        text.setTextSize(NETWORK_LABEL_TEXT_SIZE);
-        float measured = text.measureText(networkLabel);
-        if (measured > LABEL_MAX_WIDTH) {
-            text.setTextSize(NETWORK_LABEL_TEXT_SIZE * LABEL_MAX_WIDTH / measured);
+    }
+
+    private void drawText(Canvas canvas, String value, float centerY, float size, float maxWidth) {
+        text.setColor(tint);
+        text.setTextSize(size);
+        float measured = text.measureText(value);
+        if (measured > maxWidth) {
+            text.setTextSize(size * maxWidth / measured);
         }
         Paint.FontMetrics metrics = text.getFontMetrics();
-        float y = RING_CENTER_Y - (metrics.ascent + metrics.descent) / 2f;
-        canvas.drawText(networkLabel, centerX, y, text);
+        canvas.drawText(value, FusionIconGeometry.RING_CENTER_X,
+                centerY - (metrics.ascent + metrics.descent) / 2f, text);
+    }
+
+    private void drawWifi(Canvas canvas) {
+        float cx = FusionIconGeometry.RING_CENTER_X;
+        float cy = WIFI_ANCHOR_Y;
+        int strength = clamp(wifiLevel);
+        body.setColor(tint);
+        body.setStyle(Paint.Style.STROKE);
+        body.setStrokeCap(Paint.Cap.ROUND);
+        body.setStrokeWidth(stroke(12f));
+        int outerArcAlpha = strength >= 4 ? 255 : strength == 3 ? 160 : 52;
+        drawWifiArc(canvas, cx, cy, 46f, outerArcAlpha);
+        drawWifiArc(canvas, cx, cy, 25f, strength >= 2 ? 255 : 52);
+        fill.setStyle(Paint.Style.FILL);
+        fill.setColor(tint);
+        fill.setAlpha(Math.round(Color.alpha(tint) * (strength >= 1 ? 1f : 52f / 255f)));
+        canvas.drawCircle(cx, cy, stroke(8.5f), fill);
+    }
+
+    private void drawLightning(Canvas canvas) {
+        body.setColor(fastCharging ? FAST_CHARGING_COLOR : tint);
+        body.setStyle(Paint.Style.FILL_AND_STROKE);
+        body.setStrokeWidth(stroke(5f));
+        body.setStrokeJoin(Paint.Join.ROUND);
+        canvas.save();
+        boolean middle = displayConfig.fusionContent.batteryPosition == FusionContentConfig.MIDDLE;
+        if (!middle) {
+            canvas.translate(FusionIconGeometry.RING_CENTER_X, CENTER_CONTENT_Y);
+            canvas.scale(0.65f, 0.65f);
+            canvas.translate(-FusionIconGeometry.RING_CENTER_X, -CENTER_CONTENT_Y);
+        } else if (displayConfig.fusionContent.signalPosition == FusionContentConfig.BOTTOM) {
+            // Heavier signal dots reach further into the center; keep the bolt clear of them.
+            canvas.translate(0f, -Math.max(0, displayConfig.strokeScale - 100) * 0.32f);
+        }
+        canvas.drawPath(lightning, body);
+        canvas.restore();
     }
 
     private void drawWifiArc(Canvas canvas, float centerX, float centerY,
             float radius, int alpha) {
-        body.setAlpha(alpha);
-        canvas.drawArc(centerX - radius, centerY - radius + 13f,
-                centerX + radius, centerY + radius + 13f, 220f, 100f, false, body);
-        body.setAlpha(255);
+        body.setAlpha(Math.round(Color.alpha(tint) * alpha / 255f));
+        canvas.drawArc(centerX - radius, centerY - radius,
+                centerX + radius, centerY + radius, 220f, 100f, false, body);
+        body.setAlpha(Color.alpha(tint));
     }
 
     private void drawSignals(Canvas canvas) {
@@ -331,7 +368,7 @@ public class FusionIconView extends View {
     private void drawSignalRow(Canvas canvas, int level, float centerY) {
         // Keep both rows on one axis, while following the shallow U shape of the reference icon.
         int lit = clamp(level);
-        int activeTint = renderTint();
+        int activeTint = tint;
         int solid = Color.alpha(activeTint);
         int dim = Math.round(solid * 0.22f);
         fill.setStyle(Paint.Style.FILL);
@@ -341,16 +378,19 @@ public class FusionIconView extends View {
                     Color.blue(activeTint)));
             float x = FusionIconGeometry.signalX(i);
             float y = FusionIconGeometry.signalY(centerY, i);
-            canvas.drawCircle(x, y, stroke(8.5f), fill);
+            canvas.drawCircle(x, y, stroke(10.5f), fill);
         }
     }
 
-    private int renderTint() {
+    private int batteryTint() {
         if (charging) {
-            return Color.rgb(50, 220, 96);
+            return CHARGING_COLOR;
         }
         if (batteryPercent >= 0 && batteryPercent <= 20) {
-            return Color.rgb(245, 65, 62);
+            return DANGER_COLOR;
+        }
+        if (powerSave) {
+            return POWER_SAVE_COLOR;
         }
         return tint;
     }
@@ -365,11 +405,15 @@ public class FusionIconView extends View {
     private void render(StatusMonitor.Snapshot snapshot) {
         batteryPercent = snapshot.batteryPercent;
         charging = snapshot.charging;
+        fastCharging = snapshot.fastCharging;
+        powerSave = snapshot.powerSave;
         showWifi = snapshot.showWifi;
         wifiLevel = clamp(snapshot.wifiLevel);
         networkLabel = snapshot.networkLabel;
-        signalLevel = snapshot.signalLevel;
-        signalLevel2 = snapshot.signalLevel2;
+        signalLevel = clamp(snapshot.signalLevel);
+        signalLevel2 = clamp(snapshot.signalLevel2);
+        contentLayout = FusionIconGeometry.contentLayout(
+                displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
         setContentDescription(describe());
         invalidate();
     }
@@ -378,6 +422,11 @@ public class FusionIconView extends View {
         StringBuilder builder = new StringBuilder();
         if (batteryPercent >= 0) {
             builder.append("\u7535\u91cf ").append(batteryPercent);
+        }
+        if (charging) {
+            appendPart(builder, fastCharging ? "快充" : "充电");
+        } else if (powerSave) {
+            appendPart(builder, "省电");
         }
         if (showWifi) {
             appendPart(builder, "Wi-Fi " + clamp(wifiLevel) + "/4");

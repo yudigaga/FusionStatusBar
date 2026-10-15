@@ -79,10 +79,13 @@ public class FusionIconViewTest {
         Bitmap swapped = draw(FusionConfig.defaults()
                 .withFusionContentPosition(FusionContentConfig.NETWORK, FusionContentConfig.TOP),
                 -1, true, 0, 0, 271, 282);
-        assertTrue(Color.alpha(original.getPixel(135, 163)) > 200);
-        assertEquals(0, Color.alpha(original.getPixel(135, 88)));
-        assertTrue(Color.alpha(swapped.getPixel(135, 88)) > 200);
-        assertEquals(0, Color.alpha(swapped.getPixel(135, 163)));
+        int originalDotY = Math.round(FusionIconGeometry.WIFI_ANCHOR_Y
+                + FusionIconGeometry.MIDDLE_CONTENT_Y - FusionIconGeometry.WIFI_CONTENT_Y);
+        int swappedDotY = Math.round(FusionIconGeometry.WIFI_ANCHOR_Y);
+        assertTrue(Color.alpha(original.getPixel(135, originalDotY)) > 200);
+        assertEquals(0, Color.alpha(original.getPixel(135, swappedDotY)));
+        assertTrue(Color.alpha(swapped.getPixel(135, swappedDotY)) > 200);
+        assertEquals(0, Color.alpha(swapped.getPixel(135, originalDotY)));
     }
 
     @Test public void wifiArcsShowWifiStrengthWithoutChangingCellularSignalRows() throws Exception {
@@ -93,15 +96,15 @@ public class FusionIconViewTest {
         Bitmap strong = drawWifiStrength(4, 1, 3);
 
         assertTrue("The weakest connected Wi-Fi level activates only the dot",
-                Color.alpha(minimum.getPixel(135, 163)) > Color.alpha(none.getPixel(135, 163)));
-        assertEquals(Color.alpha(none.getPixel(135, 143)),
-                Color.alpha(minimum.getPixel(135, 143)));
+                Color.alpha(minimum.getPixel(135, 173)) > Color.alpha(none.getPixel(135, 173)));
+        assertEquals(Color.alpha(none.getPixel(135, 148)),
+                Color.alpha(minimum.getPixel(135, 148)));
         assertTrue("Moderate Wi-Fi activates the inner arc",
-                Color.alpha(weak.getPixel(135, 125)) > Color.alpha(none.getPixel(135, 125)));
+                Color.alpha(weak.getPixel(135, 148)) > Color.alpha(none.getPixel(135, 148)));
         assertTrue("Good Wi-Fi lights the outer arc partially",
-                Color.alpha(medium.getPixel(135, 106)) > Color.alpha(none.getPixel(135, 106)));
+                Color.alpha(medium.getPixel(135, 127)) > Color.alpha(none.getPixel(135, 127)));
         assertTrue("Strong Wi-Fi lights the outer arc fully",
-                Color.alpha(strong.getPixel(135, 106)) > Color.alpha(medium.getPixel(135, 106)));
+                Color.alpha(strong.getPixel(135, 127)) > Color.alpha(medium.getPixel(135, 127)));
         assertSamePixels(none, strong, 0, 200, 271, 282);
 
         Bitmap sheet = Bitmap.createBitmap(1500, 334, Bitmap.Config.ARGB_8888);
@@ -131,11 +134,11 @@ public class FusionIconViewTest {
     @Test public void cellularRowsCanChangeWhileTheWifiGlyphKeepsItsOwnStrength() {
         Bitmap first = drawWifiStrength(2, 1, 3);
         Bitmap next = drawWifiStrength(2, 4, 0);
-        assertSamePixels(first, next, 75, 96, 199, 180);
+        assertSamePixels(first, next, 75, 112, 199, 188);
         assertTrue("SIM one changes its own signal row",
-                Color.alpha(next.getPixel(118, 226)) > Color.alpha(first.getPixel(118, 226)));
+                Color.alpha(next.getPixel(119, 225)) > Color.alpha(first.getPixel(119, 225)));
         assertTrue("SIM two changes its own signal row",
-                Color.alpha(next.getPixel(118, 250)) < Color.alpha(first.getPixel(118, 250)));
+                Color.alpha(next.getPixel(119, 259)) < Color.alpha(first.getPixel(119, 259)));
         first.recycle();
         next.recycle();
     }
@@ -159,9 +162,9 @@ public class FusionIconViewTest {
         Bitmap swapped = draw(FusionConfig.defaults()
                 .withFusionContentPosition(FusionContentConfig.SIGNAL, FusionContentConfig.TOP),
                 -1, false, 4, 0, 271, 282);
-        assertTrue("The active inner SIM row faces the center", Color.alpha(swapped.getPixel(118, 65)) > 200);
-        assertTrue("The curve flips vertically at the top", Color.alpha(swapped.getPixel(84, 83)) > 200);
-        int outerAlpha = Color.alpha(swapped.getPixel(118, 41));
+        assertTrue("The active inner SIM row faces the center", Color.alpha(swapped.getPixel(119, 51)) > 200);
+        assertTrue("The curve flips vertically at the top", Color.alpha(swapped.getPixel(87, 69)) > 200);
+        int outerAlpha = Color.alpha(swapped.getPixel(119, 17));
         assertTrue("The inactive outer SIM row stays outside", outerAlpha > 0 && outerAlpha < 100);
     }
 
@@ -169,10 +172,10 @@ public class FusionIconViewTest {
         Bitmap original = draw(FusionConfig.defaults(), 80, true, 4, 3, 271, 282);
         Bitmap smaller = draw(FusionConfig.defaults()
                 .withFusionContentScale(FusionContentConfig.NETWORK, 50), 80, true, 4, 3, 271, 282);
-        assertSamePixels(original, smaller, 78, 25, 193, 93);
-        assertSamePixels(original, smaller, 65, 188, 207, 274);
-        assertTrue(opaquePixels(original, 75, 96, 199, 180)
-                > opaquePixels(smaller, 75, 96, 199, 180) * 2);
+        assertSamePixels(original, smaller, 78, 5, 193, 83);
+        assertSamePixels(original, smaller, 65, 205, 207, 280);
+        assertTrue(opaquePixels(original, 75, 112, 199, 190)
+                > opaquePixels(smaller, 75, 112, 199, 190) * 2);
     }
 
     @Test public void growingNetworkContentDoesNotShrinkTheOuterRingOrChangeOtherContent() {
@@ -180,8 +183,8 @@ public class FusionIconViewTest {
         Bitmap bigger = draw(FusionConfig.defaults()
                 .withFusionContentScale(FusionContentConfig.NETWORK, 150), 80, true, 4, 3, 271, 282);
         assertSamePixels(original, bigger, 0, 20, 43, 260);
-        assertSamePixels(original, bigger, 78, 25, 193, 75);
-        assertSamePixels(original, bigger, 65, 200, 207, 274);
+        assertSamePixels(original, bigger, 78, 5, 193, 83);
+        assertSamePixels(original, bigger, 65, 205, 207, 280);
     }
 
     @Test public void oneOuterTransformScalesEveryPartAndPreservesItsArrangement() {
