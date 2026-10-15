@@ -12,6 +12,12 @@ final class FusionIconGeometry {
     static final float SIGNAL_DOT_SPACING = 32.5f;
     static final float SIGNAL_DOT_CURVE = 9f;
     static final float WIFI_ANCHOR_Y = 76f;
+    static final float WIFI_OUTER_RADIUS = 46f;
+    static final float WIFI_INNER_RADIUS = 25f;
+    static final float WIFI_STROKE_WIDTH = 12f;
+    static final float WIFI_DOT_RADIUS = 8.5f;
+    private static final float WIFI_ARC_HALF_WIDTH =
+            WIFI_OUTER_RADIUS * (float) Math.sin(Math.toRadians(50));
     static final float WIFI_CONTENT_Y = 54f;
     static final float HEADER_CONTENT_Y = 43f;
     static final float MIDDLE_CONTENT_Y = 151f;
@@ -56,6 +62,22 @@ final class FusionIconGeometry {
                 ? -SIGNAL_DOT_CURVE : SIGNAL_DOT_CURVE);
     }
 
+    static float networkContentWidth(int strokeScale) {
+        return WIFI_ARC_HALF_WIDTH * 2f + stroke(WIFI_STROKE_WIDTH, strokeScale);
+    }
+
+    static float networkContentHeight(int strokeScale) {
+        return WIFI_OUTER_RADIUS
+                + stroke(WIFI_STROKE_WIDTH / 2f + WIFI_DOT_RADIUS, strokeScale);
+    }
+
+    private static float networkContentHalfHeight(int strokeScale) {
+        float top = WIFI_ANCHOR_Y - WIFI_OUTER_RADIUS
+                - stroke(WIFI_STROKE_WIDTH / 2f, strokeScale);
+        float bottom = WIFI_ANCHOR_Y + stroke(WIFI_DOT_RADIUS, strokeScale);
+        return Math.max(35f, Math.max(WIFI_CONTENT_Y - top, bottom - WIFI_CONTENT_Y) + 1f);
+    }
+
     static float contentSourceY(int part, int strokeScale) {
         return contentSourceY(part, strokeScale, true);
     }
@@ -77,9 +99,7 @@ final class FusionIconGeometry {
         float[] halfHeights = {
                 (config.batteryPosition == FusionContentConfig.MIDDLE ? 54f : 37f)
                         * config.batteryScale / 100f,
-                (showWifi ? 35f
-                        : config.networkPosition == FusionContentConfig.MIDDLE ? 50f : 35f)
-                        * config.networkScale / 100f,
+                networkContentHalfHeight(strokeScale) * config.networkScale / 100f,
                 ((outerSignalRowY(strokeScale) - innerSignalRowY(strokeScale)) / 2f
                         + SIGNAL_DOT_CURVE + stroke(10.5f, strokeScale))
                         * config.signalScale / 100f

@@ -1,0 +1,81 @@
+{
+    "schemaVersion":  2,
+    "versionName":  "0.3.199",
+    "versionCode":  213,
+    "packageName":  "io.github.yudigaga.fusionstatusbar",
+    "namespace":  "com.xtjm.fusionstatusbar",
+    "buildMode":  "local_dirty_signed",
+    "sourceCommit":  "db4060ba3a6a6303f94d8e99e001062694d55894",
+    "sourceRef":  "HEAD",
+    "sourceTags":  [
+                       "v0.3.198"
+                   ],
+    "sourceDirty":  true,
+    "sourceArchiveSha256":  "eb574016cd07da45b0f4214f1873d87fba9bc49873f8f735850ee8b91523fe5e",
+    "sourceIndexSha256":  "8a5a3f23632c27a948e01620c1b9da0545129ceb1e0089592cefd62c60454663",
+    "sourcePatchSha256":  "6ff7b4f92846439a3a15fe8478cc5f4f08f6ba1497b9f7e8cde3949fcd685eca",
+    "sourceSnapshot":  "source.zip",
+    "variants":  {
+                     "debug":  {
+                                   "apk":  "fusion-statusbar-v0.3.199-debug.apk",
+                                   "apkSha256":  "8e2de1ba53ab93c4513d593cf61785578fdce561e84b82be81974c988a7badb4",
+                                   "apkSize":  27175241,
+                                   "debuggable":  true,
+                                   "signing":  "debug",
+                                   "signingCertificateSha256":  "4e06d06e242802a8b8e77f696079ddd78e3d615d0cf73b781f3a187abb51f980",
+                                   "zipAlignment":  "not_performed",
+                                   "tests":  {
+                                                 "total":  31,
+                                                 "failures":  0,
+                                                 "errors":  0,
+                                                 "skipped":  0
+                                             },
+                                   "lint":  {
+                                                "errors":  0,
+                                                "warnings":  99,
+                                                "customChecksCompatible":  true,
+                                                "highRiskPolicy":  "passed"
+                                            }
+                               },
+                     "release":  {
+                                     "apk":  "fusion-statusbar-v0.3.199-release.apk",
+                                     "apkSha256":  "59d81b0161c5322e7c7c14822e475e574bed20ce95d6ed2c634c7d6e56d46df0",
+                                     "apkSize":  21496809,
+                                     "debuggable":  false,
+                                     "signing":  "official",
+                                     "signingCertificateSha256":  "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+                                     "zipAlignment":  "passed",
+                                     "tests":  {
+                                                   "total":  31,
+                                                   "failures":  0,
+                                                   "errors":  0,
+                                                   "skipped":  0
+                                               },
+                                     "lint":  {
+                                                  "errors":  0,
+                                                  "warnings":  99,
+                                                  "customChecksCompatible":  true,
+                                                  "highRiskPolicy":  "passed"
+                                              }
+                                 }
+                 },
+    "createdUtc":  "2026-10-15T09:30:07.2929035Z",
+    "toolchain":  {
+                      "jdk":  "openjdk 21.0.12.1 2026-08-18 LTS\r\nOpenJDK Runtime Environment Microsoft-14941484 (build 21.0.12.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Microsoft-14941484 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+                      "gradle":  "8.13",
+                      "agp":  "8.13.2",
+                      "compileSdk":  36,
+                      "targetSdk":  35,
+                      "buildTools":  "36.0.0",
+                      "dependencyLocks":  [
+                                              {
+                                                  "path":  "app/gradle.lockfile",
+                                                  "sha256":  "7a9a74181ef36a4d17231f711b92fced2402b7ac59fe5d05a0b56287279f6c9b"
+                                              }
+                                          ]
+                  },
+    "validationInput":  "existing_build_outputs",
+    "installation":  "not_performed",
+    "systemUiInjection":  "not_performed",
+    "romValidation":  "not_performed"
+}

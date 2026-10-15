@@ -2,15 +2,15 @@
 
 面向 SystemUI 的 LibXposed 模块，提供融合图标、双排状态栏、时钟天气、遥测，以及控制中心布局与外观编辑。
 
-当前正式版本为 0.3.198，优化融合图标的圆弧、文字、Wi-Fi 与充电状态样式，保留现有预览界面和独立位置、缩放设置。见 [0.3.198 更新说明与验证范围](docs/release-notes-v0.3.198.md)。
+当前正式版本为 0.3.199，统一融合图标中 5G 文字与 Wi-Fi 的可见尺寸，适配各显示位置、粗细和独立缩放，并修正网络文字缓存刷新。见 [0.3.199 更新说明与验证范围](docs/release-notes-v0.3.199.md)。
 
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 组件：[Miuix](https://github.com/compose-miuix-ui/miuix) 0.8.8，Apache-2.0；自定义预览与画布通过 View/Compose 互操作复用。
-- 最新正式版：[FusionStatusBar 0.3.198](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.198)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/212-0.3.198)
-- [0.3.198 更新说明与验证范围](docs/release-notes-v0.3.198.md)
+- 最新正式版：[FusionStatusBar 0.3.199](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.3.199)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/213-0.3.199)
+- [0.3.199 更新说明与验证范围](docs/release-notes-v0.3.199.md)
 - [0.3.193 到 0.3.197 历史更新与作用域升级步骤](docs/release-notes-v0.3.197.md)
 
 ## 构建

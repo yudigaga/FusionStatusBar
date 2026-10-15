@@ -6,6 +6,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,7 +35,10 @@ public class FusionIconView extends View {
     private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint networkText = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path lightning = new Path();
+    private final Path networkTextPath = new Path();
+    private final RectF networkTextBounds = new RectF();
     private final StatusMonitor.Listener listener = this::onStatus;
 
     private boolean preview;
@@ -45,6 +49,8 @@ public class FusionIconView extends View {
     private boolean showWifi;
     private int wifiLevel;
     private String networkLabel = "";
+    private boolean networkTextDirty = true;
+    private float networkReferenceWidth;
     private int signalLevel;
     private int signalLevel2;
     private int tint = Color.WHITE;
@@ -72,6 +78,9 @@ public class FusionIconView extends View {
         text.setTypeface(Typeface.create(BASE_TYPEFACE, 600, false));
         text.setTextAlign(Paint.Align.CENTER);
         text.setStyle(Paint.Style.FILL);
+        networkText.setTypeface(text.getTypeface());
+        networkText.setTextSize(100f);
+        networkText.setStyle(Paint.Style.FILL);
         lightning.moveTo(147f, 105f);
         lightning.lineTo(99f, 159f);
         lightning.quadTo(96f, 163f, 102f, 163f);
@@ -128,7 +137,10 @@ public class FusionIconView extends View {
                 displayConfig.fusionContent, displayConfig.strokeScale, showWifi);
         int weight = Math.max(400, Math.min(900,
                 600 + (displayConfig.strokeScale - 100) * 5));
-        text.setTypeface(Typeface.create(BASE_TYPEFACE, weight, false));
+        Typeface typeface = Typeface.create(BASE_TYPEFACE, weight, false);
+        text.setTypeface(typeface);
+        networkText.setTypeface(typeface);
+        networkTextDirty = true;
         requestLayout();
         invalidate();
     }
@@ -289,10 +301,39 @@ public class FusionIconView extends View {
         if (showWifi) {
             if (displayConfig.wifiIcon) drawWifi(canvas);
         } else if (!networkLabel.isEmpty()) {
-            boolean middle = displayConfig.fusionContent.networkPosition == FusionContentConfig.MIDDLE;
-            drawText(canvas, networkLabel, FusionIconGeometry.MIDDLE_CONTENT_Y,
-                    middle ? 100f : 70f, TEXT_MAX_WIDTH);
+            drawNetworkLabel(canvas);
         }
+    }
+
+    private void drawNetworkLabel(Canvas canvas) {
+        if (networkTextDirty) {
+            networkTextPath.rewind();
+            networkText.getTextPath("5G", 0, 2, 0f, 0f, networkTextPath);
+            networkTextPath.computeBounds(networkTextBounds, true);
+            networkReferenceWidth = networkTextBounds.width();
+            if (!"5G".equals(networkLabel)) {
+                networkTextPath.rewind();
+                networkText.getTextPath(networkLabel, 0, networkLabel.length(),
+                        0f, 0f, networkTextPath);
+                networkTextPath.computeBounds(networkTextBounds, true);
+            }
+            networkTextDirty = false;
+        }
+        if (networkTextBounds.isEmpty()) return;
+
+        // Fit actual ink to the same visible frame as Wi-Fi, independently of its slot.
+        // The 5G reference keeps short labels narrow; long labels stay inside the frame.
+        float scaleX = FusionIconGeometry.networkContentWidth(displayConfig.strokeScale)
+                / Math.max(networkReferenceWidth, networkTextBounds.width());
+        float scaleY = FusionIconGeometry.networkContentHeight(displayConfig.strokeScale)
+                / networkTextBounds.height();
+        networkText.setColor(tint);
+        canvas.save();
+        canvas.translate(FusionIconGeometry.RING_CENTER_X, FusionIconGeometry.MIDDLE_CONTENT_Y);
+        canvas.scale(scaleX, scaleY);
+        canvas.translate(-networkTextBounds.centerX(), -networkTextBounds.centerY());
+        canvas.drawPath(networkTextPath, networkText);
+        canvas.restore();
     }
 
     private void drawPercent(Canvas canvas, float centerY, float size, float maxWidth) {
@@ -321,14 +362,14 @@ public class FusionIconView extends View {
         body.setColor(tint);
         body.setStyle(Paint.Style.STROKE);
         body.setStrokeCap(Paint.Cap.ROUND);
-        body.setStrokeWidth(stroke(12f));
+        body.setStrokeWidth(stroke(FusionIconGeometry.WIFI_STROKE_WIDTH));
         int outerArcAlpha = strength >= 4 ? 255 : strength == 3 ? 160 : 52;
-        drawWifiArc(canvas, cx, cy, 46f, outerArcAlpha);
-        drawWifiArc(canvas, cx, cy, 25f, strength >= 2 ? 255 : 52);
+        drawWifiArc(canvas, cx, cy, FusionIconGeometry.WIFI_OUTER_RADIUS, outerArcAlpha);
+        drawWifiArc(canvas, cx, cy, FusionIconGeometry.WIFI_INNER_RADIUS, strength >= 2 ? 255 : 52);
         fill.setStyle(Paint.Style.FILL);
         fill.setColor(tint);
         fill.setAlpha(Math.round(Color.alpha(tint) * (strength >= 1 ? 1f : 52f / 255f)));
-        canvas.drawCircle(cx, cy, stroke(8.5f), fill);
+        canvas.drawCircle(cx, cy, stroke(FusionIconGeometry.WIFI_DOT_RADIUS), fill);
     }
 
     private void drawLightning(Canvas canvas) {
@@ -409,7 +450,10 @@ public class FusionIconView extends View {
         powerSave = snapshot.powerSave;
         showWifi = snapshot.showWifi;
         wifiLevel = clamp(snapshot.wifiLevel);
-        networkLabel = snapshot.networkLabel;
+        if (!networkLabel.equals(snapshot.networkLabel)) {
+            networkLabel = snapshot.networkLabel;
+            networkTextDirty = true;
+        }
         signalLevel = clamp(snapshot.signalLevel);
         signalLevel2 = clamp(snapshot.signalLevel2);
         contentLayout = FusionIconGeometry.contentLayout(
