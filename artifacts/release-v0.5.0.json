@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "versionName": "0.5.0",
+  "versionCode": 214,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "namespace": "com.xtjm.fusionstatusbar",
+  "buildMode": "official_signed",
+  "sourceCommit": "a1e00e2a71d77a3976f2f6740e8e0cc80a474a89",
+  "sourceRef": "a1e00e2a71d77a3976f2f6740e8e0cc80a474a89",
+  "sourceTags": [],
+  "sourceDirty": false,
+  "sourceArchiveSha256": "d920a38c299bdcdf45bc558f2ebfe9bfa24c6de4cee3709bb5704ecd8281ee19",
+  "sourceIndexSha256": "84851cbd661be3ca88386dcc4bff3a574e05dac2a6928ba860a88cf2e239bce3",
+  "sourcePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "sourceSnapshot": "source.zip",
+  "variants": {
+    "debug": {
+      "apk": "fusion-statusbar-v0.5.0-debug.apk",
+      "apkSha256": "e3602d0ac51298cc57dcbac780863727986373853df5c6948c3ebe5b68631443",
+      "apkSize": 27175239,
+      "debuggable": true,
+      "signing": "debug",
+      "signingCertificateSha256": "4e06d06e242802a8b8e77f696079ddd78e3d615d0cf73b781f3a187abb51f980",
+      "zipAlignment": "not_performed",
+      "tests": {
+        "total": 1169,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 99,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      }
+    },
+    "release": {
+      "apk": "fusion-statusbar-v0.5.0-release.apk",
+      "apkSha256": "fdca7110c8c86ebfc3fcd64ce6d91496240d2cd47a70220ffb87a707ec773279",
+      "apkSize": 21513193,
+      "debuggable": false,
+      "signing": "official",
+      "signingCertificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+      "zipAlignment": "passed",
+      "tests": {
+        "total": 1169,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 99,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      }
+    }
+  },
+  "createdUtc": "2026-10-15T13:16:48.7124443Z",
+  "toolchain": {
+    "jdk": "openjdk 21.0.12.1 2026-08-18 LTS\r\nOpenJDK Runtime Environment Microsoft-14941484 (build 21.0.12.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Microsoft-14941484 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+    "gradle": "8.13",
+    "agp": "8.13.2",
+    "compileSdk": 36,
+    "targetSdk": 35,
+    "buildTools": "36.0.0",
+    "dependencyLocks": [
+      {
+        "path": "app/gradle.lockfile",
+        "sha256": "7a9a74181ef36a4d17231f711b92fced2402b7ac59fe5d05a0b56287279f6c9b"
+      }
+    ]
+  },
+  "validationInput": "built_in_this_run",
+  "installation": "not_performed",
+  "systemUiInjection": "not_performed",
+  "romValidation": "not_performed"
+}
