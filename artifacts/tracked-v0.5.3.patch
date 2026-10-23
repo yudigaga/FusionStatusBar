@@ -1,0 +1,832 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index 586c835..936a1b0 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 214
+-        versionName "0.5.0"
++        versionCode 217
++        versionName "0.5.3"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+index 55626ff..d58dd76 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+@@ -359,7 +359,12 @@ final class ControlCenterMaterials {
+ 
+     static Object[] nativeArguments(View view, String operation, Object[] arguments, ControlCenterConfig config, boolean editing) {
+         if (APPLYING.get() || layer(view) == Layer.NONE) return arguments;
+-        ControlCenterRuntimeGrid.markMaterialsDirty(view);
++        // Blur animation changes scalar values, not the component's background tree.
++        // Keep recording native requests for restoration without rebuilding its slot.
++        if (!operation.equals("setMiBackgroundBlurRadius")
++                && !operation.equals("setMiBackgroundBlurScaleRatio")) {
++            ControlCenterRuntimeGrid.markMaterialsDirty(view);
++        }
+         syncComponentSurfaceOwnership(view, config, editing);
+         NativeSurface state = NATIVE.computeIfAbsent(view, ignored -> new NativeSurface());
+         if (operation.equals("clearMiBackgroundBlendColor")) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+index 42939a8..b34bb3f 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+@@ -60,6 +60,8 @@ final class ControlCenterSoftGlass {
+         private final Paint inner = new Paint(Paint.ANTI_ALIAS_FLAG);
+         private final ControlCenterSurfaceShape shape = new ControlCenterSurfaceShape();
+         private int width = -1, height = -1, strength = -1;
++        private int shaderStrength = -1;
++        private float shaderDensity = Float.NaN;
+ 
+         GlassDrawable(View view) {
+             owner = new WeakReference<>(view);
+@@ -74,12 +76,15 @@ final class ControlCenterSoftGlass {
+ 
+         void updateBounds(View view) {
+             int nextWidth = view.getWidth(), nextHeight = view.getHeight();
++            float nextDensity = view.getResources().getDisplayMetrics().density;
++            if (nextWidth == width && nextHeight == height && strength == shaderStrength
++                    && Float.compare(nextDensity, shaderDensity) == 0
++                    && (nextWidth <= 0 || nextHeight <= 0 || rim.getShader() != null)) return;
++            width = nextWidth;
++            height = nextHeight;
++            shaderStrength = strength;
++            shaderDensity = nextDensity;
+             setBounds(0, 0, nextWidth, nextHeight);
+-            if (nextWidth > 0 && nextHeight > 0
+-                    && (nextWidth != width || nextHeight != height || rim.getShader() == null)) {
+-                width = nextWidth;
+-                height = nextHeight;
+-            }
+             updateShaders(view);
+             invalidateSelf();
+         }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/NotificationCenterClockController.java b/app/src/main/java/com/xtjm/fusionstatusbar/NotificationCenterClockController.java
+index c00f879..7c5cf50 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/NotificationCenterClockController.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/NotificationCenterClockController.java
+@@ -55,6 +55,8 @@ final class NotificationCenterClockController {
+         float nativeSizePx;
+         float nativeTranslationX;
+         float nativeTranslationY;
++        float nativeTransitionAlpha;
++        boolean transitionAlphaApplied;
+         WeakReference<ViewGroup> nativeParent = new WeakReference<>(null);
+         ViewGroup.LayoutParams nativeLayoutParams;
+         int nativeIndex = -1;
+@@ -74,12 +76,16 @@ final class NotificationCenterClockController {
+         void capture(TextView clock, boolean enabled) {
+             String observed = clock.getText() == null ? "" : clock.getText().toString();
+             if (view.get() != clock) {
++                TextView previous = view.get();
++                if (previous != null) restoreTransitionAlpha(this, previous);
+                 view = new WeakReference<>(clock);
+                 nativeText = observed;
+                 renderedText = null;
+                 nativeSizePx = clock.getTextSize();
+                 nativeTranslationX = clock.getTranslationX();
+                 nativeTranslationY = clock.getTranslationY();
++                nativeTransitionAlpha = clock.getTransitionAlpha();
++                transitionAlphaApplied = false;
+                 if (clock.getParent() instanceof ViewGroup parent) {
+                     nativeParent = new WeakReference<>(parent);
+                     nativeLayoutParams = clock.getLayoutParams();
+@@ -251,11 +257,13 @@ final class NotificationCenterClockController {
+     }
+ 
+     static void onExpansionChanged(float progress) {
++        if (Float.isNaN(progress) || progress < 0f || progress > 1f) return;
+         lastExpansionProgress = progress;
+         ViewGroup header = currentHeader();
+         if (header != null) {
+             applyIndependentRows(header, TIME.view.get(), DATE.view.get());
+         }
++        applyExpansionVisibility();
+         if (progress <= 0f || progress > 1f) return;
+         NotificationClockConfig settings = config.notificationClock;
+         if (settings.enabled && settings.offsetYDp != 0) {
+@@ -263,6 +271,29 @@ final class NotificationCenterClockController {
+         }
+     }
+ 
++    private static void applyExpansionVisibility() {
++        TextView clock = TIME.view.get();
++        if (clock == null) return;
++        if (!config.notificationClock.enabled || landscapeHeader
++                || Float.isNaN(lastExpansionProgress) || lastExpansionProgress >= 1f) {
++            restoreTransitionAlpha(TIME, clock);
++            return;
++        }
++        // The OEM turns big_time into a small status-bar clock below half expansion.
++        // Hide that travelling clock, then fade it into the notification header.
++        // A separate alpha factor keeps asynchronous OEM/Folme alpha animations intact.
++        float fraction = Math.max(0f, Math.min(1f, (lastExpansionProgress - 0.5f) * 2f));
++        float alpha = TIME.nativeTransitionAlpha * fraction * fraction * (3f - 2f * fraction);
++        if (clock.getTransitionAlpha() != alpha) clock.setTransitionAlpha(alpha);
++        TIME.transitionAlphaApplied = true;
++    }
++
++    private static void restoreTransitionAlpha(ClockState state, TextView clock) {
++        if (!state.transitionAlphaApplied) return;
++        clock.setTransitionAlpha(state.nativeTransitionAlpha);
++        state.transitionAlphaApplied = false;
++    }
++
+     static float minimumHeaderHeight(Context context, float nativeHeight) {
+         if (context == null || config == null
+                 || context.getResources().getConfiguration().orientation
+@@ -583,12 +614,16 @@ final class NotificationCenterClockController {
+         if (clock == null || !clock.isAttachedToWindow()
+                 || clock.getResources().getConfiguration().orientation
+                         != Configuration.ORIENTATION_PORTRAIT) return;
++        float offsetPx = NotificationClockConfig.expansionOffsetDp(offsetDp, progress)
++                * clock.getResources().getDisplayMetrics().density;
++        applyTranslationOffset(state, clock, offsetPx);
++    }
++
++    private static void applyTranslationOffset(ClockState state, TextView clock, float offsetPx) {
+         float nativeTranslation = clock.getTranslationY();
+         if (Math.abs(nativeTranslation - state.lastExpansionTranslation) < 0.25f) {
+             nativeTranslation -= state.lastExpansionOffsetPx;
+         }
+-        float offsetPx = NotificationClockConfig.expansionOffsetDp(offsetDp, progress)
+-                * clock.getResources().getDisplayMetrics().density;
+         float translation = nativeTranslation + offsetPx;
+         state.lastExpansionTranslation = translation;
+         state.lastExpansionOffsetPx = offsetPx;
+@@ -609,6 +644,7 @@ final class NotificationCenterClockController {
+     private static void render(ClockState state) {
+         TextView clock = state.view.get();
+         if (clock == null) return;
++        if (state == TIME) applyExpansionVisibility();
+         NotificationClockConfig settings = config.notificationClock;
+         // The header is the authoritative orientation during a configuration callback;
+         // child Resources can retain the previous orientation until the callback settles.
+@@ -655,13 +691,21 @@ final class NotificationCenterClockController {
+             clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.nativeSizePx);
+         }
+         int offsetYDp = settings.offsetYDp;
+-        float translation = state.nativeTranslationY
+-                + offsetYDp * clock.getResources().getDisplayMetrics().density;
+-        if (!systemOwnsGeometry && clock.getTranslationY() != translation) {
+-            clock.setTranslationY(translation);
++        if (!systemOwnsGeometry) {
++            float offsetPx = offsetYDp * clock.getResources().getDisplayMetrics().density;
++            if (state == TIME) {
++                // A text tick must retain the OEM's current animation position. The
++                // translation captured at binding may belong to an opening frame.
++                applyTranslationOffset(state, clock, offsetPx);
++            } else {
++                float translation = state.nativeTranslationY + offsetPx;
++                if (clock.getTranslationY() != translation) clock.setTranslationY(translation);
++                state.lastExpansionTranslation = translation;
++                state.lastExpansionOffsetPx = offsetPx;
++            }
+         }
+-        state.lastExpansionTranslation = translation;
+-        state.lastExpansionOffsetPx = offsetYDp * clock.getResources().getDisplayMetrics().density;
++        // During expansion only the expansion callback owns Y. Leave its applied
++        // translation/offset record intact when this pass only refreshes text.
+         String pattern = settings.combinedPattern();
+         if (compactHorizontal) pattern = pattern.replace('\n', ' ');
+         ClockTextFormatter.LunarFields lunar = ClockTextFormatter.needsLunar(pattern)
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index 7e116db..b938d8c 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -633,7 +633,6 @@ public final class SystemUiHooks {
+                     Object result = chain.proceed(args);
+                     if (name.equals("setMiViewBlurMode") || name.equals("setMiBackgroundBlurMode")) ControlCenterMaterials.updateNativeSurface(view,
+                             currentConfig.controlCenter, controlCenterNativeEditing(view));
+-                    ControlCenterRuntimeGrid.markMaterialsDirty(view);
+                     return result;
+                 })) nativeCount++;
+             } catch (NoSuchMethodException ignored) { }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridMaterialDirtyTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridMaterialDirtyTest.java
+index 4bab57a..f719f6a 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridMaterialDirtyTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGridMaterialDirtyTest.java
+@@ -1,12 +1,15 @@
+ package com.xtjm.fusionstatusbar;
+ 
++import android.content.res.Resources;
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
++import android.graphics.Point;
+ import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.GradientDrawable;
+ import android.view.View;
+ import android.widget.FrameLayout;
++import java.util.ArrayList;
+ import org.junit.After;
+ import org.junit.Test;
+ import org.junit.runner.RunWith;
+@@ -31,11 +34,77 @@ public class ControlCenterGridMaterialDirtyTest {
+                 0, fixture.nested.backgroundReads);
+     }
+ 
++    @Test public void registeredSubtreeScanReadsTheCountedBackground() {
++        var fixture = new Fixture();
++        fixture.draw();
++        fixture.nested.backgroundReads = 0;
++        ControlCenterMaterials.registerRoot(fixture.panel, fixture.settings);
++        assertTrue("The fixture must observe real material scans of the nested background",
++                fixture.nested.backgroundReads > 0);
++    }
++
++    @Test public void blurScaleAnimationDoesNotRescanSettledComponentSubtree() {
++        var fixture = new Fixture();
++        ControlCenterMaterials.nativeArguments(fixture.panel,
++                "setMiBackgroundBlurScaleRatio", new Object[] {0f}, fixture.settings, false);
++        fixture.draw();
++        fixture.nested.backgroundReads = 0;
++        for (int frame = 0; frame < 8; frame++) {
++            ControlCenterMaterials.nativeArguments(fixture.panel,
++                    "setMiBackgroundBlurScaleRatio", new Object[] {(frame + 1) / 8f},
++                    fixture.settings, false);
++            fixture.draw();
++        }
++        assertEquals("Blur scale animation alone must not rescan component backgrounds each frame",
++                0, fixture.nested.backgroundReads);
++    }
++
++    @Test public void blurRadiusAnimationDoesNotRescanSettledComponentSubtree() {
++        var fixture = new Fixture();
++        ControlCenterMaterials.nativeArguments(fixture.panel,
++                "setMiBackgroundBlurRadius", new Object[] {0}, fixture.settings, false);
++        fixture.draw();
++        fixture.nested.backgroundReads = 0;
++        for (int frame = 0; frame < 8; frame++) {
++            ControlCenterMaterials.nativeArguments(fixture.panel,
++                    "setMiBackgroundBlurRadius", new Object[] {(frame + 1) * 24},
++                    fixture.settings, false);
++            fixture.draw();
++        }
++        assertEquals("Blur radius animation alone must not rescan component backgrounds each frame",
++                0, fixture.nested.backgroundReads);
++    }
++
++    @Test public void structuralNativeMaterialUpdatesStillRescanComponentSubtree() {
++        var fixture = new Fixture();
++        ControlCenterMaterials.nativeArguments(fixture.panel,
++                "setMiBackgroundBlurScaleRatio", new Object[] {0f}, fixture.settings, false);
++        fixture.draw();
++        fixture.nested.backgroundReads = 0;
++
++        ControlCenterMaterials.nativeArguments(fixture.panel,
++                "setMiViewBlurMode", new Object[] {1}, fixture.settings, false);
++        fixture.draw();
++        assertTrue("A native blur mode change must rescan the component background subtree",
++                fixture.nested.backgroundReads > 0);
++
++        fixture.nested.backgroundReads = 0;
++        var colors = new ArrayList<Point>();
++        colors.add(new Point(0x804080c0, 3));
++        ControlCenterMaterials.nativeArguments(fixture.panel,
++                "setMiBackgroundBlendColors", new Object[] {colors}, fixture.settings, false);
++        fixture.draw();
++        assertTrue("A native blend color change must rescan the component background subtree",
++                fixture.nested.backgroundReads > 0);
++    }
++
+     private static final class Fixture {
+         final ControlCenterRuntimeGrid.GridView grid = new ControlCenterRuntimeGrid.GridView(
+                 RuntimeEnvironment.getApplication(), 4, 8, 12, 0, 2);
+         final MediaPlayerPanel panel = new MediaPlayerPanel();
+         final CountingView nested = new CountingView();
++        final ControlCenterConfig settings = ControlCenterConfig.defaults().withEnabled(true)
++                .withSurface(ControlCenterSurface.DARK);
+ 
+         Fixture() {
+             panel.setBackground(surface());
+@@ -43,8 +112,7 @@ public class ControlCenterGridMaterialDirtyTest {
+             panel.addView(nested, new FrameLayout.LayoutParams(20, 20));
+             grid.addTile(panel, ControlCenterLayoutPlan.Item.component(
+                     ControlCenterComponentSpec.MEDIA, 0, 0, 2, 2), -1);
+-            grid.applyMaterials(ControlCenterConfig.defaults().withEnabled(true)
+-                    .withSurface(ControlCenterSurface.DARK));
++            grid.applyMaterials(settings);
+             grid.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+                     View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.AT_MOST));
+             grid.layout(0, 0, grid.getMeasuredWidth(), grid.getMeasuredHeight());
+@@ -69,8 +137,24 @@ public class ControlCenterGridMaterialDirtyTest {
+     }
+ 
+     private static final class CountingView extends View {
++        private static final int PROGRESS_BACKGROUND_ID = 0x12347;
++        private Resources hostResources;
+         int backgroundReads;
+-        CountingView() { super(RuntimeEnvironment.getApplication()); }
++        CountingView() {
++            super(RuntimeEnvironment.getApplication());
++            setId(PROGRESS_BACKGROUND_ID);
++            Resources resources = super.getResources();
++            hostResources = new Resources(resources.getAssets(), resources.getDisplayMetrics(),
++                    resources.getConfiguration()) {
++                @Override public String getResourceEntryName(int id) {
++                    if (id == PROGRESS_BACKGROUND_ID) return "progress_bg";
++                    return super.getResourceEntryName(id);
++                }
++            };
++        }
++        @Override public Resources getResources() {
++            return hostResources == null ? super.getResources() : hostResources;
++        }
+         @Override public Drawable getBackground() { backgroundReads++; return super.getBackground(); }
+         @Override public void draw(Canvas canvas) { /* Keep framework drawing from counting getBackground reads. */ }
+     }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlassTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlassTest.java
+index a43a20a..8aab0a9 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlassTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlassTest.java
+@@ -4,10 +4,16 @@ import android.app.Activity;
+ import android.graphics.Bitmap;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
++import android.graphics.Paint;
++import android.graphics.Shader;
++import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.GradientDrawable;
+ import android.graphics.drawable.InsetDrawable;
++import android.util.DisplayMetrics;
+ import android.view.View;
+ import android.widget.FrameLayout;
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
+ import org.junit.After;
+ import org.junit.Test;
+ import org.junit.runner.RunWith;
+@@ -84,12 +90,174 @@ public class ControlCenterSoftGlassTest {
+         restored.recycle();
+     }
+ 
++    @Test public void repeatedApplyOnUnchangedMeasuredSurfaceRetainsRimShader() throws Exception {
++        View surface = measuredSurface();
++        ControlCenterSoftGlass.apply(surface, true, 72);
++        Drawable glass = glassDrawable(surface);
++        Paint rim = rimPaint(glass);
++        Shader initialShader = rim.getShader();
++        assertNotNull(initialShader);
++        try {
++            for (int update = 0; update < 8; update++) {
++                ControlCenterSoftGlass.apply(surface, true, 72);
++            }
++            assertSame("Repeated material updates with unchanged size, strength and density"
++                    + " must retain the existing gradient", initialShader, rim.getShader());
++        } finally {
++            ControlCenterSoftGlass.apply(surface, false, 0);
++        }
++    }
++
++    @Test public void repeatedApplyOnUnchangedMeasuredSurfaceDoesNotInvalidate() throws Exception {
++        View surface = measuredSurface();
++        ControlCenterSoftGlass.apply(surface, true, 72);
++        Drawable glass = glassDrawable(surface);
++        Drawable.Callback originalCallback = glass.getCallback();
++        Invalidations callback = new Invalidations();
++        glass.setCallback(callback);
++        try {
++            for (int update = 0; update < 8; update++) {
++                ControlCenterSoftGlass.apply(surface, true, 72);
++            }
++            assertEquals("Unchanged material updates must not request eight extra redraws",
++                    0, callback.count);
++        } finally {
++            glass.setCallback(originalCallback);
++            ControlCenterSoftGlass.apply(surface, false, 0);
++        }
++    }
++
++    @Test public void changingSurfaceSizeOrStrengthUpdatesShaderAndInvalidates() throws Exception {
++        View surface = measuredSurface();
++        ControlCenterSoftGlass.apply(surface, true, 72);
++        Drawable glass = glassDrawable(surface);
++        Paint rim = rimPaint(glass);
++        Shader initialShader = rim.getShader();
++        assertNotNull(initialShader);
++        Drawable.Callback originalCallback = glass.getCallback();
++        Invalidations callback = new Invalidations();
++        glass.setCallback(callback);
++        try {
++            layout(surface, 200, 140);
++            Shader resizedShader = rim.getShader();
++            assertNotSame("A new surface size must update the gradient geometry",
++                    initialShader, resizedShader);
++            assertEquals(200, glass.getBounds().width());
++            assertEquals(140, glass.getBounds().height());
++            assertTrue("A resized surface must request a redraw", callback.count > 0);
++
++            callback.count = 0;
++            ControlCenterSoftGlass.apply(surface, true, 34);
++            assertNotSame("A new strength must update the gradient colors",
++                    resizedShader, rim.getShader());
++            assertTrue("A changed strength must request a redraw", callback.count > 0);
++        } finally {
++            glass.setCallback(originalCallback);
++            ControlCenterSoftGlass.apply(surface, false, 0);
++        }
++    }
++
++    @Test public void changingDensityUpdatesShaderAndStrokeWithoutResizing() throws Exception {
++        View surface = measuredSurface();
++        ControlCenterSoftGlass.apply(surface, true, 72);
++        Drawable glass = glassDrawable(surface);
++        Paint rim = rimPaint(glass);
++        Shader initialShader = rim.getShader();
++        float initialStrokeWidth = rim.getStrokeWidth();
++        assertNotNull(initialShader);
++        DisplayMetrics metrics = surface.getResources().getDisplayMetrics();
++        float originalDensity = metrics.density;
++        Drawable.Callback originalCallback = glass.getCallback();
++        Invalidations callback = new Invalidations();
++        glass.setCallback(callback);
++        try {
++            metrics.density = originalDensity * 2f;
++            ControlCenterSoftGlass.apply(surface, true, 72);
++            assertNotSame("A density change must refresh the glass shader even at the same size",
++                    initialShader, rim.getShader());
++            assertEquals("Doubling density must scale the rim's pixel width",
++                    initialStrokeWidth * 2f, rim.getStrokeWidth(), 0.001f);
++            assertEquals(160, glass.getBounds().width());
++            assertEquals(100, glass.getBounds().height());
++            assertTrue("A density change must request a redraw", callback.count > 0);
++        } finally {
++            metrics.density = originalDensity;
++            glass.setCallback(originalCallback);
++            ControlCenterSoftGlass.apply(surface, false, 0);
++        }
++    }
++
++    @Test public void zeroSizeClearsOldBoundsAndRestoredSizeCanDraw() throws Exception {
++        View surface = measuredSurface();
++        ControlCenterSoftGlass.apply(surface, true, 72);
++        Drawable glass = glassDrawable(surface);
++        Paint rim = rimPaint(glass);
++        Shader initialShader = rim.getShader();
++        assertNotNull(initialShader);
++        Bitmap image = Bitmap.createBitmap(200, 140, Bitmap.Config.ARGB_8888);
++        Canvas canvas = new Canvas(image);
++        try {
++            layout(surface, 0, 0);
++            ControlCenterSoftGlass.apply(surface, true, 72);
++            assertEquals("A collapsed surface must not retain its old drawable width",
++                    0, glass.getBounds().width());
++            assertEquals("A collapsed surface must not retain its old drawable height",
++                    0, glass.getBounds().height());
++            assertTrue(glass.getBounds().isEmpty());
++            glass.draw(canvas);
++
++            layout(surface, 200, 140);
++            ControlCenterSoftGlass.apply(surface, true, 72);
++            assertSame("Resizing reuses the overlay registered on the view",
++                    glass, glassDrawable(surface));
++            assertEquals(200, glass.getBounds().width());
++            assertEquals(140, glass.getBounds().height());
++            assertNotNull(rim.getShader());
++            assertNotSame("The restored surface needs a shader for its new geometry",
++                    initialShader, rim.getShader());
++            glass.draw(canvas);
++        } finally {
++            image.recycle();
++            ControlCenterSoftGlass.apply(surface, false, 0);
++        }
++    }
++
+     public static final class QSCardItemView extends FrameLayout {
+         QSCardItemView(Activity activity) { super(activity); }
+     }
+     public static final class QSTileItemIconView extends FrameLayout {
+         QSTileItemIconView(Activity activity) { super(activity); }
+     }
++    private static View measuredSurface() {
++        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
++        View surface = new View(activity);
++        GradientDrawable background = new GradientDrawable();
++        background.setColor(0xff353840);
++        background.setCornerRadius(24f);
++        surface.setBackground(background);
++        layout(surface, 160, 100);
++        return surface;
++    }
++    private static Drawable glassDrawable(View view) throws ReflectiveOperationException {
++        Method current = ControlCenterSoftGlass.class.getDeclaredMethod("current", View.class);
++        current.setAccessible(true);
++        Object state = current.invoke(null, view);
++        assertNotNull("A configured surface must have a glass overlay", state);
++        Field drawable = state.getClass().getDeclaredField("drawable");
++        drawable.setAccessible(true);
++        return (Drawable) drawable.get(state);
++    }
++    private static Paint rimPaint(Drawable glass) throws ReflectiveOperationException {
++        Field rim = glass.getClass().getDeclaredField("rim");
++        rim.setAccessible(true);
++        return (Paint) rim.get(glass);
++    }
++    private static final class Invalidations implements Drawable.Callback {
++        int count;
++        @Override public void invalidateDrawable(Drawable drawable) { count++; }
++        @Override public void scheduleDrawable(Drawable drawable, Runnable action, long when) { }
++        @Override public void unscheduleDrawable(Drawable drawable, Runnable action) { }
++    }
+     private static void layout(View view, int width, int height) {
+         view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                 View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/NotificationClockLifecycleTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/NotificationClockLifecycleTest.java
+index b61ce64..39a551c 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/NotificationClockLifecycleTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/NotificationClockLifecycleTest.java
+@@ -61,6 +61,289 @@ public class NotificationClockLifecycleTest {
+         assertFalse(NotificationCenterClockController.hasAttachedViews());
+     }
+ 
++    @Test public void nativeTextRefreshDoesNotAccumulateOffsetAtUnchangedExpansion() {
++        var settings = expandedClockSettings();
++        NotificationCenterClockController.onHeader(header, settings);
++        float density = header.mBigTime.getResources().getDisplayMetrics().density;
++        // The OEM can update its native translation as the shade expands.
++        header.mBigTime.setTranslationY(17f * density);
++        NotificationCenterClockController.onExpansionChanged(0.5f);
++        float expected = 29f * density;
++        assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
++
++        for (int refresh = 0; refresh < 3; refresh++) {
++            header.mBigTime.setText("09:3" + refresh);
++            NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
++            // No OEM translation write occurred between these equal progress callbacks.
++            NotificationCenterClockController.onExpansionChanged(0.5f);
++            assertEquals("native text refresh must not move an unchanged shade, refresh="
++                    + refresh, expected, header.mBigTime.getTranslationY(), 0.001f);
++        }
++    }
++
++    @Test public void weatherRefreshDoesNotAccumulateOffsetAtUnchangedExpansion() {
++        NotificationCenterClockController.onHeader(header, expandedClockSettings());
++        float density = header.mBigTime.getResources().getDisplayMetrics().density;
++        header.mBigTime.setTranslationY(17f * density);
++        NotificationCenterClockController.onExpansionChanged(0.5f);
++        float expected = 29f * density;
++        assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
++
++        for (int refresh = 0; refresh < 3; refresh++) {
++            NotificationCenterClockController.onWeatherChanged();
++            NotificationCenterClockController.onExpansionChanged(0.5f);
++            assertEquals("weather refresh must not move an unchanged shade, refresh="
++                    + refresh, expected, header.mBigTime.getTranslationY(), 0.001f);
++        }
++    }
++
++    @Test public void fullyExpandedTextRefreshPreservesLatestNativeTranslation() {
++        var settings = expandedClockSettings();
++        NotificationCenterClockController.onHeader(header, settings);
++        float density = header.mBigTime.getResources().getDisplayMetrics().density;
++        header.mBigTime.setTranslationY(17f * density);
++        NotificationCenterClockController.onExpansionChanged(1f);
++        float expected = 41f * density;
++        assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
++
++        for (int refresh = 0; refresh < 3; refresh++) {
++            header.mBigTime.setText("09:3" + refresh);
++            NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
++            assertEquals("text refresh must preserve the expanded OEM translation, refresh="
++                    + refresh, expected, header.mBigTime.getTranslationY(), 0.001f);
++            NotificationCenterClockController.onExpansionChanged(1f);
++            assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
++        }
++    }
++
++    private static FusionConfig expandedClockSettings() {
++        return FusionConfig.defaults().withNotificationClock(
++                NotificationClockConfig.defaults().withEnabled(true).withPattern("HH:mm")
++                        .withOffsetY(24));
++    }
++
++    @Test public void expandedTextRefreshDoesNotRestoreTranslationCapturedDuringOpening() {
++        var settings = FusionConfig.defaults().withNotificationClock(
++                NotificationClockConfig.defaults().withEnabled(true).withPattern("HH:mm:ss"));
++        float density = header.mBigTime.getResources().getDisplayMetrics().density;
++        // Header binding can happen while the OEM is still moving the clock.
++        header.mBigTime.setTranslationY(17f * density);
++        NotificationCenterClockController.onHeader(header, settings);
++        for (int cycle = 0; cycle < 3; cycle++) {
++            for (float progress : new float[] {0f, 0.25f, 0.5f, 0.75f, 1f}) {
++                // Match the OEM callback: always write its animation Y before our hook.
++                float nativeY = 17f * density * (1f - progress);
++                header.mBigTime.setTranslationY(nativeY);
++                NotificationCenterClockController.onExpansionChanged(progress);
++                NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
++                NotificationCenterClockController.onWeatherChanged();
++                assertEquals("text refresh must preserve OEM animation Y at progress="
++                        + progress + " cycle=" + cycle,
++                        nativeY, header.mBigTime.getTranslationY(), 0.001f);
++            }
++        }
++    }
++
++    @Test public void oemAnimationReplayKeepsConfiguredOffsetsStableAcrossOpenAndClose() {
++        float density = header.mBigTime.getResources().getDisplayMetrics().density;
++        for (int offset : new int[] {24, -24, 0}) {
++            var settings = expandedClockSettings().withNotificationClock(
++                    expandedClockSettings().notificationClock.withOffsetY(offset));
++            NotificationCenterClockController.onHeader(header, settings);
++            for (int cycle = 0; cycle < 3; cycle++) {
++                for (float progress : new float[] {0f, 0.25f, 0.5f, 0.75f, 1f,
++                        1f, 0.75f, 0.5f, 0.25f, 0f}) {
++                    float nativeY = 17f * density * (1f - progress);
++                    header.mBigTime.setTranslationY(nativeY);
++                    NotificationCenterClockController.onExpansionChanged(progress);
++                    float expected = nativeY + offset * density * progress;
++                    NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
++                    NotificationCenterClockController.onWeatherChanged();
++                    assertEquals("OEM replay offset=" + offset + " progress=" + progress
++                            + " cycle=" + cycle,
++                            expected, header.mBigTime.getTranslationY(), 0.001f);
++                }
++            }
++        }
++    }
++
++    @Test public void clearingExpandedOffsetRetainsCurrentNativeTranslation() {
++        var settings = expandedClockSettings();
++        NotificationCenterClockController.onHeader(header, settings);
++        float density = header.mBigTime.getResources().getDisplayMetrics().density;
++        header.mBigTime.setTranslationY(17f * density);
++        NotificationCenterClockController.onExpansionChanged(1f);
++        NotificationCenterClockController.onConfigChanged(settings.withNotificationClock(
++                settings.notificationClock.withOffsetY(0)));
++        assertEquals(17f * density, header.mBigTime.getTranslationY(), 0.001f);
++        NotificationCenterClockController.onWeatherChanged();
++        assertEquals(17f * density, header.mBigTime.getTranslationY(), 0.001f);
++    }
++
++    @Test public void nativeSmallClockPhaseIsHiddenWithoutChangingHostAlpha() {
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, expandedClockSettings());
++        for (float progress : new float[] {0f, 0.1f, 0.25f, 0.5f}) {
++            NotificationCenterClockController.onExpansionChanged(progress);
++            assertEquals("small OEM clock must stay hidden at progress=" + progress,
++                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++            assertEquals("module must preserve the host alpha at progress=" + progress,
++                    0.63f, header.mBigTime.getAlpha(), 0.001f);
++        }
++    }
++
++    @Test public void notificationClockFadesAfterSmallPhaseAndClosesSymmetrically() {
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, expandedClockSettings());
++        float[] progressSteps = {0.5f, 0.625f, 0.75f, 0.875f, 1f,
++                0.875f, 0.75f, 0.625f, 0.5f, 0f};
++        // Native transition alpha (0.8) times smoothstep across the second half.
++        float[] expectedAlpha = {0f, 0.125f, 0.4f, 0.675f, 0.8f,
++                0.675f, 0.4f, 0.125f, 0f, 0f};
++        for (int step = 0; step < progressSteps.length; step++) {
++            NotificationCenterClockController.onExpansionChanged(progressSteps[step]);
++            assertEquals("clock fade at step=" + step + " progress=" + progressSteps[step],
++                    expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
++            assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
++        }
++    }
++
++    @Test public void textAndWeatherRefreshDoNotRevealHiddenSmallClock() {
++        var settings = expandedClockSettings();
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, settings);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++
++        for (int refresh = 0; refresh < 3; refresh++) {
++            header.mBigTime.setText("09:3" + refresh);
++            NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
++            assertEquals("native text refresh must not reveal the small clock",
++                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++            NotificationCenterClockController.onWeatherChanged();
++            assertEquals("weather refresh must not reveal the small clock",
++                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++            NotificationCenterClockController.onHeader(header, settings);
++            assertEquals("rebinding the same header must retain its last expansion visibility",
++                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++            assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
++        }
++        NotificationCenterClockController.onExpansionChanged(1f);
++        assertEquals("refreshes must not capture our hidden alpha as the native alpha",
++                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
++    }
++
++    @Test public void disablingCustomClockRestoresNativeTransitionAlpha() {
++        var settings = expandedClockSettings();
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, settings);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++
++        NotificationCenterClockController.onConfigChanged(FusionConfig.defaults());
++        assertEquals("disabling customization restores native transition alpha",
++                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals("disabled clocks retain native visibility at small-clock progress",
++                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
++
++        NotificationCenterClockController.onConfigChanged(settings);
++        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        NotificationCenterClockController.onHeader(header, FusionConfig.defaults());
++        assertEquals("binding disabled settings also restores native transition alpha",
++                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
++    }
++
++    @Test public void landscapeRestoresNativeTransitionAlphaAndPortraitResumesFade() {
++        var settings = expandedClockSettings();
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, settings);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++
++        setOrientation(Configuration.ORIENTATION_LANDSCAPE);
++        NotificationCenterClockController.onConfigChanged(settings);
++        NotificationCenterClockController.onHeader(header, settings);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals("landscape restores native portrait-clock visibility",
++                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
++
++        setOrientation(Configuration.ORIENTATION_PORTRAIT);
++        NotificationCenterClockController.onConfigChanged(settings);
++        NotificationCenterClockController.onHeader(header, settings);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals("portrait resumes its small-clock visibility gate",
++                0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        NotificationCenterClockController.onExpansionChanged(1f);
++        assertEquals(0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
++    }
++
++    @Test public void replacingHeaderRestoresPreviousClockTransitionAlpha() {
++        var settings = expandedClockSettings();
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, settings);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        Header previousHeader = header;
++
++        header = new Header(controller.get());
++        header.mBigTime.setAlpha(0.45f);
++        header.mBigTime.setTransitionAlpha(0.6f);
++        controller.get().setContentView(header);
++        NotificationCenterClockController.onHeader(header, settings);
++        assertEquals("replaced clock must not remain hidden by the previous header gate",
++                0.8f, previousHeader.mBigTime.getTransitionAlpha(), 0.001f);
++        assertEquals(0.63f, previousHeader.mBigTime.getAlpha(), 0.001f);
++        NotificationCenterClockController.onExpansionChanged(0.25f);
++        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        NotificationCenterClockController.onExpansionChanged(1f);
++        assertEquals("replacement has its own native transition alpha",
++                0.6f, header.mBigTime.getTransitionAlpha(), 0.001f);
++        assertEquals(0.45f, header.mBigTime.getAlpha(), 0.001f);
++    }
++
++    @Test public void invalidExpansionKeepsLastValidClockTransitionAlpha() {
++        header.mBigTime.setAlpha(0.63f);
++        header.mBigTime.setTransitionAlpha(0.8f);
++        NotificationCenterClockController.onHeader(header, expandedClockSettings());
++        float[] validProgress = {0.25f, 0.75f};
++        float[] expectedAlpha = {0f, 0.4f};
++        for (int step = 0; step < validProgress.length; step++) {
++            NotificationCenterClockController.onExpansionChanged(validProgress[step]);
++            assertEquals(expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
++            for (float invalid : new float[] {-0.1f, 1.1f, Float.NaN,
++                    Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY}) {
++                NotificationCenterClockController.onExpansionChanged(invalid);
++                assertEquals("invalid progress must preserve last valid fade: " + invalid,
++                        expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
++                NotificationCenterClockController.onWeatherChanged();
++                assertEquals("refresh after invalid progress must preserve last valid fade",
++                        expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
++                assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
++            }
++        }
++    }
++
++    private void setOrientation(int orientation) {
++        Configuration next = new Configuration(controller.get().getResources().getConfiguration());
++        next.orientation = orientation;
++        controller.configurationChange(next);
++        header.hostResources.getConfiguration().orientation = orientation;
++        header.getResources().updateConfiguration(next, header.getResources().getDisplayMetrics());
++        header.mBigTime.getResources().updateConfiguration(next,
++                header.mBigTime.getResources().getDisplayMetrics());
++        header.mLandClock.getResources().updateConfiguration(next,
++                header.mLandClock.getResources().getDisplayMetrics());
++    }
++
+     @Test public void landscapeKeepsCustomClockButUsesNativeSingleLineBounds() {
+         var settings = FusionConfig.defaults().withNotificationClock(
+                 NotificationClockConfig.defaults().withEnabled(true)

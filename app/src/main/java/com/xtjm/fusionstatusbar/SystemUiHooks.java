@@ -633,7 +633,6 @@ public final class SystemUiHooks {
                     Object result = chain.proceed(args);
                     if (name.equals("setMiViewBlurMode") || name.equals("setMiBackgroundBlurMode")) ControlCenterMaterials.updateNativeSurface(view,
                             currentConfig.controlCenter, controlCenterNativeEditing(view));
-                    ControlCenterRuntimeGrid.markMaterialsDirty(view);
                     return result;
                 })) nativeCount++;
             } catch (NoSuchMethodException ignored) { }

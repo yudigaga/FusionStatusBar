@@ -60,6 +60,8 @@ final class ControlCenterSoftGlass {
         private final Paint inner = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final ControlCenterSurfaceShape shape = new ControlCenterSurfaceShape();
         private int width = -1, height = -1, strength = -1;
+        private int shaderStrength = -1;
+        private float shaderDensity = Float.NaN;
 
         GlassDrawable(View view) {
             owner = new WeakReference<>(view);
@@ -74,12 +76,15 @@ final class ControlCenterSoftGlass {
 
         void updateBounds(View view) {
             int nextWidth = view.getWidth(), nextHeight = view.getHeight();
+            float nextDensity = view.getResources().getDisplayMetrics().density;
+            if (nextWidth == width && nextHeight == height && strength == shaderStrength
+                    && Float.compare(nextDensity, shaderDensity) == 0
+                    && (nextWidth <= 0 || nextHeight <= 0 || rim.getShader() != null)) return;
+            width = nextWidth;
+            height = nextHeight;
+            shaderStrength = strength;
+            shaderDensity = nextDensity;
             setBounds(0, 0, nextWidth, nextHeight);
-            if (nextWidth > 0 && nextHeight > 0
-                    && (nextWidth != width || nextHeight != height || rim.getShader() == null)) {
-                width = nextWidth;
-                height = nextHeight;
-            }
             updateShaders(view);
             invalidateSelf();
         }

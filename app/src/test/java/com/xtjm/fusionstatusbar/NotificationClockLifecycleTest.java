@@ -61,6 +61,289 @@ public class NotificationClockLifecycleTest {
         assertFalse(NotificationCenterClockController.hasAttachedViews());
     }
 
+    @Test public void nativeTextRefreshDoesNotAccumulateOffsetAtUnchangedExpansion() {
+        var settings = expandedClockSettings();
+        NotificationCenterClockController.onHeader(header, settings);
+        float density = header.mBigTime.getResources().getDisplayMetrics().density;
+        // The OEM can update its native translation as the shade expands.
+        header.mBigTime.setTranslationY(17f * density);
+        NotificationCenterClockController.onExpansionChanged(0.5f);
+        float expected = 29f * density;
+        assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
+
+        for (int refresh = 0; refresh < 3; refresh++) {
+            header.mBigTime.setText("09:3" + refresh);
+            NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
+            // No OEM translation write occurred between these equal progress callbacks.
+            NotificationCenterClockController.onExpansionChanged(0.5f);
+            assertEquals("native text refresh must not move an unchanged shade, refresh="
+                    + refresh, expected, header.mBigTime.getTranslationY(), 0.001f);
+        }
+    }
+
+    @Test public void weatherRefreshDoesNotAccumulateOffsetAtUnchangedExpansion() {
+        NotificationCenterClockController.onHeader(header, expandedClockSettings());
+        float density = header.mBigTime.getResources().getDisplayMetrics().density;
+        header.mBigTime.setTranslationY(17f * density);
+        NotificationCenterClockController.onExpansionChanged(0.5f);
+        float expected = 29f * density;
+        assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
+
+        for (int refresh = 0; refresh < 3; refresh++) {
+            NotificationCenterClockController.onWeatherChanged();
+            NotificationCenterClockController.onExpansionChanged(0.5f);
+            assertEquals("weather refresh must not move an unchanged shade, refresh="
+                    + refresh, expected, header.mBigTime.getTranslationY(), 0.001f);
+        }
+    }
+
+    @Test public void fullyExpandedTextRefreshPreservesLatestNativeTranslation() {
+        var settings = expandedClockSettings();
+        NotificationCenterClockController.onHeader(header, settings);
+        float density = header.mBigTime.getResources().getDisplayMetrics().density;
+        header.mBigTime.setTranslationY(17f * density);
+        NotificationCenterClockController.onExpansionChanged(1f);
+        float expected = 41f * density;
+        assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
+
+        for (int refresh = 0; refresh < 3; refresh++) {
+            header.mBigTime.setText("09:3" + refresh);
+            NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
+            assertEquals("text refresh must preserve the expanded OEM translation, refresh="
+                    + refresh, expected, header.mBigTime.getTranslationY(), 0.001f);
+            NotificationCenterClockController.onExpansionChanged(1f);
+            assertEquals(expected, header.mBigTime.getTranslationY(), 0.001f);
+        }
+    }
+
+    private static FusionConfig expandedClockSettings() {
+        return FusionConfig.defaults().withNotificationClock(
+                NotificationClockConfig.defaults().withEnabled(true).withPattern("HH:mm")
+                        .withOffsetY(24));
+    }
+
+    @Test public void expandedTextRefreshDoesNotRestoreTranslationCapturedDuringOpening() {
+        var settings = FusionConfig.defaults().withNotificationClock(
+                NotificationClockConfig.defaults().withEnabled(true).withPattern("HH:mm:ss"));
+        float density = header.mBigTime.getResources().getDisplayMetrics().density;
+        // Header binding can happen while the OEM is still moving the clock.
+        header.mBigTime.setTranslationY(17f * density);
+        NotificationCenterClockController.onHeader(header, settings);
+        for (int cycle = 0; cycle < 3; cycle++) {
+            for (float progress : new float[] {0f, 0.25f, 0.5f, 0.75f, 1f}) {
+                // Match the OEM callback: always write its animation Y before our hook.
+                float nativeY = 17f * density * (1f - progress);
+                header.mBigTime.setTranslationY(nativeY);
+                NotificationCenterClockController.onExpansionChanged(progress);
+                NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
+                NotificationCenterClockController.onWeatherChanged();
+                assertEquals("text refresh must preserve OEM animation Y at progress="
+                        + progress + " cycle=" + cycle,
+                        nativeY, header.mBigTime.getTranslationY(), 0.001f);
+            }
+        }
+    }
+
+    @Test public void oemAnimationReplayKeepsConfiguredOffsetsStableAcrossOpenAndClose() {
+        float density = header.mBigTime.getResources().getDisplayMetrics().density;
+        for (int offset : new int[] {24, -24, 0}) {
+            var settings = expandedClockSettings().withNotificationClock(
+                    expandedClockSettings().notificationClock.withOffsetY(offset));
+            NotificationCenterClockController.onHeader(header, settings);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                for (float progress : new float[] {0f, 0.25f, 0.5f, 0.75f, 1f,
+                        1f, 0.75f, 0.5f, 0.25f, 0f}) {
+                    float nativeY = 17f * density * (1f - progress);
+                    header.mBigTime.setTranslationY(nativeY);
+                    NotificationCenterClockController.onExpansionChanged(progress);
+                    float expected = nativeY + offset * density * progress;
+                    NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
+                    NotificationCenterClockController.onWeatherChanged();
+                    assertEquals("OEM replay offset=" + offset + " progress=" + progress
+                            + " cycle=" + cycle,
+                            expected, header.mBigTime.getTranslationY(), 0.001f);
+                }
+            }
+        }
+    }
+
+    @Test public void clearingExpandedOffsetRetainsCurrentNativeTranslation() {
+        var settings = expandedClockSettings();
+        NotificationCenterClockController.onHeader(header, settings);
+        float density = header.mBigTime.getResources().getDisplayMetrics().density;
+        header.mBigTime.setTranslationY(17f * density);
+        NotificationCenterClockController.onExpansionChanged(1f);
+        NotificationCenterClockController.onConfigChanged(settings.withNotificationClock(
+                settings.notificationClock.withOffsetY(0)));
+        assertEquals(17f * density, header.mBigTime.getTranslationY(), 0.001f);
+        NotificationCenterClockController.onWeatherChanged();
+        assertEquals(17f * density, header.mBigTime.getTranslationY(), 0.001f);
+    }
+
+    @Test public void nativeSmallClockPhaseIsHiddenWithoutChangingHostAlpha() {
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, expandedClockSettings());
+        for (float progress : new float[] {0f, 0.1f, 0.25f, 0.5f}) {
+            NotificationCenterClockController.onExpansionChanged(progress);
+            assertEquals("small OEM clock must stay hidden at progress=" + progress,
+                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+            assertEquals("module must preserve the host alpha at progress=" + progress,
+                    0.63f, header.mBigTime.getAlpha(), 0.001f);
+        }
+    }
+
+    @Test public void notificationClockFadesAfterSmallPhaseAndClosesSymmetrically() {
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, expandedClockSettings());
+        float[] progressSteps = {0.5f, 0.625f, 0.75f, 0.875f, 1f,
+                0.875f, 0.75f, 0.625f, 0.5f, 0f};
+        // Native transition alpha (0.8) times smoothstep across the second half.
+        float[] expectedAlpha = {0f, 0.125f, 0.4f, 0.675f, 0.8f,
+                0.675f, 0.4f, 0.125f, 0f, 0f};
+        for (int step = 0; step < progressSteps.length; step++) {
+            NotificationCenterClockController.onExpansionChanged(progressSteps[step]);
+            assertEquals("clock fade at step=" + step + " progress=" + progressSteps[step],
+                    expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
+            assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
+        }
+    }
+
+    @Test public void textAndWeatherRefreshDoNotRevealHiddenSmallClock() {
+        var settings = expandedClockSettings();
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, settings);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+
+        for (int refresh = 0; refresh < 3; refresh++) {
+            header.mBigTime.setText("09:3" + refresh);
+            NotificationCenterClockController.onNativeUpdate(header.mBigTime, settings);
+            assertEquals("native text refresh must not reveal the small clock",
+                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+            NotificationCenterClockController.onWeatherChanged();
+            assertEquals("weather refresh must not reveal the small clock",
+                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+            NotificationCenterClockController.onHeader(header, settings);
+            assertEquals("rebinding the same header must retain its last expansion visibility",
+                    0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+            assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
+        }
+        NotificationCenterClockController.onExpansionChanged(1f);
+        assertEquals("refreshes must not capture our hidden alpha as the native alpha",
+                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
+    }
+
+    @Test public void disablingCustomClockRestoresNativeTransitionAlpha() {
+        var settings = expandedClockSettings();
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, settings);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+
+        NotificationCenterClockController.onConfigChanged(FusionConfig.defaults());
+        assertEquals("disabling customization restores native transition alpha",
+                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals("disabled clocks retain native visibility at small-clock progress",
+                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
+
+        NotificationCenterClockController.onConfigChanged(settings);
+        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        NotificationCenterClockController.onHeader(header, FusionConfig.defaults());
+        assertEquals("binding disabled settings also restores native transition alpha",
+                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
+    }
+
+    @Test public void landscapeRestoresNativeTransitionAlphaAndPortraitResumesFade() {
+        var settings = expandedClockSettings();
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, settings);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+
+        setOrientation(Configuration.ORIENTATION_LANDSCAPE);
+        NotificationCenterClockController.onConfigChanged(settings);
+        NotificationCenterClockController.onHeader(header, settings);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals("landscape restores native portrait-clock visibility",
+                0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
+
+        setOrientation(Configuration.ORIENTATION_PORTRAIT);
+        NotificationCenterClockController.onConfigChanged(settings);
+        NotificationCenterClockController.onHeader(header, settings);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals("portrait resumes its small-clock visibility gate",
+                0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        NotificationCenterClockController.onExpansionChanged(1f);
+        assertEquals(0.8f, header.mBigTime.getTransitionAlpha(), 0.001f);
+    }
+
+    @Test public void replacingHeaderRestoresPreviousClockTransitionAlpha() {
+        var settings = expandedClockSettings();
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, settings);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        Header previousHeader = header;
+
+        header = new Header(controller.get());
+        header.mBigTime.setAlpha(0.45f);
+        header.mBigTime.setTransitionAlpha(0.6f);
+        controller.get().setContentView(header);
+        NotificationCenterClockController.onHeader(header, settings);
+        assertEquals("replaced clock must not remain hidden by the previous header gate",
+                0.8f, previousHeader.mBigTime.getTransitionAlpha(), 0.001f);
+        assertEquals(0.63f, previousHeader.mBigTime.getAlpha(), 0.001f);
+        NotificationCenterClockController.onExpansionChanged(0.25f);
+        assertEquals(0f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        NotificationCenterClockController.onExpansionChanged(1f);
+        assertEquals("replacement has its own native transition alpha",
+                0.6f, header.mBigTime.getTransitionAlpha(), 0.001f);
+        assertEquals(0.45f, header.mBigTime.getAlpha(), 0.001f);
+    }
+
+    @Test public void invalidExpansionKeepsLastValidClockTransitionAlpha() {
+        header.mBigTime.setAlpha(0.63f);
+        header.mBigTime.setTransitionAlpha(0.8f);
+        NotificationCenterClockController.onHeader(header, expandedClockSettings());
+        float[] validProgress = {0.25f, 0.75f};
+        float[] expectedAlpha = {0f, 0.4f};
+        for (int step = 0; step < validProgress.length; step++) {
+            NotificationCenterClockController.onExpansionChanged(validProgress[step]);
+            assertEquals(expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
+            for (float invalid : new float[] {-0.1f, 1.1f, Float.NaN,
+                    Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY}) {
+                NotificationCenterClockController.onExpansionChanged(invalid);
+                assertEquals("invalid progress must preserve last valid fade: " + invalid,
+                        expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
+                NotificationCenterClockController.onWeatherChanged();
+                assertEquals("refresh after invalid progress must preserve last valid fade",
+                        expectedAlpha[step], header.mBigTime.getTransitionAlpha(), 0.001f);
+                assertEquals(0.63f, header.mBigTime.getAlpha(), 0.001f);
+            }
+        }
+    }
+
+    private void setOrientation(int orientation) {
+        Configuration next = new Configuration(controller.get().getResources().getConfiguration());
+        next.orientation = orientation;
+        controller.configurationChange(next);
+        header.hostResources.getConfiguration().orientation = orientation;
+        header.getResources().updateConfiguration(next, header.getResources().getDisplayMetrics());
+        header.mBigTime.getResources().updateConfiguration(next,
+                header.mBigTime.getResources().getDisplayMetrics());
+        header.mLandClock.getResources().updateConfiguration(next,
+                header.mLandClock.getResources().getDisplayMetrics());
+    }
+
     @Test public void landscapeKeepsCustomClockButUsesNativeSingleLineBounds() {
         var settings = FusionConfig.defaults().withNotificationClock(
                 NotificationClockConfig.defaults().withEnabled(true)

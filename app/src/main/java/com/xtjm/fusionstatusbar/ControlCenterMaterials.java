@@ -359,7 +359,12 @@ final class ControlCenterMaterials {
 
     static Object[] nativeArguments(View view, String operation, Object[] arguments, ControlCenterConfig config, boolean editing) {
         if (APPLYING.get() || layer(view) == Layer.NONE) return arguments;
-        ControlCenterRuntimeGrid.markMaterialsDirty(view);
+        // Blur animation changes scalar values, not the component's background tree.
+        // Keep recording native requests for restoration without rebuilding its slot.
+        if (!operation.equals("setMiBackgroundBlurRadius")
+                && !operation.equals("setMiBackgroundBlurScaleRatio")) {
+            ControlCenterRuntimeGrid.markMaterialsDirty(view);
+        }
         syncComponentSurfaceOwnership(view, config, editing);
         NativeSurface state = NATIVE.computeIfAbsent(view, ignored -> new NativeSurface());
         if (operation.equals("clearMiBackgroundBlendColor")) {

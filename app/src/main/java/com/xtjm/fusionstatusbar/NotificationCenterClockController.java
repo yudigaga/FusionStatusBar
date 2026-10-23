@@ -55,6 +55,8 @@ final class NotificationCenterClockController {
         float nativeSizePx;
         float nativeTranslationX;
         float nativeTranslationY;
+        float nativeTransitionAlpha;
+        boolean transitionAlphaApplied;
         WeakReference<ViewGroup> nativeParent = new WeakReference<>(null);
         ViewGroup.LayoutParams nativeLayoutParams;
         int nativeIndex = -1;
@@ -74,12 +76,16 @@ final class NotificationCenterClockController {
         void capture(TextView clock, boolean enabled) {
             String observed = clock.getText() == null ? "" : clock.getText().toString();
             if (view.get() != clock) {
+                TextView previous = view.get();
+                if (previous != null) restoreTransitionAlpha(this, previous);
                 view = new WeakReference<>(clock);
                 nativeText = observed;
                 renderedText = null;
                 nativeSizePx = clock.getTextSize();
                 nativeTranslationX = clock.getTranslationX();
                 nativeTranslationY = clock.getTranslationY();
+                nativeTransitionAlpha = clock.getTransitionAlpha();
+                transitionAlphaApplied = false;
                 if (clock.getParent() instanceof ViewGroup parent) {
                     nativeParent = new WeakReference<>(parent);
                     nativeLayoutParams = clock.getLayoutParams();
@@ -251,16 +257,41 @@ final class NotificationCenterClockController {
     }
 
     static void onExpansionChanged(float progress) {
+        if (Float.isNaN(progress) || progress < 0f || progress > 1f) return;
         lastExpansionProgress = progress;
         ViewGroup header = currentHeader();
         if (header != null) {
             applyIndependentRows(header, TIME.view.get(), DATE.view.get());
         }
+        applyExpansionVisibility();
         if (progress <= 0f || progress > 1f) return;
         NotificationClockConfig settings = config.notificationClock;
         if (settings.enabled && settings.offsetYDp != 0) {
             applyExpandedOffset(TIME, settings.offsetYDp, progress);
         }
+    }
+
+    private static void applyExpansionVisibility() {
+        TextView clock = TIME.view.get();
+        if (clock == null) return;
+        if (!config.notificationClock.enabled || landscapeHeader
+                || Float.isNaN(lastExpansionProgress) || lastExpansionProgress >= 1f) {
+            restoreTransitionAlpha(TIME, clock);
+            return;
+        }
+        // The OEM turns big_time into a small status-bar clock below half expansion.
+        // Hide that travelling clock, then fade it into the notification header.
+        // A separate alpha factor keeps asynchronous OEM/Folme alpha animations intact.
+        float fraction = Math.max(0f, Math.min(1f, (lastExpansionProgress - 0.5f) * 2f));
+        float alpha = TIME.nativeTransitionAlpha * fraction * fraction * (3f - 2f * fraction);
+        if (clock.getTransitionAlpha() != alpha) clock.setTransitionAlpha(alpha);
+        TIME.transitionAlphaApplied = true;
+    }
+
+    private static void restoreTransitionAlpha(ClockState state, TextView clock) {
+        if (!state.transitionAlphaApplied) return;
+        clock.setTransitionAlpha(state.nativeTransitionAlpha);
+        state.transitionAlphaApplied = false;
     }
 
     static float minimumHeaderHeight(Context context, float nativeHeight) {
@@ -583,12 +614,16 @@ final class NotificationCenterClockController {
         if (clock == null || !clock.isAttachedToWindow()
                 || clock.getResources().getConfiguration().orientation
                         != Configuration.ORIENTATION_PORTRAIT) return;
+        float offsetPx = NotificationClockConfig.expansionOffsetDp(offsetDp, progress)
+                * clock.getResources().getDisplayMetrics().density;
+        applyTranslationOffset(state, clock, offsetPx);
+    }
+
+    private static void applyTranslationOffset(ClockState state, TextView clock, float offsetPx) {
         float nativeTranslation = clock.getTranslationY();
         if (Math.abs(nativeTranslation - state.lastExpansionTranslation) < 0.25f) {
             nativeTranslation -= state.lastExpansionOffsetPx;
         }
-        float offsetPx = NotificationClockConfig.expansionOffsetDp(offsetDp, progress)
-                * clock.getResources().getDisplayMetrics().density;
         float translation = nativeTranslation + offsetPx;
         state.lastExpansionTranslation = translation;
         state.lastExpansionOffsetPx = offsetPx;
@@ -609,6 +644,7 @@ final class NotificationCenterClockController {
     private static void render(ClockState state) {
         TextView clock = state.view.get();
         if (clock == null) return;
+        if (state == TIME) applyExpansionVisibility();
         NotificationClockConfig settings = config.notificationClock;
         // The header is the authoritative orientation during a configuration callback;
         // child Resources can retain the previous orientation until the callback settles.
@@ -655,13 +691,21 @@ final class NotificationCenterClockController {
             clock.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.nativeSizePx);
         }
         int offsetYDp = settings.offsetYDp;
-        float translation = state.nativeTranslationY
-                + offsetYDp * clock.getResources().getDisplayMetrics().density;
-        if (!systemOwnsGeometry && clock.getTranslationY() != translation) {
-            clock.setTranslationY(translation);
+        if (!systemOwnsGeometry) {
+            float offsetPx = offsetYDp * clock.getResources().getDisplayMetrics().density;
+            if (state == TIME) {
+                // A text tick must retain the OEM's current animation position. The
+                // translation captured at binding may belong to an opening frame.
+                applyTranslationOffset(state, clock, offsetPx);
+            } else {
+                float translation = state.nativeTranslationY + offsetPx;
+                if (clock.getTranslationY() != translation) clock.setTranslationY(translation);
+                state.lastExpansionTranslation = translation;
+                state.lastExpansionOffsetPx = offsetPx;
+            }
         }
-        state.lastExpansionTranslation = translation;
-        state.lastExpansionOffsetPx = offsetYDp * clock.getResources().getDisplayMetrics().density;
+        // During expansion only the expansion callback owns Y. Leave its applied
+        // translation/offset record intact when this pass only refreshes text.
         String pattern = settings.combinedPattern();
         if (compactHorizontal) pattern = pattern.replace('\n', ' ');
         ClockTextFormatter.LunarFields lunar = ClockTextFormatter.needsLunar(pattern)
