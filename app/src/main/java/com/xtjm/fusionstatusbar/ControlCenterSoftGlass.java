@@ -19,6 +19,10 @@ final class ControlCenterSoftGlass {
     private ControlCenterSoftGlass() { }
 
     static void apply(View view, boolean enabled, int strength) {
+        apply(view, ControlCenterSurface.SOFT_GLASS, enabled, strength);
+    }
+
+    static void apply(View view, ControlCenterSurface surface, boolean enabled, int strength) {
         if (view == null) return;
         State state = current(view);
         if (!enabled || strength <= 0) {
@@ -35,7 +39,7 @@ final class ControlCenterSoftGlass {
             view.addOnLayoutChangeListener(state);
             view.getOverlay().add(state.drawable);
         }
-        state.drawable.configure(view, strength);
+        state.drawable.configure(view, strength, surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS);
     }
 
     private static State current(View view) {
@@ -62,6 +66,7 @@ final class ControlCenterSoftGlass {
         private int width = -1, height = -1, strength = -1;
         private int shaderStrength = -1;
         private float shaderDensity = Float.NaN;
+        private boolean daylight, shaderDaylight;
 
         GlassDrawable(View view) {
             owner = new WeakReference<>(view);
@@ -69,8 +74,9 @@ final class ControlCenterSoftGlass {
             inner.setStyle(Paint.Style.STROKE);
         }
 
-        void configure(View view, int value) {
+        void configure(View view, int value, boolean daylight) {
             strength = Math.max(0, Math.min(100, value));
+            this.daylight = daylight;
             updateBounds(view);
         }
 
@@ -78,12 +84,14 @@ final class ControlCenterSoftGlass {
             int nextWidth = view.getWidth(), nextHeight = view.getHeight();
             float nextDensity = view.getResources().getDisplayMetrics().density;
             if (nextWidth == width && nextHeight == height && strength == shaderStrength
+                    && daylight == shaderDaylight
                     && Float.compare(nextDensity, shaderDensity) == 0
                     && (nextWidth <= 0 || nextHeight <= 0 || rim.getShader() != null)) return;
             width = nextWidth;
             height = nextHeight;
             shaderStrength = strength;
             shaderDensity = nextDensity;
+            shaderDaylight = daylight;
             setBounds(0, 0, nextWidth, nextHeight);
             updateShaders(view);
             invalidateSelf();
@@ -95,10 +103,13 @@ final class ControlCenterSoftGlass {
             float factor = strength / 100f;
             rim.setStrokeWidth(Math.max(1f, density * 1.2f));
             rim.setShader(new LinearGradient(0, 0, width * 0.18f, height,
-                    new int[] {alpha(0xf0, factor), alpha(0x50, factor), alpha(0x82, factor)},
+                    daylight
+                            ? new int[] {alpha(0xff, factor), alpha(0x24, factor), alpha(0xb0, factor)}
+                            : new int[] {alpha(0xf0, factor), alpha(0x50, factor), alpha(0x82, factor)},
                     new float[] {0f, 0.56f, 1f}, Shader.TileMode.CLAMP));
             inner.setStrokeWidth(Math.max(0.5f, density * 0.7f));
-            inner.setColor(alpha(0x3a, factor));
+            // A restrained dark edge keeps the glass silhouette visible over a bright wallpaper.
+            inner.setColor(daylight ? (Math.round(0x38 * factor) << 24) | 0x00384250 : alpha(0x3a, factor));
         }
 
         private int alpha(int value, float factor) {

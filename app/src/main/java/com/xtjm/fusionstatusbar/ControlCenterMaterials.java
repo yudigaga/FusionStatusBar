@@ -44,6 +44,7 @@ final class ControlCenterMaterials {
     private static final Map<View, NativeTileBackground> NATIVE_TILE_BACKGROUNDS = new WeakHashMap<>();
     /** Only caches a layer derived from the view's own class; parent-derived layers stay dynamic. */
     private static final Map<View, Layer> DIRECT_LAYERS = new WeakHashMap<>();
+    private static final Map<View, ThemeObserver> THEME_ROOTS = new WeakHashMap<>();
     private static final ThreadLocal<Boolean> APPLYING = ThreadLocal.withInitial(() -> false);
     private ControlCenterMaterials() { }
 
@@ -75,7 +76,8 @@ final class ControlCenterMaterials {
         return config.enabled && !editing ? config.surface : ControlCenterSurface.DEFAULT;
     }
     private static ControlCenterSurface nativeSurface(View view, ControlCenterConfig config, boolean editing) {
-        return preservesNativeMaterial(view) ? ControlCenterSurface.DEFAULT : surface(config, editing);
+        return preservesNativeMaterial(view) ? ControlCenterSurface.DEFAULT
+                : surface(config, editing).resolve(view.getContext());
     }
     static Layer layer(View source) {
         if (source == null) return Layer.NONE;
@@ -417,7 +419,13 @@ final class ControlCenterMaterials {
         if (operation.equals("setMiBackgroundBlendColors") && args[0] instanceof ArrayList<?> list) {
             if (list.isEmpty()) return args;
             ArrayList<Point> colors = new ArrayList<>();
-            if (surface != ControlCenterSurface.DEFAULT) {
+            if (surface == ControlCenterSurface.HIGHLIGHT_GLASS && !activeTile(view)) {
+                // The daytime material uses a blend stack over the host's real blur.
+                // Keep the OEM request intact so changing style can replay it verbatim.
+                colors.add(new Point(0xe6747474, 15));
+                colors.add(new Point(0x99525252, 18));
+                colors.add(new Point(0x33d1d1d1, 3));
+            } else if (surface != ControlCenterSurface.DEFAULT) {
                 colors.add(new Point(color(containerColor(view, surface), opacityPercent(surface, amount)), 3));
             } else for (Object value : list) if (value instanceof Point point) {
                 colors.add(new Point(color(point.x, amount), point.y));
@@ -511,6 +519,16 @@ final class ControlCenterMaterials {
     }
 
     static void refresh(ControlCenterConfig config) {
+        for (ThemeObserver observer : new ArrayList<>(THEME_ROOTS.values())) observer.configure(config);
+        if (config.enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) {
+            // A material-only settings update can enable this style without rebinding the panel.
+            for (View view : new ArrayList<>(GLASS_VIEWS.keySet())) observeTheme(view, config);
+            for (View view : new ArrayList<>(NATIVE.keySet())) observeTheme(view, config);
+            for (Surface state : new ArrayList<>(SURFACES.values())) {
+                View view = state.owner.get();
+                if (view != null) observeTheme(view, config);
+            }
+        }
         for (ControlCenterMaterialSession session : new ArrayList<>(MATERIAL_SESSIONS.values())) {
             View view = session.owner();
             if (view == null) continue;
@@ -557,12 +575,82 @@ final class ControlCenterMaterials {
     }
 
     static void registerRoot(View view, ControlCenterConfig config) {
+        observeTheme(view, config);
         if (TILE_SHAPES.containsKey(view) && !isGridDecorationManaged(view))
             releaseGridSurface(view, config);
         registerTree(view, config, 0, new int[] {0});
         if (view.getClass().getSimpleName().contains("QSTileItemView")) {
             NATIVE_TILES.put(view, Boolean.TRUE);
             syncNativeTile(view, config);
+        }
+    }
+
+    private static void observeTheme(View view, ControlCenterConfig config) {
+        if (!config.enabled || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return;
+        View root = view.getRootView();
+        ThemeObserver observer = THEME_ROOTS.get(root);
+        if (observer == null) {
+            observer = new ThemeObserver(root);
+            THEME_ROOTS.put(root, observer);
+            observer.configure(config);
+        } else {
+            observer.config = config;
+        }
+    }
+
+    /** One cheap theme check per root; refresh only when its actual view configuration changes. */
+    private static final class ThemeObserver implements android.view.ViewTreeObserver.OnPreDrawListener,
+            View.OnAttachStateChangeListener {
+        private final WeakReference<View> owner;
+        private WeakReference<android.view.ViewTreeObserver> tree = new WeakReference<>(null);
+        private ControlCenterConfig config;
+        private ControlCenterSurface resolved;
+
+        ThemeObserver(View root) {
+            owner = new WeakReference<>(root);
+            root.addOnAttachStateChangeListener(this);
+            if (root.isAttachedToWindow()) onViewAttachedToWindow(root);
+        }
+
+        void configure(ControlCenterConfig next) {
+            config = next;
+            View root = owner.get();
+            if (root == null) return;
+            if (!next.enabled || next.surface != ControlCenterSurface.HIGHLIGHT_GLASS) {
+                dispose(root);
+                return;
+            }
+            resolved = next.surface.resolve(root.getContext());
+        }
+
+        @Override public boolean onPreDraw() {
+            View root = owner.get();
+            if (root == null || config == null) return true;
+            // A surface registered before attachment may now share a window with other surfaces.
+            if (root.getRootView() != root) {
+                dispose(root);
+                observeTheme(root, config);
+                return true;
+            }
+            if (resolved != config.surface.resolve(root.getContext())) refresh(config);
+            return true;
+        }
+
+        @Override public void onViewAttachedToWindow(View root) {
+            onViewDetachedFromWindow(root);
+            android.view.ViewTreeObserver observer = root.getViewTreeObserver();
+            tree = new WeakReference<>(observer);
+            observer.addOnPreDrawListener(this);
+        }
+        @Override public void onViewDetachedFromWindow(View root) {
+            android.view.ViewTreeObserver observer = tree.get();
+            if (observer != null && observer.isAlive()) observer.removeOnPreDrawListener(this);
+            tree.clear();
+        }
+        void dispose(View root) {
+            onViewDetachedFromWindow(root);
+            root.removeOnAttachStateChangeListener(this);
+            THEME_ROOTS.remove(root);
         }
     }
 
@@ -582,7 +670,7 @@ final class ControlCenterMaterials {
         if (isGridDecorationManaged(tile)) return;
         View surfaceView = tileSurface(tile);
         if (!(surfaceView instanceof android.widget.ImageView image)) return;
-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile));
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile)).resolve(tile.getContext());
         Drawable content = image.getDrawable();
         if (content instanceof LayerDrawable layers && layers.getNumberOfLayers() > 1) {
             int glyph = layers.getNumberOfLayers() - 1;
@@ -671,7 +759,7 @@ final class ControlCenterMaterials {
             Drawable current = layers.getDrawable(i);
             TileSurfaceDrawable surface = current instanceof TileSurfaceDrawable wrapped
                     ? wrapped : new TileSurfaceDrawable(current);
-            changed |= surface.configure(shape, active, config, i == 0 && !externalSurface, externalSurface);
+            changed |= surface.configure(shape, active, config.resolveSurface(image.getContext()), i == 0 && !externalSurface, externalSurface);
             if (surface != current) {
                 layers.setDrawable(i, surface);
                 // Replacing a drawable clears the outgoing child's callback.
@@ -685,7 +773,7 @@ final class ControlCenterMaterials {
 
     private static void syncIconBackground(View image, TileShape shape, boolean active,
             ControlCenterConfig config, boolean externalSurface) {
-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(image));
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(image)).resolve(image.getContext());
         if (!externalSurface && !active && (style == ControlCenterSurface.DEFAULT || style == ControlCenterSurface.CLEAR)) {
             restoreIconBackground(image);
             return;
@@ -697,13 +785,13 @@ final class ControlCenterMaterials {
             image.setBackground(current);
             if (current.nativeDrawable != null) current.nativeDrawable.setCallback(current);
         }
-        current.configure(shape, active, config, !externalSurface, externalSurface);
+        current.configure(shape, active, config.resolveSurface(image.getContext()), !externalSurface, externalSurface);
     }
 
     static void applyTileBacking(View backing, View tile, ControlCenterConfig config) {
         if (!(backing.getBackground() instanceof GradientDrawable background)) return;
         SURFACES.remove(background);
-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile));
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile)).resolve(tile.getContext());
         int fill = config.enabled && !ControlCenterNativeMode.isEditing(tile)
                 ? color(style.stateColor(activeTile(tile)), opacityPercent(style, config.tileBlur)) : 0;
         if (background.getColor() == null || background.getColor().getDefaultColor() != fill)
@@ -976,9 +1064,22 @@ final class ControlCenterMaterials {
     private static Object[] effectArguments(View view, String operation, Object[] args,
             ControlCenterConfig config, boolean editing) {
         boolean software = softwareSurface(view, config, editing);
+        if (operation.equals("setMixEffectEnabled") && args.length == 1
+                && daylightNativeGlass(view, config, editing)) return new Object[] {true};
+        if (operation.equals("setMiBloomStroke") && args.length == 1
+                && daylightNativeGlass(view, config, editing)) {
+            return new Object[] {ControlCenterNativeEffects.daylightBloom(
+                    view.getResources().getDisplayMetrics().density, percent(config, layer(view), editing))};
+        }
         boolean decoration = config.enabled && !editing
                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
         return ControlCenterNativeEffects.arguments(operation, args, decoration, software);
+    }
+
+    private static boolean daylightNativeGlass(View view, ControlCenterConfig config, boolean editing) {
+        return config.enabled && !editing && !softwareSurface(view, config, editing)
+                && !insideBorderContainer(view) && !preservesNativeMaterial(view)
+                && config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
     }
 
     private static void syncNativeEffects(View view, NativeSurface state,
@@ -986,12 +1087,32 @@ final class ControlCenterMaterials {
         boolean software = softwareSurface(view, config, editing);
         boolean decoration = config.enabled && !editing
                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
-        int policy = (decoration ? 1 : 0) | (software ? 2 : 0);
-        if (state.effectPolicy == policy) return;
+        boolean daylight = daylightNativeGlass(view, config, editing);
+        boolean addedBloom = false;
+        if (daylight && !state.bloomChecked) {
+            state.bloomChecked = true;
+            // Directly recognized views are tracked from construction, before attachment.
+            // For parent-derived layers, an unobserved earlier OEM bloom is not a safe zero baseline.
+            if (directLayer(view.getClass().getSimpleName()) != Layer.NONE
+                    && !state.requests.containsKey("setMiBloomStroke")) {
+                try {
+                    view.getClass().getMethod("setMiBloomStroke", float[].class);
+                    state.requests.put("setMiBloomStroke", new Object[] {new float[21]});
+                    addedBloom = true;
+                } catch (NoSuchMethodException | SecurityException ignored) { }
+            }
+        }
+        int policy = (decoration ? 1 : 0) | (software ? 2 : 0)
+                | (daylight ? 4 | (percent(config, layer(view), editing) << 8) : 0);
+        float density = view.getResources().getDisplayMetrics().density;
+        if (!addedBloom && state.effectPolicy == policy
+                && (!daylight || Float.compare(state.effectDensity, density) == 0)) return;
         boolean wasSoftware = state.effectPolicy >= 0 && (state.effectPolicy & 2) != 0;
+        boolean wasDaylight = state.effectPolicy >= 0 && (state.effectPolicy & 4) != 0;
         for (Map.Entry<String, Object[]> entry : state.requests.entrySet()) {
             String operation = entry.getKey();
             if (!ControlCenterNativeEffects.decoration(operation)
+                    && !((daylight || wasDaylight) && operation.equals("setMixEffectEnabled"))
                     && !((software || wasSoftware) && ControlCenterNativeEffects.composition(operation))) continue;
             if (software && operation.equals("setMiBackgroundBlendColors")) {
                 clearNativeBlend(view);
@@ -1007,6 +1128,7 @@ final class ControlCenterMaterials {
             }
         }
         state.effectPolicy = policy;
+        state.effectDensity = density;
     }
     private static boolean borderContainer(View view, String id, String name) {
         return panelContainer(view, name) || name.contains("QSTileItemView")
@@ -1133,7 +1255,7 @@ final class ControlCenterMaterials {
                 && config.enabled && config.borderEnabled
                 && !ControlCenterNativeMode.isEditing(view);
         ControlCenterGlobalBorder.apply(decorationTarget(view), active, config.borderWidthDp,
-                config.surface.neutralForeground() == 0xff202124);
+                config.surface.resolve(view.getContext()).neutralForeground() == 0xff202124);
     }
 
     static void applySoftGlass(View view, ControlCenterConfig config, Layer layer) {
@@ -1144,7 +1266,7 @@ final class ControlCenterMaterials {
         }
         GLASS_VIEWS.put(view, layer);
         int strength = percent(config, layer, ControlCenterNativeMode.isEditing(view));
-        ControlCenterSoftGlass.apply(decorationTarget(view), config.enabled && config.surface.hasSoftGlassReflection()
+        ControlCenterSoftGlass.apply(decorationTarget(view), config.surface, config.enabled && config.surface.hasSoftGlassReflection()
                 && !ControlCenterNativeMode.isEditing(view) && !insideBorderContainer(view), strength);
     }
     static int textColor(TextView text, int requested, ControlCenterConfig config) {
@@ -1160,11 +1282,11 @@ final class ControlCenterMaterials {
     }
 
     private static int containerColor(View view, ControlCenterSurface style) {
-        return style.stateColor(activeTile(view));
+        return style.resolve(view == null ? null : view.getContext()).stateColor(activeTile(view));
     }
 
     private static ControlCenterSurface textSurface(View view, ControlCenterConfig config) {
-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(view));
+        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(view)).resolve(view.getContext());
         return style != ControlCenterSurface.DEFAULT && style != ControlCenterSurface.CLEAR && activeTile(view)
                 ? ControlCenterSurface.LIGHT : style;
     }
@@ -1222,6 +1344,11 @@ final class ControlCenterMaterials {
         try { return action.run(); } finally { APPLYING.set(was); }
     }
     static void clearForTest() {
+        for (ThemeObserver observer : new ArrayList<>(THEME_ROOTS.values())) {
+            View root = observer.owner.get();
+            if (root != null) observer.dispose(root);
+        }
+        THEME_ROOTS.clear();
         for (View view : new ArrayList<>(GLASS_VIEWS.keySet())) {
             removeDecorations(view);
         }
@@ -1514,6 +1641,8 @@ final class ControlCenterMaterials {
         }
     }
     private static final class NativeSurface {
+        boolean bloomChecked;
+        float effectDensity = Float.NaN;
         final Map<String, Object[]> requests = new java.util.LinkedHashMap<>();
         int mode, radius;
         boolean overridden, failureLogged, ownedContainer, syntheticTint, blendAdjusted;

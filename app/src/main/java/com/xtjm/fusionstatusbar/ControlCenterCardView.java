@@ -1,6 +1,7 @@
 package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -90,7 +91,7 @@ final class ControlCenterCardView extends FrameLayout {
     private void applyGlobalBorder() {
         View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
         boolean group = content instanceof ControlCenterGroupView;
-        boolean light = containerSurface.neutralForeground() == 0xff202124;
+        boolean light = containerSurface.resolve(getContext()).neutralForeground() == 0xff202124;
         ControlCenterGlobalBorder.apply(surface, borderEnabled && !group, borderWidthDp, light);
         if (group) ControlCenterGlobalBorder.apply(content, borderEnabled, borderWidthDp, light);
     }
@@ -102,13 +103,14 @@ final class ControlCenterCardView extends FrameLayout {
         boolean cardSurface = model.large || model.paired || ControlCenterComponentSpec.isSpecial(model.spec)
                 || model.spec.startsWith("group:");
         int strength = cardSurface ? card : tile;
-        boolean glass = containerSurface.hasSoftGlassReflection();
+        ControlCenterSurface resolvedSurface = containerSurface.resolve(getContext());
+        boolean glass = resolvedSurface.hasSoftGlassReflection();
         int opacityStrength = glass ? 100 : strength;
         material.setAlpha(Math.round(255f * opacityStrength / 100));
         View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
         boolean groupSurface = content instanceof ControlCenterGroupView;
-        ControlCenterSoftGlass.apply(surface, glass && !groupSurface, strength);
-        if (groupSurface) ControlCenterSoftGlass.apply(content, glass, card);
+        ControlCenterSoftGlass.apply(surface, containerSurface, glass && !groupSurface, strength);
+        if (groupSurface) ControlCenterSoftGlass.apply(content, containerSurface, glass, card);
         int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), opacityStrength, 0xff080808);
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterPreviewTile preview) {
             preview.setBackdropColor(backdrop);
@@ -122,8 +124,8 @@ final class ControlCenterCardView extends FrameLayout {
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterGroupView group) {
             tintPreviewSurface(group);
             group.getBackground().setAlpha(Math.round(255f * (glass ? 100 : card) / 100));
-            int groupColor = containerSurface == ControlCenterSurface.DEFAULT
-                    ? ControlCenterSurface.defaultGroupColor() : containerSurface.color;
+            int groupColor = resolvedSurface == ControlCenterSurface.DEFAULT
+                    ? ControlCenterSurface.defaultGroupColor() : resolvedSurface.color;
             int groupBackdrop = ControlCenterIcons.composite(groupColor, glass ? 100 : card, backdrop);
             for (int i = 0; i < group.getChildCount(); i++) {
                 if (group.getChildAt(i) instanceof ControlCenterGroupEntry entry) {
@@ -152,9 +154,10 @@ final class ControlCenterCardView extends FrameLayout {
                     : background.getColor().getDefaultColor());
         }
         // The group paints its own container; its outer clipping surface stays clear.
+        ControlCenterSurface resolvedSurface = containerSurface.resolve(view.getContext());
         int tint = view == surface && model.spec.startsWith("group:") ? Color.TRANSPARENT
-                : containerSurface == ControlCenterSurface.DEFAULT ? nativeColors.get(background)
-                : containerSurface.stateColor(view == surface
+                : resolvedSurface == ControlCenterSurface.DEFAULT ? nativeColors.get(background)
+                : resolvedSurface.stateColor(view == surface
                         ? model.active && !model.paired && !ControlCenterComponentSpec.isSpecial(model.spec)
                         : nativeColors.get(background) == ACTIVE_SURFACE);
         background.setColor(tint);
@@ -180,6 +183,13 @@ final class ControlCenterCardView extends FrameLayout {
         addView(surface, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
     }
 
+    @Override protected void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        setMaterialStrength(cardStrength, tileStrength);
+        applyGlobalBorder();
+        invalidate();
+    }
+
     void setEditing(boolean editing, boolean animated) {
         animate().cancel();
         surface.animate().cancel();
@@ -201,7 +211,7 @@ final class ControlCenterCardView extends FrameLayout {
         nativeColors.clear();
         surface.removeAllViews();
         material.setColor(ControlCenterComponentSpec.FIVE_G.equals(next.spec)
-                ? containerSurface.stateColor(next.active)
+                ? containerSurface.resolve(getContext()).stateColor(next.active)
                 : !next.paired && next.active ? ACTIVE_SURFACE : INACTIVE_SURFACE);
         material.setShape(next.shape == ControlCenterLayoutPlan.Shape.CIRCLE
                 ? GradientDrawable.OVAL : GradientDrawable.RECTANGLE);
@@ -269,7 +279,7 @@ final class ControlCenterCardView extends FrameLayout {
         }
 
         void applySurface(ControlCenterSurface surface, boolean active) {
-            int color = active ? 0xff3482f6 : surface.neutralForeground();
+            int color = active ? 0xff3482f6 : surface.resolve(getContext()).neutralForeground();
             setTextColor(color);
             setTextSize(24f * Math.max(70, Math.min(130, scale)) / 100f);
         }
@@ -390,7 +400,7 @@ final class ControlCenterCardView extends FrameLayout {
         }
 
         void applySurface(ControlCenterSurface style) {
-            boolean light = style.neutralForeground() == 0xff202124;
+            boolean light = style.resolve(getContext()).neutralForeground() == 0xff202124;
             play.setTint(light ? 0xff202124 : ACTIVE_SURFACE);
             previous.setTint(light ? 0xff777a80 : 0xff888b8f);
             next.setTint(light ? 0xff777a80 : 0xff888b8f);
@@ -450,7 +460,8 @@ final class ControlCenterCardView extends FrameLayout {
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             if (displayTitle == null) return;
-            paint.setColor(Color.rgb(235, 236, 238));
+            paint.setColor(containerSurface.resolve(getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS
+                    ? 0xff202124 : Color.rgb(235, 236, 238));
             float start = (getWidth() - paint.measureText(displayTitle) - mark - gap) / 2f;
             float cy = getHeight() / 2f;
             canvas.drawText(displayTitle, start + mark + gap,

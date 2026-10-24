@@ -1378,6 +1378,8 @@ final class ControlCenterRuntimeGrid {
 
         @Override protected void onConfigurationChanged(Configuration configuration) {
             super.onConfigurationChanged(configuration);
+            if (materialsReleased) return;
+            updateDecorations(materialSettings);
             markAllMaterialsDirty();
             scheduleMaterialProbes();
             invalidate();
@@ -1469,11 +1471,11 @@ final class ControlCenterRuntimeGrid {
                 int strength = ControlCenterMaterials.percent(settings,
                         card ? ControlCenterMaterials.Layer.CARD
                                 : ControlCenterMaterials.Layer.TILE, editing);
-                ControlCenterSoftGlass.apply(overlay, settings.enabled && !editing
+                ControlCenterSoftGlass.apply(overlay, settings.surface, settings.enabled && !editing
                         && settings.surface.hasSoftGlassReflection(), strength);
                 ControlCenterGlobalBorder.apply(overlay, settings.enabled && !editing
                         && settings.borderEnabled, settings.borderWidthDp,
-                        settings.surface.neutralForeground() == 0xff202124);
+                        settings.surface.resolve(overlay.getContext()).neutralForeground() == 0xff202124);
             }
             if (contentScaleChanged) requestLayout();
         }

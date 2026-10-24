@@ -13,6 +13,7 @@ import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.TextView;
@@ -29,6 +30,7 @@ final class SystemSurfaceStyle {
     private static final Map<TextView, TextState> TEXT = new WeakHashMap<>();
     private static final Map<Window, WindowState> WINDOWS = new WeakHashMap<>();
     private static final Map<View, BackdropState> BACKDROPS = new WeakHashMap<>();
+    private static final Map<View, ThemeState> THEMES = new WeakHashMap<>();
     private static final ThreadLocal<Boolean> APPLYING = ThreadLocal.withInitial(() -> false);
 
     private SystemSurfaceStyle() { }
@@ -51,13 +53,18 @@ final class SystemSurfaceStyle {
         state.track = track;
         SurfaceDrawable drawable = state.drawable();
         drawable.configure(state.background == null ? nativeBackground(view) : state.background,
-                config, strength(state), view.getResources().getDisplayMetrics().density);
+                config, strength(state), view);
         if (view.getBackground() != drawable) {
             int left = view.getPaddingLeft(), top = view.getPaddingTop();
             int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
             view.setBackground(drawable);
             view.setPadding(left, top, right, bottom);
         }
+        ControlCenterSoftGlass.apply(view, config.surface,
+                config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS,
+                strength(state));
+        if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) watchTheme(view);
+        else releaseTheme(view);
         updateNative(view, state);
         view.invalidate();
     }
@@ -76,6 +83,8 @@ final class SystemSurfaceStyle {
         if (view == null) return;
         State state = SURFACES.remove(view);
         if (state == null) return;
+        ControlCenterSoftGlass.apply(view, false, 0);
+        releaseTheme(view);
         int left = view.getPaddingLeft(), top = view.getPaddingTop();
         int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
         view.setBackground(state.background);
@@ -88,6 +97,14 @@ final class SystemSurfaceStyle {
     }
 
     static void applyContent(View root, ControlCenterConfig config, boolean enabled) {
+        if (root == null) return;
+        if (enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS)
+            watchTheme(root).contentConfig = config;
+        else {
+            ThemeState theme = THEMES.get(root);
+            if (theme != null) theme.contentConfig = null;
+            releaseTheme(root);
+        }
         content(root, config, enabled, 0, new int[1]);
     }
 
@@ -102,8 +119,9 @@ final class SystemSurfaceStyle {
                     TEXT.put(text, state);
                 }
                 text.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.size * config.tileScale / 100f);
-                text.setTextColor(config.surface == ControlCenterSurface.DEFAULT
-                        ? state.colors : ColorStateList.valueOf(config.surface.neutralForeground()));
+                ControlCenterSurface surface = config.surface.resolve(text.getContext());
+                text.setTextColor(surface == ControlCenterSurface.DEFAULT
+                        ? state.colors : ColorStateList.valueOf(surface.neutralForeground()));
             } else if (state != null) {
                 text.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.size);
                 text.setTextColor(state.colors);
@@ -259,6 +277,73 @@ final class SystemSurfaceStyle {
         try { action.run(); } finally { APPLYING.set(was); }
     }
 
+    private static ThemeState watchTheme(View view) {
+        ThemeState theme = THEMES.get(view);
+        if (theme == null) {
+            theme = new ThemeState(view);
+            THEMES.put(view, theme);
+            view.addOnAttachStateChangeListener(theme);
+            theme.observe(view);
+        }
+        return theme;
+    }
+
+    private static void releaseTheme(View view) {
+        ThemeState theme = THEMES.get(view);
+        State surface = SURFACES.get(view);
+        if (theme == null || surface != null && surface.config.surface == ControlCenterSurface.HIGHLIGHT_GLASS
+                || theme.contentConfig != null) return;
+        theme.stopObserving();
+        view.removeOnAttachStateChangeListener(theme);
+        THEMES.remove(view);
+    }
+
+    /** OEM notification/menu views survive theme changes without rebinding their content. */
+    private static final class ThemeState implements View.OnAttachStateChangeListener,
+            ViewTreeObserver.OnPreDrawListener {
+        final WeakReference<View> owner;
+        ControlCenterConfig contentConfig;
+        WeakReference<ViewTreeObserver> observer = new WeakReference<>(null);
+        int nightMode, densityDpi;
+
+        ThemeState(View view) {
+            owner = new WeakReference<>(view);
+            nightMode = view.getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            densityDpi = view.getResources().getConfiguration().densityDpi;
+        }
+
+        void observe(View view) {
+            stopObserving();
+            ViewTreeObserver current = view.getViewTreeObserver();
+            observer = new WeakReference<>(current);
+            current.addOnPreDrawListener(this);
+        }
+
+        void stopObserving() {
+            ViewTreeObserver current = observer.get();
+            if (current != null && current.isAlive()) current.removeOnPreDrawListener(this);
+            observer.clear();
+        }
+
+        @Override public boolean onPreDraw() {
+            View view = owner.get();
+            if (view == null) { stopObserving(); return true; }
+            android.content.res.Configuration configuration = view.getResources().getConfiguration();
+            int nextMode = configuration.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            if (nightMode == nextMode && densityDpi == configuration.densityDpi) return true;
+            nightMode = nextMode;
+            densityDpi = configuration.densityDpi;
+            State state = SURFACES.get(view);
+            if (state != null) apply(view, state.config, true, state.track);
+            if (contentConfig != null) content(view, contentConfig, true, 0, new int[1]);
+            return true;
+        }
+
+        @Override public void onViewAttachedToWindow(View view) { observe(view); onPreDraw(); }
+        @Override public void onViewDetachedFromWindow(View view) { stopObserving(); }
+    }
+
     private static final class State {
         Drawable background;
         WeakReference<SurfaceDrawable> material = new WeakReference<>(null);
@@ -309,15 +394,17 @@ final class SystemSurfaceStyle {
         private final Rect originalBounds = new Rect();
         private Drawable original;
         private ControlCenterConfig config;
+        private WeakReference<View> owner = new WeakReference<>(null);
         private float density;
         private int strength, alpha = 255;
         private ColorFilter colorFilter;
 
-        void configure(Drawable original, ControlCenterConfig config, int strength, float density) {
+        void configure(Drawable original, ControlCenterConfig config, int strength, View view) {
             this.original = original;
             this.config = config;
             this.strength = strength;
-            this.density = density;
+            this.owner = new WeakReference<>(view);
+            this.density = view.getResources().getDisplayMetrics().density;
             invalidateSelf();
         }
 
@@ -326,6 +413,8 @@ final class SystemSurfaceStyle {
         @Override public void draw(Canvas canvas) {
             bounds.set(getBounds());
             if (bounds.isEmpty()) return;
+            View view = owner.get();
+            ControlCenterSurface surface = view == null ? config.surface : config.surface.resolve(view.getContext());
             float radius = Math.min(config.cornerRadius * density, Math.min(bounds.width(), bounds.height()) / 2f);
             float opacity = alpha / 255f * strength / 100f;
             path.reset();
@@ -341,7 +430,7 @@ final class SystemSurfaceStyle {
                 original.setAlpha(previousAlpha);
                 original.setBounds(originalBounds);
             } else {
-                int color = config.surface == ControlCenterSurface.DEFAULT ? 0x663c4149 : config.surface.color;
+                int color = surface == ControlCenterSurface.DEFAULT ? 0x663c4149 : surface.color;
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(ControlCenterMaterials.color(color, Math.round(opacity * 100)));
                 paint.setColorFilter(colorFilter);
@@ -353,12 +442,12 @@ final class SystemSurfaceStyle {
                 bounds.inset(stroke / 2f, stroke / 2f);
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(stroke);
-                paint.setColor(ControlCenterMaterials.color(config.surface == ControlCenterSurface.LIGHT
+                paint.setColor(ControlCenterMaterials.color(surface.neutralForeground() == 0xff202124
                         ? 0x66000000 : 0x80ffffff, Math.round(alpha / 255f * 100)));
                 canvas.drawRoundRect(bounds, Math.max(0, radius - stroke / 2f),
                         Math.max(0, radius - stroke / 2f), paint);
             }
-            if (config.surface.hasSoftGlassReflection()) {
+            if (surface == ControlCenterSurface.SOFT_GLASS) {
                 bounds.set(getBounds());
                 bounds.inset(density / 2f, density / 2f);
                 paint.setStyle(Paint.Style.STROKE);

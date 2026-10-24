@@ -19,6 +19,7 @@ public class ControlCenterAnimationHooksTest {
     @Test public void queuedAnimationRetainsItsCopyAndNativeCompletionListener() throws Throwable {
         Owner owner = new Owner();
         NativeConfig original = owner.animConfig;
+        original.ease = new Ease(-2, 0.95, 0.45, 1.0);
         Object listener = new Object();
         original.listener = listener;
         NativeConfig[] queued = new NativeConfig[1];
@@ -30,8 +31,8 @@ public class ControlCenterAnimationHooksTest {
         assertSame(original, owner.animConfig);
         assertNotSame(original, queued[0]);
         assertSame(listener, queued[0].listener);
-        assertEquals(0.22, queued[0].ease.factors[1], 0.0001);
-        assertEquals(0.35, original.ease.factors[1], 0.0001);
+        assertEquals(0.35, queued[0].ease.factors[1], 0.0001);
+        assertEquals(0.45, original.ease.factors[1], 0.0001);
         assertEquals(original.ease.factors[0], queued[0].ease.factors[0], 0.000001);
         assertEquals(original.ease.factors[2], queued[0].ease.factors[2], 0.000001);
     }
@@ -95,12 +96,12 @@ public class ControlCenterAnimationHooksTest {
         assertEquals(1, calls.get());
     }
 
-    @Test public void defaultEaseIsCopiedWithoutChangingGlobalNativeDefault() throws Throwable {
+    @Test public void defaultEaseRemainsNativeWithoutChangingGlobalNativeDefault() throws Throwable {
         Owner owner = new Owner();
         owner.animConfig.ease = null;
         NativeConfig original = owner.animConfig;
         ControlCenterAnimationHooks.withFastConfig(owner, () -> {
-            assertEquals(0.22, owner.animConfig.ease.factors[1], 0.0001);
+            assertNull(owner.animConfig.ease);
             return null;
         });
         assertNull(original.ease);
@@ -119,12 +120,12 @@ public class ControlCenterAnimationHooksTest {
         assertEquals(2, result.installed);
         assertTrue(result.unavailable.isEmpty());
         Expansion expansion = new Expansion();
-        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.22);
+        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
         assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, false), 0.35);
         expansion.this$0.mirror = true;
         assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
         Blur blur = new Blur();
-        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.22);
+        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, true), 0.35);
         assertPeriod(registry, blur, "showBlur", List.of(false, true, false, false), 0.35);
         current[0] = current[0].withEnabled(false);
@@ -132,6 +133,20 @@ public class ControlCenterAnimationHooksTest {
         current[0] = ControlCenterConfig.defaults().withEnabled(true);
         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
         current[0] = current[0].withLayoutPlan("invalid");
+        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
+    }
+
+    @Test public void customPanelExpansionKeepsTheNativeSpringResponse() throws Throwable {
+        Registry registry = new Registry();
+        ControlCenterAnimationHooks.install(getClass().getClassLoader(), (name, loader) -> switch (name) {
+            case ControlCenterAnimationHooks.EXPANSION_CLASS -> Expansion.class;
+            case ControlCenterAnimationHooks.BLUR_CLASS -> Blur.class;
+            default -> null;
+        }, registry, ControlCenterAnimationHooksTest::customSettings);
+
+        Expansion expansion = new Expansion();
+        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
+        Blur blur = new Blur();
         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
     }
 

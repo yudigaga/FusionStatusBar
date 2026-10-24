@@ -26,7 +26,7 @@ PACKAGE = "io.github.yudigaga.fusionstatusbar"
 ACTIVITY_CLASS = "com.xtjm.fusionstatusbar.MainActivity"
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDS = re.compile(r"^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$")
-SURFACE_CHOICES = ("原有背景", "透明", "雾面", "深色", "晶透", "浅色", "石墨", "冰蓝", "薄荷", "柔光玻璃")
+SURFACE_CHOICES = ("原有背景", "透明", "雾面", "深色", "晶透", "浅色", "石墨", "冰蓝", "薄荷", "柔光玻璃", "高光玻璃（随系统）")
 
 
 class HarnessError(RuntimeError):

@@ -48,6 +48,8 @@ public final class SystemUiHooks {
     private static final String PHONE_STATUS_BAR_CLASS = StatusBarHookInstaller.PHONE_CLASS;
     private static final String PHONE_STATUS_BAR_BASE_CLASS = StatusBarHookInstaller.PHONE_BASE_CLASS;
     private static final String KEYGUARD_STATUS_BAR_CLASS = StatusBarHookInstaller.KEYGUARD_CLASS;
+    private static final String CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS =
+            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons";
     private static final String CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock";
     private static final String NOTIFICATION_HEADER_CLASS = NotificationHookInstaller.HEADER_CLASS;
     private static final String NOTIFICATION_EXPAND_CLASS = NotificationHookInstaller.EXPAND_CLASS;
@@ -192,6 +194,11 @@ public final class SystemUiHooks {
         }
         StatusBarHookInstaller statusBarInstaller = statusBarHookInstaller();
         StatusBarHookInstaller.Targets statusBarTargets = statusBarInstaller.resolve(classLoader);
+        ShadeSwitchAnimationHooks.Result shadeSwitchAnimation = ShadeSwitchAnimationHooks.install(
+                classLoader, SystemUiHooks::findClassQuiet,
+                (id, method, hooker) -> hookMethod(id, method, hooker));
+        log(Log.INFO, "shade switch animation hooks=" + shadeSwitchAnimation.installed
+                + " unavailable=" + shadeSwitchAnimation.unavailable, null);
         hookPluginClassLoaderFactory();
         int controlCenterHooks = hookControlCenterTiles();
         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
@@ -2810,6 +2817,7 @@ public final class SystemUiHooks {
         int containerLeft = CONTAINER_LOCATION[0] + container.getPaddingLeft();
         int containerRight = CONTAINER_LOCATION[0] + container.getWidth()
                 - container.getPaddingRight();
+        int requiredWidth = width + fusionIcon.getWidth() + gap;
         int desiredLeft;
         if (currentPlan.systemSide == currentPlan.fusionSide) {
             desiredLeft = currentPlan.fusionSide == FusionConfig.SIDE_RIGHT
@@ -2829,7 +2837,9 @@ public final class SystemUiHooks {
             log(Log.INFO, "native status icons aligned: iconLeft=" + iconLeft
                     + " iconRight=" + iconRight + " statusLeft=" + STATUS_LOCATION[0]
                     + " targetLeft=" + desiredLeft + " shift=" + shift
-                    + " gap=" + gap + " side=" + currentPlan.systemSide
+                    + " gap=" + gap + " availableWidth=" + (containerRight - containerLeft)
+                    + " requiredWidth=" + requiredWidth + " fakeControlCenter="
+                    + isControlCenterFakeBatteryArea(container) + " side=" + currentPlan.systemSide
                     + " parent=" + statusIcons.getParent().getClass().getName(), null);
         }
     }
@@ -3544,7 +3554,19 @@ public final class SystemUiHooks {
     }
 
     private static boolean isStatusBatteryContainer(ViewGroup container) {
-        return isViewNamed(container, "system_icons");
+        return isViewNamed(container, "system_icons")
+                || isControlCenterFakeBatteryArea(container);
+    }
+
+    private static boolean isControlCenterFakeBatteryArea(View view) {
+        if (!isViewNamed(view, "system_icon_area")) return false;
+        for (ViewParent parent = view.getParent(); parent instanceof View ancestor;
+                parent = ancestor.getParent()) {
+            if (CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(ancestor.getClass().getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isStatusIconContainer(ViewGroup container) {
@@ -3557,6 +3579,9 @@ public final class SystemUiHooks {
                 return true;
             }
             if (KEYGUARD_STATUS_BAR_CLASS.equals(view.getClass().getName())) {
+                return true;
+            }
+            if (CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(view.getClass().getName())) {
                 return true;
             }
             parent = view.getParent();
@@ -3982,7 +4007,9 @@ public final class SystemUiHooks {
                 if (BATTERY_READY.get()) {
                     hideBatteryChildren(battery);
                 }
-                expandBatteryContainer(battery);
+                if (!FusionIconPlacement.isControlCenterHosted(battery)) {
+                    expandBatteryContainer(battery);
+                }
             }
         } catch (Throwable error) {
             log(Log.ERROR, "battery measure hook failed", error);
@@ -4177,7 +4204,9 @@ public final class SystemUiHooks {
         int contentHeight = Math.max(0, battery.getHeight() - battery.getPaddingTop() - battery.getPaddingBottom());
         int left = battery.getPaddingLeft() + Math.max(0, (contentWidth - width) / 2);
         int top = battery.getPaddingTop() + Math.max(0, (contentHeight - height) / 2);
-        if (currentPlan.spanFusion) {
+        boolean statusBarSpan = currentPlan.spanFusion
+                && !FusionIconPlacement.isControlCenterHosted(battery);
+        if (statusBarSpan) {
             top = Math.max(0,
                     (dp(battery, currentConfig.statusBarHeight) - height) / 2
                             - battery.getTop());
@@ -4185,7 +4214,7 @@ public final class SystemUiHooks {
         icon.layout(left, top, left + width, top + height);
         int offsetX = 0;
         int offsetY = 0;
-        if (currentPlan.spanFusion) {
+        if (statusBarSpan) {
             offsetX = dp(battery, currentConfig.spanOffsetX);
             offsetY = dp(battery, currentConfig.spanOffsetY);
         }

@@ -18,6 +18,14 @@ final class ControlCenterNativeEffects {
 
     private ControlCenterNativeEffects() { }
 
+    /** Static two-light bloom for OEM RenderNodes which expose the 21-float API. */
+    static float[] daylightBloom(float density, int strength) {
+        float opacity = Math.max(0, Math.min(100, strength)) / 100f;
+        return new float[] {0.8f * density, 180f, 1f, 1f, 1f, 0.05f * opacity,
+                2.6f * density, .5f, .5f, -.5f, 1f, 1f, 1f, .6f * opacity,
+                .5f, .95f, -.5f, 1f, 1f, 1f, .35f * opacity};
+    }
+
     static boolean decoration(String operation) {
         return operation.equals("setMiBloomStroke") || operation.equals("setMiShadow");
     }

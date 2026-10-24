@@ -1,0 +1,1313 @@
+diff --git a/README.md b/README.md
+index 36af771..b441b27 100644
+--- a/README.md
++++ b/README.md
+@@ -4,6 +4,8 @@
+ 
+ 当前正式版本为 0.5.3，修复通知中心时钟展开动画与刷新位置，并减少控制中心毛玻璃材质的重复刷新和渐变重建。见 [0.5.3 更新说明与验证范围](docs/release-notes-v0.5.3.md)。
+ 
++本地开发版本 0.5.4 新增“高光玻璃（随系统）”。在控制中心的“全局外观 → 全局容器背景”中选择后，浅色主题使用日间高光玻璃，深色主题沿用柔光玻璃；原柔光玻璃选项保持独立。实现依据与验证范围见 [日间玻璃适配记录](docs/2026-10-24_reverse-hyperlight-daylight-glass-report.md)。
++
+ ## 开源项目
+ 
+ - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
+@@ -38,7 +40,7 @@ GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug
+ 
+ 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
+ 
+-版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本次为 `217`。
++版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增：正式版 `0.5.3` 为 `217`，本地开发版本 `0.5.4` 为 `218`。
+ 
+ ## 模块关系
+ 
+diff --git a/app/build.gradle b/app/build.gradle
+index 936a1b0..d613d30 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 217
+-        versionName "0.5.3"
++        versionCode 223
++        versionName "0.5.9"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java
+index a71d731..2627f1d 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java
+@@ -10,13 +10,13 @@ import java.util.Collections;
+ import java.util.List;
+ import java.util.function.Supplier;
+ 
+-/** Shortens the custom panel's settling tail without changing native gestures or transforms. */
++/** Bounds custom panel spring settling without changing native gestures or transforms. */
+ final class ControlCenterAnimationHooks {
+     static final String EXPANSION_CLASS =
+             "miui.systemui.controlcenter.windowview.ControlCenterExpandController$expansionAnimator$1";
+     static final String BLUR_CLASS =
+             "miui.systemui.controlcenter.windowview.BlurController";
+-    private static final float MAX_RESPONSE_SECONDS = 0.22f;
++    private static final float MAX_RESPONSE_SECONDS = 0.35f;
+ 
+     interface Proceed { Object run() throws Throwable; }
+ 
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java
+index a9e7c9a..76d17d0 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java
+@@ -1,6 +1,7 @@
+ package com.xtjm.fusionstatusbar;
+ 
+ import android.content.Context;
++import android.content.res.Configuration;
+ import android.graphics.Canvas;
+ import android.graphics.Color;
+ import android.graphics.Paint;
+@@ -90,7 +91,7 @@ final class ControlCenterCardView extends FrameLayout {
+     private void applyGlobalBorder() {
+         View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
+         boolean group = content instanceof ControlCenterGroupView;
+-        boolean light = containerSurface.neutralForeground() == 0xff202124;
++        boolean light = containerSurface.resolve(getContext()).neutralForeground() == 0xff202124;
+         ControlCenterGlobalBorder.apply(surface, borderEnabled && !group, borderWidthDp, light);
+         if (group) ControlCenterGlobalBorder.apply(content, borderEnabled, borderWidthDp, light);
+     }
+@@ -102,13 +103,14 @@ final class ControlCenterCardView extends FrameLayout {
+         boolean cardSurface = model.large || model.paired || ControlCenterComponentSpec.isSpecial(model.spec)
+                 || model.spec.startsWith("group:");
+         int strength = cardSurface ? card : tile;
+-        boolean glass = containerSurface.hasSoftGlassReflection();
++        ControlCenterSurface resolvedSurface = containerSurface.resolve(getContext());
++        boolean glass = resolvedSurface.hasSoftGlassReflection();
+         int opacityStrength = glass ? 100 : strength;
+         material.setAlpha(Math.round(255f * opacityStrength / 100));
+         View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
+         boolean groupSurface = content instanceof ControlCenterGroupView;
+-        ControlCenterSoftGlass.apply(surface, glass && !groupSurface, strength);
+-        if (groupSurface) ControlCenterSoftGlass.apply(content, glass, card);
++        ControlCenterSoftGlass.apply(surface, containerSurface, glass && !groupSurface, strength);
++        if (groupSurface) ControlCenterSoftGlass.apply(content, containerSurface, glass, card);
+         int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), opacityStrength, 0xff080808);
+         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterPreviewTile preview) {
+             preview.setBackdropColor(backdrop);
+@@ -122,8 +124,8 @@ final class ControlCenterCardView extends FrameLayout {
+         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterGroupView group) {
+             tintPreviewSurface(group);
+             group.getBackground().setAlpha(Math.round(255f * (glass ? 100 : card) / 100));
+-            int groupColor = containerSurface == ControlCenterSurface.DEFAULT
+-                    ? ControlCenterSurface.defaultGroupColor() : containerSurface.color;
++            int groupColor = resolvedSurface == ControlCenterSurface.DEFAULT
++                    ? ControlCenterSurface.defaultGroupColor() : resolvedSurface.color;
+             int groupBackdrop = ControlCenterIcons.composite(groupColor, glass ? 100 : card, backdrop);
+             for (int i = 0; i < group.getChildCount(); i++) {
+                 if (group.getChildAt(i) instanceof ControlCenterGroupEntry entry) {
+@@ -152,9 +154,10 @@ final class ControlCenterCardView extends FrameLayout {
+                     : background.getColor().getDefaultColor());
+         }
+         // The group paints its own container; its outer clipping surface stays clear.
++        ControlCenterSurface resolvedSurface = containerSurface.resolve(view.getContext());
+         int tint = view == surface && model.spec.startsWith("group:") ? Color.TRANSPARENT
+-                : containerSurface == ControlCenterSurface.DEFAULT ? nativeColors.get(background)
+-                : containerSurface.stateColor(view == surface
++                : resolvedSurface == ControlCenterSurface.DEFAULT ? nativeColors.get(background)
++                : resolvedSurface.stateColor(view == surface
+                         ? model.active && !model.paired && !ControlCenterComponentSpec.isSpecial(model.spec)
+                         : nativeColors.get(background) == ACTIVE_SURFACE);
+         background.setColor(tint);
+@@ -180,6 +183,13 @@ final class ControlCenterCardView extends FrameLayout {
+         addView(surface, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+     }
+ 
++    @Override protected void onConfigurationChanged(Configuration configuration) {
++        super.onConfigurationChanged(configuration);
++        setMaterialStrength(cardStrength, tileStrength);
++        applyGlobalBorder();
++        invalidate();
++    }
++
+     void setEditing(boolean editing, boolean animated) {
+         animate().cancel();
+         surface.animate().cancel();
+@@ -201,7 +211,7 @@ final class ControlCenterCardView extends FrameLayout {
+         nativeColors.clear();
+         surface.removeAllViews();
+         material.setColor(ControlCenterComponentSpec.FIVE_G.equals(next.spec)
+-                ? containerSurface.stateColor(next.active)
++                ? containerSurface.resolve(getContext()).stateColor(next.active)
+                 : !next.paired && next.active ? ACTIVE_SURFACE : INACTIVE_SURFACE);
+         material.setShape(next.shape == ControlCenterLayoutPlan.Shape.CIRCLE
+                 ? GradientDrawable.OVAL : GradientDrawable.RECTANGLE);
+@@ -269,7 +279,7 @@ final class ControlCenterCardView extends FrameLayout {
+         }
+ 
+         void applySurface(ControlCenterSurface surface, boolean active) {
+-            int color = active ? 0xff3482f6 : surface.neutralForeground();
++            int color = active ? 0xff3482f6 : surface.resolve(getContext()).neutralForeground();
+             setTextColor(color);
+             setTextSize(24f * Math.max(70, Math.min(130, scale)) / 100f);
+         }
+@@ -390,7 +400,7 @@ final class ControlCenterCardView extends FrameLayout {
+         }
+ 
+         void applySurface(ControlCenterSurface style) {
+-            boolean light = style.neutralForeground() == 0xff202124;
++            boolean light = style.resolve(getContext()).neutralForeground() == 0xff202124;
+             play.setTint(light ? 0xff202124 : ACTIVE_SURFACE);
+             previous.setTint(light ? 0xff777a80 : 0xff888b8f);
+             next.setTint(light ? 0xff777a80 : 0xff888b8f);
+@@ -450,7 +460,8 @@ final class ControlCenterCardView extends FrameLayout {
+         @Override protected void onDraw(Canvas canvas) {
+             super.onDraw(canvas);
+             if (displayTitle == null) return;
+-            paint.setColor(Color.rgb(235, 236, 238));
++            paint.setColor(containerSurface.resolve(getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS
++                    ? 0xff202124 : Color.rgb(235, 236, 238));
+             float start = (getWidth() - paint.measureText(displayTitle) - mark - gap) / 2f;
+             float cy = getHeight() / 2f;
+             canvas.drawText(displayTitle, start + mark + gap,
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java
+index b647f6f..dbd3be7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java
+@@ -58,6 +58,11 @@ final class ControlCenterConfig {
+     final boolean hideDate;
+     final boolean hideCarrier;
+ 
++    ControlCenterConfig resolveSurface(android.content.Context context) {
++        ControlCenterSurface resolved = surface.resolve(context);
++        return resolved == surface ? this : withSurface(resolved);
++    }
++
+     private ControlCenterConfig(boolean enabled, String order, String hidden, int columns,
+             int tileScale, int cornerRadius, int spacing, int style, String layout) {
+         this(enabled, order, hidden, columns, tileScale, cornerRadius, spacing, style, layout,
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupEntry.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupEntry.java
+index 4dc28c2..4079cf2 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupEntry.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGroupEntry.java
+@@ -1,6 +1,7 @@
+ package com.xtjm.fusionstatusbar;
+ 
+ import android.content.Context;
++import android.content.res.Configuration;
+ import android.graphics.Color;
+ import android.text.TextUtils;
+ import android.view.View;
+@@ -28,6 +29,7 @@ final class ControlCenterGroupEntry extends ViewGroup {
+     };
+     private ViewTreeObserver observer;
+     private int iconSize, baseIconSize, naturalSize, labelGap;
++    private ControlCenterSurface appearance = ControlCenterSurface.DEFAULT;
+ 
+     View iconView() { return icon; }
+ 
+@@ -70,10 +72,15 @@ final class ControlCenterGroupEntry extends ViewGroup {
+     }
+ 
+     void applySurface(ControlCenterSurface surface) {
+-        boolean light = surface != null && surface.neutralForeground() == 0xff202124;
++        appearance = surface == null ? ControlCenterSurface.DEFAULT : surface;
++        boolean light = appearance.resolve(getContext()).neutralForeground() == 0xff202124;
+         title.setTextColor(light ? 0xff202124 : Color.WHITE);
+         subtitle.setTextColor(light ? 0xff555b62 : 0xffafb0b4);
+     }
++    @Override protected void onConfigurationChanged(Configuration configuration) {
++        super.onConfigurationChanged(configuration);
++        applySurface(appearance);
++    }
+     private void refreshLabels() {
+         if (!showLabel) return;
+         String[] values = labels.get();
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterialSession.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterialSession.java
+index dbec178..57b9c84 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterialSession.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterialSession.java
+@@ -32,7 +32,8 @@ final class ControlCenterMaterialSession {
+             view.setBackground(componentBackground);
+             if (nativeBackground != null) nativeBackground.setCallback(componentBackground);
+         }
+-        componentBackground.configure(item.shape, item.cornerRadius, false, config, true, false, config.cardBlur);
++        componentBackground.configure(item.shape, item.cornerRadius, false,
++                config.resolveSurface(view.getContext()), true, false, config.cardBlur);
+     }
+ 
+     void applyCardBackground(ControlCenterLayoutPlan.Item item) {
+@@ -123,7 +124,7 @@ final class ControlCenterMaterialSession {
+         if (ControlCenterMaterials.surface(config, ControlCenterNativeMode.isEditing(view))
+                 == ControlCenterSurface.DEFAULT) {
+             restoreComponentBackground();
+-        } else current.refresh(config);
++        } else current.refresh(config.resolveSurface(view.getContext()));
+     }
+ 
+     void release() {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+index d58dd76..7cffc94 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+@@ -44,6 +44,7 @@ final class ControlCenterMaterials {
+     private static final Map<View, NativeTileBackground> NATIVE_TILE_BACKGROUNDS = new WeakHashMap<>();
+     /** Only caches a layer derived from the view's own class; parent-derived layers stay dynamic. */
+     private static final Map<View, Layer> DIRECT_LAYERS = new WeakHashMap<>();
++    private static final Map<View, ThemeObserver> THEME_ROOTS = new WeakHashMap<>();
+     private static final ThreadLocal<Boolean> APPLYING = ThreadLocal.withInitial(() -> false);
+     private ControlCenterMaterials() { }
+ 
+@@ -75,7 +76,8 @@ final class ControlCenterMaterials {
+         return config.enabled && !editing ? config.surface : ControlCenterSurface.DEFAULT;
+     }
+     private static ControlCenterSurface nativeSurface(View view, ControlCenterConfig config, boolean editing) {
+-        return preservesNativeMaterial(view) ? ControlCenterSurface.DEFAULT : surface(config, editing);
++        return preservesNativeMaterial(view) ? ControlCenterSurface.DEFAULT
++                : surface(config, editing).resolve(view.getContext());
+     }
+     static Layer layer(View source) {
+         if (source == null) return Layer.NONE;
+@@ -417,7 +419,13 @@ final class ControlCenterMaterials {
+         if (operation.equals("setMiBackgroundBlendColors") && args[0] instanceof ArrayList<?> list) {
+             if (list.isEmpty()) return args;
+             ArrayList<Point> colors = new ArrayList<>();
+-            if (surface != ControlCenterSurface.DEFAULT) {
++            if (surface == ControlCenterSurface.HIGHLIGHT_GLASS && !activeTile(view)) {
++                // The daytime material uses a blend stack over the host's real blur.
++                // Keep the OEM request intact so changing style can replay it verbatim.
++                colors.add(new Point(0xe6747474, 15));
++                colors.add(new Point(0x99525252, 18));
++                colors.add(new Point(0x33d1d1d1, 3));
++            } else if (surface != ControlCenterSurface.DEFAULT) {
+                 colors.add(new Point(color(containerColor(view, surface), opacityPercent(surface, amount)), 3));
+             } else for (Object value : list) if (value instanceof Point point) {
+                 colors.add(new Point(color(point.x, amount), point.y));
+@@ -511,6 +519,16 @@ final class ControlCenterMaterials {
+     }
+ 
+     static void refresh(ControlCenterConfig config) {
++        for (ThemeObserver observer : new ArrayList<>(THEME_ROOTS.values())) observer.configure(config);
++        if (config.enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) {
++            // A material-only settings update can enable this style without rebinding the panel.
++            for (View view : new ArrayList<>(GLASS_VIEWS.keySet())) observeTheme(view, config);
++            for (View view : new ArrayList<>(NATIVE.keySet())) observeTheme(view, config);
++            for (Surface state : new ArrayList<>(SURFACES.values())) {
++                View view = state.owner.get();
++                if (view != null) observeTheme(view, config);
++            }
++        }
+         for (ControlCenterMaterialSession session : new ArrayList<>(MATERIAL_SESSIONS.values())) {
+             View view = session.owner();
+             if (view == null) continue;
+@@ -557,6 +575,7 @@ final class ControlCenterMaterials {
+     }
+ 
+     static void registerRoot(View view, ControlCenterConfig config) {
++        observeTheme(view, config);
+         if (TILE_SHAPES.containsKey(view) && !isGridDecorationManaged(view))
+             releaseGridSurface(view, config);
+         registerTree(view, config, 0, new int[] {0});
+@@ -566,6 +585,75 @@ final class ControlCenterMaterials {
+         }
+     }
+ 
++    private static void observeTheme(View view, ControlCenterConfig config) {
++        if (!config.enabled || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return;
++        View root = view.getRootView();
++        ThemeObserver observer = THEME_ROOTS.get(root);
++        if (observer == null) {
++            observer = new ThemeObserver(root);
++            THEME_ROOTS.put(root, observer);
++            observer.configure(config);
++        } else {
++            observer.config = config;
++        }
++    }
++
++    /** One cheap theme check per root; refresh only when its actual view configuration changes. */
++    private static final class ThemeObserver implements android.view.ViewTreeObserver.OnPreDrawListener,
++            View.OnAttachStateChangeListener {
++        private final WeakReference<View> owner;
++        private WeakReference<android.view.ViewTreeObserver> tree = new WeakReference<>(null);
++        private ControlCenterConfig config;
++        private ControlCenterSurface resolved;
++
++        ThemeObserver(View root) {
++            owner = new WeakReference<>(root);
++            root.addOnAttachStateChangeListener(this);
++            if (root.isAttachedToWindow()) onViewAttachedToWindow(root);
++        }
++
++        void configure(ControlCenterConfig next) {
++            config = next;
++            View root = owner.get();
++            if (root == null) return;
++            if (!next.enabled || next.surface != ControlCenterSurface.HIGHLIGHT_GLASS) {
++                dispose(root);
++                return;
++            }
++            resolved = next.surface.resolve(root.getContext());
++        }
++
++        @Override public boolean onPreDraw() {
++            View root = owner.get();
++            if (root == null || config == null) return true;
++            // A surface registered before attachment may now share a window with other surfaces.
++            if (root.getRootView() != root) {
++                dispose(root);
++                observeTheme(root, config);
++                return true;
++            }
++            if (resolved != config.surface.resolve(root.getContext())) refresh(config);
++            return true;
++        }
++
++        @Override public void onViewAttachedToWindow(View root) {
++            onViewDetachedFromWindow(root);
++            android.view.ViewTreeObserver observer = root.getViewTreeObserver();
++            tree = new WeakReference<>(observer);
++            observer.addOnPreDrawListener(this);
++        }
++        @Override public void onViewDetachedFromWindow(View root) {
++            android.view.ViewTreeObserver observer = tree.get();
++            if (observer != null && observer.isAlive()) observer.removeOnPreDrawListener(this);
++            tree.clear();
++        }
++        void dispose(View root) {
++            onViewDetachedFromWindow(root);
++            root.removeOnAttachStateChangeListener(this);
++            THEME_ROOTS.remove(root);
++        }
++    }
++
+     static void nativeTileUpdated(View iconContainer, ControlCenterConfig config) {
+         if (APPLYING.get()) return;
+         for (View current = iconContainer; current != null;
+@@ -582,7 +670,7 @@ final class ControlCenterMaterials {
+         if (isGridDecorationManaged(tile)) return;
+         View surfaceView = tileSurface(tile);
+         if (!(surfaceView instanceof android.widget.ImageView image)) return;
+-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile));
++        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile)).resolve(tile.getContext());
+         Drawable content = image.getDrawable();
+         if (content instanceof LayerDrawable layers && layers.getNumberOfLayers() > 1) {
+             int glyph = layers.getNumberOfLayers() - 1;
+@@ -671,7 +759,7 @@ final class ControlCenterMaterials {
+             Drawable current = layers.getDrawable(i);
+             TileSurfaceDrawable surface = current instanceof TileSurfaceDrawable wrapped
+                     ? wrapped : new TileSurfaceDrawable(current);
+-            changed |= surface.configure(shape, active, config, i == 0 && !externalSurface, externalSurface);
++            changed |= surface.configure(shape, active, config.resolveSurface(image.getContext()), i == 0 && !externalSurface, externalSurface);
+             if (surface != current) {
+                 layers.setDrawable(i, surface);
+                 // Replacing a drawable clears the outgoing child's callback.
+@@ -685,7 +773,7 @@ final class ControlCenterMaterials {
+ 
+     private static void syncIconBackground(View image, TileShape shape, boolean active,
+             ControlCenterConfig config, boolean externalSurface) {
+-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(image));
++        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(image)).resolve(image.getContext());
+         if (!externalSurface && !active && (style == ControlCenterSurface.DEFAULT || style == ControlCenterSurface.CLEAR)) {
+             restoreIconBackground(image);
+             return;
+@@ -697,13 +785,13 @@ final class ControlCenterMaterials {
+             image.setBackground(current);
+             if (current.nativeDrawable != null) current.nativeDrawable.setCallback(current);
+         }
+-        current.configure(shape, active, config, !externalSurface, externalSurface);
++        current.configure(shape, active, config.resolveSurface(image.getContext()), !externalSurface, externalSurface);
+     }
+ 
+     static void applyTileBacking(View backing, View tile, ControlCenterConfig config) {
+         if (!(backing.getBackground() instanceof GradientDrawable background)) return;
+         SURFACES.remove(background);
+-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile));
++        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile)).resolve(tile.getContext());
+         int fill = config.enabled && !ControlCenterNativeMode.isEditing(tile)
+                 ? color(style.stateColor(activeTile(tile)), opacityPercent(style, config.tileBlur)) : 0;
+         if (background.getColor() == null || background.getColor().getDefaultColor() != fill)
+@@ -976,22 +1064,55 @@ final class ControlCenterMaterials {
+     private static Object[] effectArguments(View view, String operation, Object[] args,
+             ControlCenterConfig config, boolean editing) {
+         boolean software = softwareSurface(view, config, editing);
++        if (operation.equals("setMixEffectEnabled") && args.length == 1
++                && daylightNativeGlass(view, config, editing)) return new Object[] {true};
++        if (operation.equals("setMiBloomStroke") && args.length == 1
++                && daylightNativeGlass(view, config, editing)) {
++            return new Object[] {ControlCenterNativeEffects.daylightBloom(
++                    view.getResources().getDisplayMetrics().density, percent(config, layer(view), editing))};
++        }
+         boolean decoration = config.enabled && !editing
+                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
+         return ControlCenterNativeEffects.arguments(operation, args, decoration, software);
+     }
+ 
++    private static boolean daylightNativeGlass(View view, ControlCenterConfig config, boolean editing) {
++        return config.enabled && !editing && !softwareSurface(view, config, editing)
++                && !insideBorderContainer(view) && !preservesNativeMaterial(view)
++                && config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
++    }
++
+     private static void syncNativeEffects(View view, NativeSurface state,
+             ControlCenterConfig config, boolean editing) {
+         boolean software = softwareSurface(view, config, editing);
+         boolean decoration = config.enabled && !editing
+                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
+-        int policy = (decoration ? 1 : 0) | (software ? 2 : 0);
+-        if (state.effectPolicy == policy) return;
++        boolean daylight = daylightNativeGlass(view, config, editing);
++        boolean addedBloom = false;
++        if (daylight && !state.bloomChecked) {
++            state.bloomChecked = true;
++            // Directly recognized views are tracked from construction, before attachment.
++            // For parent-derived layers, an unobserved earlier OEM bloom is not a safe zero baseline.
++            if (directLayer(view.getClass().getSimpleName()) != Layer.NONE
++                    && !state.requests.containsKey("setMiBloomStroke")) {
++                try {
++                    view.getClass().getMethod("setMiBloomStroke", float[].class);
++                    state.requests.put("setMiBloomStroke", new Object[] {new float[21]});
++                    addedBloom = true;
++                } catch (NoSuchMethodException | SecurityException ignored) { }
++            }
++        }
++        int policy = (decoration ? 1 : 0) | (software ? 2 : 0)
++                | (daylight ? 4 | (percent(config, layer(view), editing) << 8) : 0);
++        float density = view.getResources().getDisplayMetrics().density;
++        if (!addedBloom && state.effectPolicy == policy
++                && (!daylight || Float.compare(state.effectDensity, density) == 0)) return;
+         boolean wasSoftware = state.effectPolicy >= 0 && (state.effectPolicy & 2) != 0;
++        boolean wasDaylight = state.effectPolicy >= 0 && (state.effectPolicy & 4) != 0;
+         for (Map.Entry<String, Object[]> entry : state.requests.entrySet()) {
+             String operation = entry.getKey();
+             if (!ControlCenterNativeEffects.decoration(operation)
++                    && !((daylight || wasDaylight) && operation.equals("setMixEffectEnabled"))
+                     && !((software || wasSoftware) && ControlCenterNativeEffects.composition(operation))) continue;
+             if (software && operation.equals("setMiBackgroundBlendColors")) {
+                 clearNativeBlend(view);
+@@ -1007,6 +1128,7 @@ final class ControlCenterMaterials {
+             }
+         }
+         state.effectPolicy = policy;
++        state.effectDensity = density;
+     }
+     private static boolean borderContainer(View view, String id, String name) {
+         return panelContainer(view, name) || name.contains("QSTileItemView")
+@@ -1133,7 +1255,7 @@ final class ControlCenterMaterials {
+                 && config.enabled && config.borderEnabled
+                 && !ControlCenterNativeMode.isEditing(view);
+         ControlCenterGlobalBorder.apply(decorationTarget(view), active, config.borderWidthDp,
+-                config.surface.neutralForeground() == 0xff202124);
++                config.surface.resolve(view.getContext()).neutralForeground() == 0xff202124);
+     }
+ 
+     static void applySoftGlass(View view, ControlCenterConfig config, Layer layer) {
+@@ -1144,7 +1266,7 @@ final class ControlCenterMaterials {
+         }
+         GLASS_VIEWS.put(view, layer);
+         int strength = percent(config, layer, ControlCenterNativeMode.isEditing(view));
+-        ControlCenterSoftGlass.apply(decorationTarget(view), config.enabled && config.surface.hasSoftGlassReflection()
++        ControlCenterSoftGlass.apply(decorationTarget(view), config.surface, config.enabled && config.surface.hasSoftGlassReflection()
+                 && !ControlCenterNativeMode.isEditing(view) && !insideBorderContainer(view), strength);
+     }
+     static int textColor(TextView text, int requested, ControlCenterConfig config) {
+@@ -1160,11 +1282,11 @@ final class ControlCenterMaterials {
+     }
+ 
+     private static int containerColor(View view, ControlCenterSurface style) {
+-        return style.stateColor(activeTile(view));
++        return style.resolve(view == null ? null : view.getContext()).stateColor(activeTile(view));
+     }
+ 
+     private static ControlCenterSurface textSurface(View view, ControlCenterConfig config) {
+-        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(view));
++        ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(view)).resolve(view.getContext());
+         return style != ControlCenterSurface.DEFAULT && style != ControlCenterSurface.CLEAR && activeTile(view)
+                 ? ControlCenterSurface.LIGHT : style;
+     }
+@@ -1222,6 +1344,11 @@ final class ControlCenterMaterials {
+         try { return action.run(); } finally { APPLYING.set(was); }
+     }
+     static void clearForTest() {
++        for (ThemeObserver observer : new ArrayList<>(THEME_ROOTS.values())) {
++            View root = observer.owner.get();
++            if (root != null) observer.dispose(root);
++        }
++        THEME_ROOTS.clear();
+         for (View view : new ArrayList<>(GLASS_VIEWS.keySet())) {
+             removeDecorations(view);
+         }
+@@ -1514,6 +1641,8 @@ final class ControlCenterMaterials {
+         }
+     }
+     private static final class NativeSurface {
++        boolean bloomChecked;
++        float effectDensity = Float.NaN;
+         final Map<String, Object[]> requests = new java.util.LinkedHashMap<>();
+         int mode, radius;
+         boolean overridden, failureLogged, ownedContainer, syntheticTint, blendAdjusted;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java
+index 61931f4..020684b 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java
+@@ -18,6 +18,14 @@ final class ControlCenterNativeEffects {
+ 
+     private ControlCenterNativeEffects() { }
+ 
++    /** Static two-light bloom for OEM RenderNodes which expose the 21-float API. */
++    static float[] daylightBloom(float density, int strength) {
++        float opacity = Math.max(0, Math.min(100, strength)) / 100f;
++        return new float[] {0.8f * density, 180f, 1f, 1f, 1f, 0.05f * opacity,
++                2.6f * density, .5f, .5f, -.5f, 1f, 1f, 1f, .6f * opacity,
++                .5f, .95f, -.5f, 1f, 1f, 1f, .35f * opacity};
++    }
++
+     static boolean decoration(String operation) {
+         return operation.equals("setMiBloomStroke") || operation.equals("setMiShadow");
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index 287079f..e32eeca 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -1378,6 +1378,8 @@ final class ControlCenterRuntimeGrid {
+ 
+         @Override protected void onConfigurationChanged(Configuration configuration) {
+             super.onConfigurationChanged(configuration);
++            if (materialsReleased) return;
++            updateDecorations(materialSettings);
+             markAllMaterialsDirty();
+             scheduleMaterialProbes();
+             invalidate();
+@@ -1469,11 +1471,11 @@ final class ControlCenterRuntimeGrid {
+                 int strength = ControlCenterMaterials.percent(settings,
+                         card ? ControlCenterMaterials.Layer.CARD
+                                 : ControlCenterMaterials.Layer.TILE, editing);
+-                ControlCenterSoftGlass.apply(overlay, settings.enabled && !editing
++                ControlCenterSoftGlass.apply(overlay, settings.surface, settings.enabled && !editing
+                         && settings.surface.hasSoftGlassReflection(), strength);
+                 ControlCenterGlobalBorder.apply(overlay, settings.enabled && !editing
+                         && settings.borderEnabled, settings.borderWidthDp,
+-                        settings.surface.neutralForeground() == 0xff202124);
++                        settings.surface.resolve(overlay.getContext()).neutralForeground() == 0xff202124);
+             }
+             if (contentScaleChanged) requestLayout();
+         }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+index b34bb3f..a3d850d 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+@@ -19,6 +19,10 @@ final class ControlCenterSoftGlass {
+     private ControlCenterSoftGlass() { }
+ 
+     static void apply(View view, boolean enabled, int strength) {
++        apply(view, ControlCenterSurface.SOFT_GLASS, enabled, strength);
++    }
++
++    static void apply(View view, ControlCenterSurface surface, boolean enabled, int strength) {
+         if (view == null) return;
+         State state = current(view);
+         if (!enabled || strength <= 0) {
+@@ -35,7 +39,7 @@ final class ControlCenterSoftGlass {
+             view.addOnLayoutChangeListener(state);
+             view.getOverlay().add(state.drawable);
+         }
+-        state.drawable.configure(view, strength);
++        state.drawable.configure(view, strength, surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS);
+     }
+ 
+     private static State current(View view) {
+@@ -62,6 +66,7 @@ final class ControlCenterSoftGlass {
+         private int width = -1, height = -1, strength = -1;
+         private int shaderStrength = -1;
+         private float shaderDensity = Float.NaN;
++        private boolean daylight, shaderDaylight;
+ 
+         GlassDrawable(View view) {
+             owner = new WeakReference<>(view);
+@@ -69,8 +74,9 @@ final class ControlCenterSoftGlass {
+             inner.setStyle(Paint.Style.STROKE);
+         }
+ 
+-        void configure(View view, int value) {
++        void configure(View view, int value, boolean daylight) {
+             strength = Math.max(0, Math.min(100, value));
++            this.daylight = daylight;
+             updateBounds(view);
+         }
+ 
+@@ -78,12 +84,14 @@ final class ControlCenterSoftGlass {
+             int nextWidth = view.getWidth(), nextHeight = view.getHeight();
+             float nextDensity = view.getResources().getDisplayMetrics().density;
+             if (nextWidth == width && nextHeight == height && strength == shaderStrength
++                    && daylight == shaderDaylight
+                     && Float.compare(nextDensity, shaderDensity) == 0
+                     && (nextWidth <= 0 || nextHeight <= 0 || rim.getShader() != null)) return;
+             width = nextWidth;
+             height = nextHeight;
+             shaderStrength = strength;
+             shaderDensity = nextDensity;
++            shaderDaylight = daylight;
+             setBounds(0, 0, nextWidth, nextHeight);
+             updateShaders(view);
+             invalidateSelf();
+@@ -95,10 +103,13 @@ final class ControlCenterSoftGlass {
+             float factor = strength / 100f;
+             rim.setStrokeWidth(Math.max(1f, density * 1.2f));
+             rim.setShader(new LinearGradient(0, 0, width * 0.18f, height,
+-                    new int[] {alpha(0xf0, factor), alpha(0x50, factor), alpha(0x82, factor)},
++                    daylight
++                            ? new int[] {alpha(0xff, factor), alpha(0x24, factor), alpha(0xb0, factor)}
++                            : new int[] {alpha(0xf0, factor), alpha(0x50, factor), alpha(0x82, factor)},
+                     new float[] {0f, 0.56f, 1f}, Shader.TileMode.CLAMP));
+             inner.setStrokeWidth(Math.max(0.5f, density * 0.7f));
+-            inner.setColor(alpha(0x3a, factor));
++            // A restrained dark edge keeps the glass silhouette visible over a bright wallpaper.
++            inner.setColor(daylight ? (Math.round(0x38 * factor) << 24) | 0x00384250 : alpha(0x3a, factor));
+         }
+ 
+         private int alpha(int value, float factor) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java
+index 6c3ddca..6115b7c 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java
+@@ -1,12 +1,16 @@
+ package com.xtjm.fusionstatusbar;
+ 
++import android.content.Context;
++import android.content.res.Configuration;
++
+ /** Container tint shared by the editor and native material hooks. */
+ enum ControlCenterSurface {
+     DEFAULT("原有背景", 0), CLEAR("透明", 0x00000000),
+     FROSTED("雾面", 0x408c8c92), DARK("深色", 0xc8232529),
+     GLASS("晶透", 0x26ffffff), LIGHT("浅色", 0xe6f0f2f5),
+     GRAPHITE("石墨", 0xe6191b1f), ICE("冰蓝", 0x704e8eae),
+-    MINT("薄荷", 0x70609680), SOFT_GLASS("柔光玻璃", 0xc03c4149);
++    MINT("薄荷", 0x70609680), SOFT_GLASS("柔光玻璃", 0xc03c4149),
++    HIGHLIGHT_GLASS("高光玻璃（随系统）", 0xb8e8edf2);
+ 
+     final String label;
+     final int color;
+@@ -24,7 +28,15 @@ enum ControlCenterSurface {
+ 
+     boolean allowsContainerBlur() { return this != CLEAR; }
+ 
+-    boolean hasSoftGlassReflection() { return this == SOFT_GLASS; }
++    boolean hasSoftGlassReflection() { return this == SOFT_GLASS || this == HIGHLIGHT_GLASS; }
++
++    /** Resolve at the consuming view, keeping the saved choice independent of uiMode. */
++    ControlCenterSurface resolve(Context context) {
++        if (this == HIGHLIGHT_GLASS && context != null
++                && (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
++                        == Configuration.UI_MODE_NIGHT_YES) return SOFT_GLASS;
++        return this;
++    }
+ 
+     int stateColor(boolean active) {
+         if (this == CLEAR) return color;
+@@ -32,7 +44,7 @@ enum ControlCenterSurface {
+         return this == DEFAULT ? ControlCenterCardView.INACTIVE_SURFACE : color;
+     }
+ 
+-    int neutralForeground() { return this == LIGHT ? 0xff202124 : 0xffffffff; }
++    int neutralForeground() { return this == LIGHT || this == HIGHLIGHT_GLASS ? 0xff202124 : 0xffffffff; }
+ 
+     @Override public String toString() { return label; }
+ }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconPlacement.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconPlacement.java
+index a8b1984..ceb9fb8 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconPlacement.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconPlacement.java
+@@ -1,10 +1,35 @@
+ package com.xtjm.fusionstatusbar;
+ 
++import android.view.View;
++import android.view.ViewParent;
++
+ /** Shared icon sizing for the preview and SystemUI. */
+ final class FusionIconPlacement {
++    static final int CONTROL_CENTER_ICON_SCALE = 80;
++    private static final String CONTROL_CENTER_STATUS_BAR_ICON_CLASS =
++            "com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon";
++    private static final String CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS =
++            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons";
++
+     private FusionIconPlacement() {
+     }
+ 
++    static int iconScalePercent(int statusBarScale, boolean controlCenterHost) {
++        return controlCenterHost ? CONTROL_CENTER_ICON_SCALE : statusBarScale;
++    }
++
++    static boolean isControlCenterHosted(View view) {
++        for (ViewParent parent = view == null ? null : view.getParent();
++                parent instanceof View ancestor; parent = ancestor.getParent()) {
++            String className = ancestor.getClass().getName();
++            if (CONTROL_CENTER_STATUS_BAR_ICON_CLASS.equals(className)
++                    || CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(className)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
+     static int iconHeight(int availableHeight, int scalePercent) {
+         return Math.min(availableHeight, Math.max(1,
+                 Math.round(availableHeight * (2f / 3f) * scalePercent / 100f)));
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
+index 4df3503..0dd4663 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/FusionIconView.java
+@@ -202,25 +202,36 @@ public class FusionIconView extends View {
+             return;
+         }
+         boolean spanRows = displayConfig.doubleRow && displayConfig.spanRows;
++        boolean controlCenterHost = isControlCenterHosted();
+         int availableHeight = spanRows ? dp(displayConfig.statusBarHeight)
+                 : displayConfig.doubleRow ? Math.max(1, dp(displayConfig.statusBarHeight) / 2)
+                 : Math.min(dp(40), dp(displayConfig.statusBarHeight));
+         int mode = MeasureSpec.getMode(heightMeasureSpec);
+         int size = MeasureSpec.getSize(heightMeasureSpec);
+-        if (!spanRows && mode != MeasureSpec.UNSPECIFIED && size > 0) {
++        boolean constrainToHost = !spanRows || controlCenterHost;
++        if (constrainToHost && mode != MeasureSpec.UNSPECIFIED && size > 0) {
+             availableHeight = Math.min(availableHeight, size);
+         }
+-        int height = FusionIconPlacement.iconHeight(availableHeight, displayConfig.iconScale);
++        int widthMode = MeasureSpec.getMode(widthMeasureSpec);
++        int widthSize = MeasureSpec.getSize(widthMeasureSpec);
++        if (constrainToHost && widthMode == MeasureSpec.AT_MOST && widthSize > 0) {
++            int heightForWidth = Math.round(widthSize * DESIGN_H / DESIGN_W);
++            availableHeight = Math.min(availableHeight, heightForWidth);
++        }
++        int iconScale = FusionIconPlacement.iconScalePercent(
++                displayConfig.iconScale, controlCenterHost);
++        int height = FusionIconPlacement.iconHeight(availableHeight, iconScale);
+         int width = Math.round(height * DESIGN_W / DESIGN_H);
+-        if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY) {
+-            int exact = MeasureSpec.getSize(widthMeasureSpec);
+-            if (exact > 0) {
+-                width = exact;
+-            }
++        if (widthMode == MeasureSpec.EXACTLY && widthSize > 0) {
++            width = widthSize;
+         }
+         setMeasuredDimension(Math.max(1, width), Math.max(1, height));
+     }
+ 
++    private boolean isControlCenterHosted() {
++        return FusionIconPlacement.isControlCenterHosted(this);
++    }
++
+     @Override
+     protected void onDraw(Canvas canvas) {
+         super.onDraw(canvas);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuSideSlider.java b/app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuSideSlider.java
+index 651a53c..1636b68 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuSideSlider.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/PowerMenuSideSlider.java
+@@ -2,6 +2,7 @@ package com.xtjm.fusionstatusbar;
+ 
+ import android.content.Context;
+ import android.content.pm.PackageManager;
++import android.content.res.Configuration;
+ import android.graphics.Color;
+ import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.GradientDrawable;
+@@ -38,6 +39,7 @@ final class PowerMenuSideSlider extends FrameLayout {
+     private float startY, travel, dragOffset;
+     private int thumbSize, iconSize;
+     private float contentScale = 1f;
++    private ControlCenterConfig appearance = ControlCenterConfig.defaults();
+ 
+     PowerMenuSideSlider(Context context, String topLabel, int topDrawableResource,
+             String bottomLabel, int bottomDrawableResource, IntConsumer action) {
+@@ -69,10 +71,12 @@ final class PowerMenuSideSlider extends FrameLayout {
+     }
+ 
+     void applyAppearance(ControlCenterConfig config) {
++        appearance = config;
+         contentScale = config.tileScale / 100f;
+         SystemSurfaceStyle.applyTrack(track, config, true);
+-        int foreground = config.surface == ControlCenterSurface.DEFAULT
+-                ? Color.WHITE : config.surface.neutralForeground();
++        ControlCenterSurface surface = config.surface.resolve(getContext());
++        int foreground = surface == ControlCenterSurface.DEFAULT
++                ? Color.WHITE : surface.neutralForeground();
+         topIcon.setImageTintList(android.content.res.ColorStateList.valueOf(foreground));
+         bottomIcon.setImageTintList(android.content.res.ColorStateList.valueOf(foreground));
+         for (TextView label : new TextView[] {topLabel, bottomLabel}) {
+@@ -83,6 +87,11 @@ final class PowerMenuSideSlider extends FrameLayout {
+         requestLayout();
+     }
+ 
++    @Override protected void onConfigurationChanged(Configuration configuration) {
++        super.onConfigurationChanged(configuration);
++        applyAppearance(appearance);
++    }
++
+     void setActionEnabled(boolean top, boolean bottom) {
+         if (topEnabled == top && bottomEnabled == bottom) return;
+         topEnabled = top;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
+index cb99a6c..8e71f62 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
+@@ -13,6 +13,7 @@ import android.graphics.drawable.Drawable;
+ import android.util.TypedValue;
+ import android.view.View;
+ import android.view.ViewGroup;
++import android.view.ViewTreeObserver;
+ import android.view.Window;
+ import android.view.WindowManager;
+ import android.widget.TextView;
+@@ -29,6 +30,7 @@ final class SystemSurfaceStyle {
+     private static final Map<TextView, TextState> TEXT = new WeakHashMap<>();
+     private static final Map<Window, WindowState> WINDOWS = new WeakHashMap<>();
+     private static final Map<View, BackdropState> BACKDROPS = new WeakHashMap<>();
++    private static final Map<View, ThemeState> THEMES = new WeakHashMap<>();
+     private static final ThreadLocal<Boolean> APPLYING = ThreadLocal.withInitial(() -> false);
+ 
+     private SystemSurfaceStyle() { }
+@@ -51,13 +53,18 @@ final class SystemSurfaceStyle {
+         state.track = track;
+         SurfaceDrawable drawable = state.drawable();
+         drawable.configure(state.background == null ? nativeBackground(view) : state.background,
+-                config, strength(state), view.getResources().getDisplayMetrics().density);
++                config, strength(state), view);
+         if (view.getBackground() != drawable) {
+             int left = view.getPaddingLeft(), top = view.getPaddingTop();
+             int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
+             view.setBackground(drawable);
+             view.setPadding(left, top, right, bottom);
+         }
++        ControlCenterSoftGlass.apply(view, config.surface,
++                config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS,
++                strength(state));
++        if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) watchTheme(view);
++        else releaseTheme(view);
+         updateNative(view, state);
+         view.invalidate();
+     }
+@@ -76,6 +83,8 @@ final class SystemSurfaceStyle {
+         if (view == null) return;
+         State state = SURFACES.remove(view);
+         if (state == null) return;
++        ControlCenterSoftGlass.apply(view, false, 0);
++        releaseTheme(view);
+         int left = view.getPaddingLeft(), top = view.getPaddingTop();
+         int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
+         view.setBackground(state.background);
+@@ -88,6 +97,14 @@ final class SystemSurfaceStyle {
+     }
+ 
+     static void applyContent(View root, ControlCenterConfig config, boolean enabled) {
++        if (root == null) return;
++        if (enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS)
++            watchTheme(root).contentConfig = config;
++        else {
++            ThemeState theme = THEMES.get(root);
++            if (theme != null) theme.contentConfig = null;
++            releaseTheme(root);
++        }
+         content(root, config, enabled, 0, new int[1]);
+     }
+ 
+@@ -102,8 +119,9 @@ final class SystemSurfaceStyle {
+                     TEXT.put(text, state);
+                 }
+                 text.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.size * config.tileScale / 100f);
+-                text.setTextColor(config.surface == ControlCenterSurface.DEFAULT
+-                        ? state.colors : ColorStateList.valueOf(config.surface.neutralForeground()));
++                ControlCenterSurface surface = config.surface.resolve(text.getContext());
++                text.setTextColor(surface == ControlCenterSurface.DEFAULT
++                        ? state.colors : ColorStateList.valueOf(surface.neutralForeground()));
+             } else if (state != null) {
+                 text.setTextSize(TypedValue.COMPLEX_UNIT_PX, state.size);
+                 text.setTextColor(state.colors);
+@@ -259,6 +277,73 @@ final class SystemSurfaceStyle {
+         try { action.run(); } finally { APPLYING.set(was); }
+     }
+ 
++    private static ThemeState watchTheme(View view) {
++        ThemeState theme = THEMES.get(view);
++        if (theme == null) {
++            theme = new ThemeState(view);
++            THEMES.put(view, theme);
++            view.addOnAttachStateChangeListener(theme);
++            theme.observe(view);
++        }
++        return theme;
++    }
++
++    private static void releaseTheme(View view) {
++        ThemeState theme = THEMES.get(view);
++        State surface = SURFACES.get(view);
++        if (theme == null || surface != null && surface.config.surface == ControlCenterSurface.HIGHLIGHT_GLASS
++                || theme.contentConfig != null) return;
++        theme.stopObserving();
++        view.removeOnAttachStateChangeListener(theme);
++        THEMES.remove(view);
++    }
++
++    /** OEM notification/menu views survive theme changes without rebinding their content. */
++    private static final class ThemeState implements View.OnAttachStateChangeListener,
++            ViewTreeObserver.OnPreDrawListener {
++        final WeakReference<View> owner;
++        ControlCenterConfig contentConfig;
++        WeakReference<ViewTreeObserver> observer = new WeakReference<>(null);
++        int nightMode, densityDpi;
++
++        ThemeState(View view) {
++            owner = new WeakReference<>(view);
++            nightMode = view.getResources().getConfiguration().uiMode
++                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
++            densityDpi = view.getResources().getConfiguration().densityDpi;
++        }
++
++        void observe(View view) {
++            stopObserving();
++            ViewTreeObserver current = view.getViewTreeObserver();
++            observer = new WeakReference<>(current);
++            current.addOnPreDrawListener(this);
++        }
++
++        void stopObserving() {
++            ViewTreeObserver current = observer.get();
++            if (current != null && current.isAlive()) current.removeOnPreDrawListener(this);
++            observer.clear();
++        }
++
++        @Override public boolean onPreDraw() {
++            View view = owner.get();
++            if (view == null) { stopObserving(); return true; }
++            android.content.res.Configuration configuration = view.getResources().getConfiguration();
++            int nextMode = configuration.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
++            if (nightMode == nextMode && densityDpi == configuration.densityDpi) return true;
++            nightMode = nextMode;
++            densityDpi = configuration.densityDpi;
++            State state = SURFACES.get(view);
++            if (state != null) apply(view, state.config, true, state.track);
++            if (contentConfig != null) content(view, contentConfig, true, 0, new int[1]);
++            return true;
++        }
++
++        @Override public void onViewAttachedToWindow(View view) { observe(view); onPreDraw(); }
++        @Override public void onViewDetachedFromWindow(View view) { stopObserving(); }
++    }
++
+     private static final class State {
+         Drawable background;
+         WeakReference<SurfaceDrawable> material = new WeakReference<>(null);
+@@ -309,15 +394,17 @@ final class SystemSurfaceStyle {
+         private final Rect originalBounds = new Rect();
+         private Drawable original;
+         private ControlCenterConfig config;
++        private WeakReference<View> owner = new WeakReference<>(null);
+         private float density;
+         private int strength, alpha = 255;
+         private ColorFilter colorFilter;
+ 
+-        void configure(Drawable original, ControlCenterConfig config, int strength, float density) {
++        void configure(Drawable original, ControlCenterConfig config, int strength, View view) {
+             this.original = original;
+             this.config = config;
+             this.strength = strength;
+-            this.density = density;
++            this.owner = new WeakReference<>(view);
++            this.density = view.getResources().getDisplayMetrics().density;
+             invalidateSelf();
+         }
+ 
+@@ -326,6 +413,8 @@ final class SystemSurfaceStyle {
+         @Override public void draw(Canvas canvas) {
+             bounds.set(getBounds());
+             if (bounds.isEmpty()) return;
++            View view = owner.get();
++            ControlCenterSurface surface = view == null ? config.surface : config.surface.resolve(view.getContext());
+             float radius = Math.min(config.cornerRadius * density, Math.min(bounds.width(), bounds.height()) / 2f);
+             float opacity = alpha / 255f * strength / 100f;
+             path.reset();
+@@ -341,7 +430,7 @@ final class SystemSurfaceStyle {
+                 original.setAlpha(previousAlpha);
+                 original.setBounds(originalBounds);
+             } else {
+-                int color = config.surface == ControlCenterSurface.DEFAULT ? 0x663c4149 : config.surface.color;
++                int color = surface == ControlCenterSurface.DEFAULT ? 0x663c4149 : surface.color;
+                 paint.setStyle(Paint.Style.FILL);
+                 paint.setColor(ControlCenterMaterials.color(color, Math.round(opacity * 100)));
+                 paint.setColorFilter(colorFilter);
+@@ -353,12 +442,12 @@ final class SystemSurfaceStyle {
+                 bounds.inset(stroke / 2f, stroke / 2f);
+                 paint.setStyle(Paint.Style.STROKE);
+                 paint.setStrokeWidth(stroke);
+-                paint.setColor(ControlCenterMaterials.color(config.surface == ControlCenterSurface.LIGHT
++                paint.setColor(ControlCenterMaterials.color(surface.neutralForeground() == 0xff202124
+                         ? 0x66000000 : 0x80ffffff, Math.round(alpha / 255f * 100)));
+                 canvas.drawRoundRect(bounds, Math.max(0, radius - stroke / 2f),
+                         Math.max(0, radius - stroke / 2f), paint);
+             }
+-            if (config.surface.hasSoftGlassReflection()) {
++            if (surface == ControlCenterSurface.SOFT_GLASS) {
+                 bounds.set(getBounds());
+                 bounds.inset(density / 2f, density / 2f);
+                 paint.setStyle(Paint.Style.STROKE);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index b938d8c..15eab34 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -48,6 +48,8 @@ public final class SystemUiHooks {
+     private static final String PHONE_STATUS_BAR_CLASS = StatusBarHookInstaller.PHONE_CLASS;
+     private static final String PHONE_STATUS_BAR_BASE_CLASS = StatusBarHookInstaller.PHONE_BASE_CLASS;
+     private static final String KEYGUARD_STATUS_BAR_CLASS = StatusBarHookInstaller.KEYGUARD_CLASS;
++    private static final String CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS =
++            "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons";
+     private static final String CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock";
+     private static final String NOTIFICATION_HEADER_CLASS = NotificationHookInstaller.HEADER_CLASS;
+     private static final String NOTIFICATION_EXPAND_CLASS = NotificationHookInstaller.EXPAND_CLASS;
+@@ -192,6 +194,11 @@ public final class SystemUiHooks {
+         }
+         StatusBarHookInstaller statusBarInstaller = statusBarHookInstaller();
+         StatusBarHookInstaller.Targets statusBarTargets = statusBarInstaller.resolve(classLoader);
++        ShadeSwitchAnimationHooks.Result shadeSwitchAnimation = ShadeSwitchAnimationHooks.install(
++                classLoader, SystemUiHooks::findClassQuiet,
++                (id, method, hooker) -> hookMethod(id, method, hooker));
++        log(Log.INFO, "shade switch animation hooks=" + shadeSwitchAnimation.installed
++                + " unavailable=" + shadeSwitchAnimation.unavailable, null);
+         hookPluginClassLoaderFactory();
+         int controlCenterHooks = hookControlCenterTiles();
+         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
+@@ -2810,6 +2817,7 @@ public final class SystemUiHooks {
+         int containerLeft = CONTAINER_LOCATION[0] + container.getPaddingLeft();
+         int containerRight = CONTAINER_LOCATION[0] + container.getWidth()
+                 - container.getPaddingRight();
++        int requiredWidth = width + fusionIcon.getWidth() + gap;
+         int desiredLeft;
+         if (currentPlan.systemSide == currentPlan.fusionSide) {
+             desiredLeft = currentPlan.fusionSide == FusionConfig.SIDE_RIGHT
+@@ -2829,7 +2837,9 @@ public final class SystemUiHooks {
+             log(Log.INFO, "native status icons aligned: iconLeft=" + iconLeft
+                     + " iconRight=" + iconRight + " statusLeft=" + STATUS_LOCATION[0]
+                     + " targetLeft=" + desiredLeft + " shift=" + shift
+-                    + " gap=" + gap + " side=" + currentPlan.systemSide
++                    + " gap=" + gap + " availableWidth=" + (containerRight - containerLeft)
++                    + " requiredWidth=" + requiredWidth + " fakeControlCenter="
++                    + isControlCenterFakeBatteryArea(container) + " side=" + currentPlan.systemSide
+                     + " parent=" + statusIcons.getParent().getClass().getName(), null);
+         }
+     }
+@@ -3544,7 +3554,19 @@ public final class SystemUiHooks {
+     }
+ 
+     private static boolean isStatusBatteryContainer(ViewGroup container) {
+-        return isViewNamed(container, "system_icons");
++        return isViewNamed(container, "system_icons")
++                || isControlCenterFakeBatteryArea(container);
++    }
++
++    private static boolean isControlCenterFakeBatteryArea(View view) {
++        if (!isViewNamed(view, "system_icon_area")) return false;
++        for (ViewParent parent = view.getParent(); parent instanceof View ancestor;
++                parent = ancestor.getParent()) {
++            if (CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(ancestor.getClass().getName())) {
++                return true;
++            }
++        }
++        return false;
+     }
+ 
+     private static boolean isStatusIconContainer(ViewGroup container) {
+@@ -3559,6 +3581,9 @@ public final class SystemUiHooks {
+             if (KEYGUARD_STATUS_BAR_CLASS.equals(view.getClass().getName())) {
+                 return true;
+             }
++            if (CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(view.getClass().getName())) {
++                return true;
++            }
+             parent = view.getParent();
+         }
+         return false;
+@@ -3982,7 +4007,9 @@ public final class SystemUiHooks {
+                 if (BATTERY_READY.get()) {
+                     hideBatteryChildren(battery);
+                 }
+-                expandBatteryContainer(battery);
++                if (!FusionIconPlacement.isControlCenterHosted(battery)) {
++                    expandBatteryContainer(battery);
++                }
+             }
+         } catch (Throwable error) {
+             log(Log.ERROR, "battery measure hook failed", error);
+@@ -4177,7 +4204,9 @@ public final class SystemUiHooks {
+         int contentHeight = Math.max(0, battery.getHeight() - battery.getPaddingTop() - battery.getPaddingBottom());
+         int left = battery.getPaddingLeft() + Math.max(0, (contentWidth - width) / 2);
+         int top = battery.getPaddingTop() + Math.max(0, (contentHeight - height) / 2);
+-        if (currentPlan.spanFusion) {
++        boolean statusBarSpan = currentPlan.spanFusion
++                && !FusionIconPlacement.isControlCenterHosted(battery);
++        if (statusBarSpan) {
+             top = Math.max(0,
+                     (dp(battery, currentConfig.statusBarHeight) - height) / 2
+                             - battery.getTop());
+@@ -4185,7 +4214,7 @@ public final class SystemUiHooks {
+         icon.layout(left, top, left + width, top + height);
+         int offsetX = 0;
+         int offsetY = 0;
+-        if (currentPlan.spanFusion) {
++        if (statusBarSpan) {
+             offsetX = dp(battery, currentConfig.spanOffsetX);
+             offsetY = dp(battery, currentConfig.spanOffsetY);
+         }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java
+index e46f825..9ad1d02 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java
+@@ -19,6 +19,7 @@ public class ControlCenterAnimationHooksTest {
+     @Test public void queuedAnimationRetainsItsCopyAndNativeCompletionListener() throws Throwable {
+         Owner owner = new Owner();
+         NativeConfig original = owner.animConfig;
++        original.ease = new Ease(-2, 0.95, 0.45, 1.0);
+         Object listener = new Object();
+         original.listener = listener;
+         NativeConfig[] queued = new NativeConfig[1];
+@@ -30,8 +31,8 @@ public class ControlCenterAnimationHooksTest {
+         assertSame(original, owner.animConfig);
+         assertNotSame(original, queued[0]);
+         assertSame(listener, queued[0].listener);
+-        assertEquals(0.22, queued[0].ease.factors[1], 0.0001);
+-        assertEquals(0.35, original.ease.factors[1], 0.0001);
++        assertEquals(0.35, queued[0].ease.factors[1], 0.0001);
++        assertEquals(0.45, original.ease.factors[1], 0.0001);
+         assertEquals(original.ease.factors[0], queued[0].ease.factors[0], 0.000001);
+         assertEquals(original.ease.factors[2], queued[0].ease.factors[2], 0.000001);
+     }
+@@ -95,12 +96,12 @@ public class ControlCenterAnimationHooksTest {
+         assertEquals(1, calls.get());
+     }
+ 
+-    @Test public void defaultEaseIsCopiedWithoutChangingGlobalNativeDefault() throws Throwable {
++    @Test public void defaultEaseRemainsNativeWithoutChangingGlobalNativeDefault() throws Throwable {
+         Owner owner = new Owner();
+         owner.animConfig.ease = null;
+         NativeConfig original = owner.animConfig;
+         ControlCenterAnimationHooks.withFastConfig(owner, () -> {
+-            assertEquals(0.22, owner.animConfig.ease.factors[1], 0.0001);
++            assertNull(owner.animConfig.ease);
+             return null;
+         });
+         assertNull(original.ease);
+@@ -119,12 +120,12 @@ public class ControlCenterAnimationHooksTest {
+         assertEquals(2, result.installed);
+         assertTrue(result.unavailable.isEmpty());
+         Expansion expansion = new Expansion();
+-        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.22);
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
+         assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, false), 0.35);
+         expansion.this$0.mirror = true;
+         assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
+         Blur blur = new Blur();
+-        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.22);
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
+         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, true), 0.35);
+         assertPeriod(registry, blur, "showBlur", List.of(false, true, false, false), 0.35);
+         current[0] = current[0].withEnabled(false);
+@@ -135,6 +136,20 @@ public class ControlCenterAnimationHooksTest {
+         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
+     }
+ 
++    @Test public void customPanelExpansionKeepsTheNativeSpringResponse() throws Throwable {
++        Registry registry = new Registry();
++        ControlCenterAnimationHooks.install(getClass().getClassLoader(), (name, loader) -> switch (name) {
++            case ControlCenterAnimationHooks.EXPANSION_CLASS -> Expansion.class;
++            case ControlCenterAnimationHooks.BLUR_CLASS -> Blur.class;
++            default -> null;
++        }, registry, ControlCenterAnimationHooksTest::customSettings);
++
++        Expansion expansion = new Expansion();
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
++        Blur blur = new Blur();
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
++    }
++
+     @Test public void unavailableOemMethodDoesNotPreventOtherLocalHook() {
+         Registry registry = new Registry();
+         ControlCenterAnimationHooks.Result result = ControlCenterAnimationHooks.install(
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconPlacementTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconPlacementTest.java
+index 2ebaa71..78f3009 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconPlacementTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconPlacementTest.java
+@@ -5,6 +5,16 @@ import org.junit.Test;
+ import static org.junit.Assert.assertEquals;
+ 
+ public class FusionIconPlacementTest {
++    @Test
++    public void controlCenterScaleDoesNotReadOrChangeTheStatusBarIconScale() {
++        assertEquals(50, FusionIconPlacement.iconScalePercent(50, false));
++        assertEquals(200, FusionIconPlacement.iconScalePercent(200, false));
++        assertEquals(FusionIconPlacement.CONTROL_CENTER_ICON_SCALE,
++                FusionIconPlacement.iconScalePercent(50, true));
++        assertEquals(FusionIconPlacement.CONTROL_CENTER_ICON_SCALE,
++                FusionIconPlacement.iconScalePercent(200, true));
++    }
++
+     @Test
+     public void sizeMatchesSpanPreviewAndSystemUi() {
+         assertEquals(32, FusionIconPlacement.iconHeight(48, 100));
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java
+index 7d216c4..76e9b1c 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionIconViewTest.java
+@@ -19,6 +19,41 @@ import static org.junit.Assert.*;
+ @Config(sdk = 34)
+ @GraphicsMode(GraphicsMode.Mode.NATIVE)
+ public class FusionIconViewTest {
++    @Test public void spanningStatusBarIconKeepsItsConfiguredSizeWhenHostMeasuresOneRow() {
++        FusionIconView icon = new FusionIconView(RuntimeEnvironment.getApplication());
++        icon.setDisplayConfig(FusionConfig.defaults().withDoubleRow(true).withSpanRows(true)
++                .withStatusBarHeight(48).withIconScale(150));
++
++        icon.measure(View.MeasureSpec.makeMeasureSpec(80, View.MeasureSpec.AT_MOST),
++                View.MeasureSpec.makeMeasureSpec(24, View.MeasureSpec.EXACTLY));
++
++        assertEquals("the status-bar size setting keeps control of the spanning icon",
++                48, icon.getMeasuredHeight());
++    }
++
++    @Test public void controlCenterIconFitsItsHostWithoutUsingTheStatusBarScale() {
++        android.content.Context context = RuntimeEnvironment.getApplication();
++        android.view.ViewGroup[] hosts = {
++                new com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon(context),
++                new com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons(context)
++        };
++        for (android.view.ViewGroup host : hosts) {
++            FusionIconView icon = new FusionIconView(context);
++            host.addView(icon);
++            icon.setDisplayConfig(FusionConfig.defaults().withDoubleRow(true).withSpanRows(true)
++                    .withStatusBarHeight(48).withIconScale(200));
++
++            icon.measure(View.MeasureSpec.makeMeasureSpec(80, View.MeasureSpec.AT_MOST),
++                    View.MeasureSpec.makeMeasureSpec(24, View.MeasureSpec.EXACTLY));
++
++            assertEquals("control-center artwork uses an independent fit scale in "
++                            + host.getClass().getSimpleName(),
++                    FusionIconPlacement.iconHeight(24,
++                            FusionIconPlacement.CONTROL_CENTER_ICON_SCALE),
++                    icon.getMeasuredHeight());
++        }
++    }
++
+     @Test public void allContentOrdersRenderAndProduceAVisualContactSheet() throws Exception {
+         int panelWidth = 320;
+         int panelHeight = 350;
+diff --git a/tools/measure-settings-flows.py b/tools/measure-settings-flows.py
+index 91d41c1..0ed0043 100644
+--- a/tools/measure-settings-flows.py
++++ b/tools/measure-settings-flows.py
+@@ -26,7 +26,7 @@ PACKAGE = "io.github.yudigaga.fusionstatusbar"
+ ACTIVITY_CLASS = "com.xtjm.fusionstatusbar.MainActivity"
+ ROOT = Path(__file__).resolve().parents[1]
+ BOUNDS = re.compile(r"^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$")
+-SURFACE_CHOICES = ("原有背景", "透明", "雾面", "深色", "晶透", "浅色", "石墨", "冰蓝", "薄荷", "柔光玻璃")
++SURFACE_CHOICES = ("原有背景", "透明", "雾面", "深色", "晶透", "浅色", "石墨", "冰蓝", "薄荷", "柔光玻璃", "高光玻璃（随系统）")
+ 
+ 
+ class HarnessError(RuntimeError):

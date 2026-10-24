@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "versionName": "0.5.9",
+  "versionCode": 223,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "apk": "fusion-statusbar-v0.5.9-release.apk",
+  "apkSizeBytes": 21513193,
+  "apkSha256": "301f02e81b1e6518a61d29c3ba097bf3753290b3a74df0461fb1e0961bb8b902",
+  "signing": "official",
+  "signatureScheme": "v3",
+  "certificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+  "zipAlignment": "passed",
+  "sourceCommit": "c5246472fec49c514b6dea53d62340c3d1f3813e",
+  "sourceDirty": true,
+  "sourceArchive": "source.zip",
+  "sourceArchiveSha256": "071cdd3ad6a0c0c9957fc82cc3c66a5871d687bcc6180a47a9a03d9abdaa011b",
+  "validation": {
+    "build": ":app:assembleRelease",
+    "unitTests": "not_run_as_requested",
+    "fullLint": "not_run_as_requested",
+    "lintVitalRelease": "ran_as_part_of_assembleRelease",
+    "installation": "not_performed",
+    "targetRomRuntime": "not_performed",
+    "remotePublication": "not_performed"
+  }
+}

@@ -19,6 +19,41 @@ import static org.junit.Assert.*;
 @Config(sdk = 34)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class FusionIconViewTest {
+    @Test public void spanningStatusBarIconKeepsItsConfiguredSizeWhenHostMeasuresOneRow() {
+        FusionIconView icon = new FusionIconView(RuntimeEnvironment.getApplication());
+        icon.setDisplayConfig(FusionConfig.defaults().withDoubleRow(true).withSpanRows(true)
+                .withStatusBarHeight(48).withIconScale(150));
+
+        icon.measure(View.MeasureSpec.makeMeasureSpec(80, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(24, View.MeasureSpec.EXACTLY));
+
+        assertEquals("the status-bar size setting keeps control of the spanning icon",
+                48, icon.getMeasuredHeight());
+    }
+
+    @Test public void controlCenterIconFitsItsHostWithoutUsingTheStatusBarScale() {
+        android.content.Context context = RuntimeEnvironment.getApplication();
+        android.view.ViewGroup[] hosts = {
+                new com.android.systemui.controlcenter.phone.widget.ControlCenterStatusBarIcon(context),
+                new com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons(context)
+        };
+        for (android.view.ViewGroup host : hosts) {
+            FusionIconView icon = new FusionIconView(context);
+            host.addView(icon);
+            icon.setDisplayConfig(FusionConfig.defaults().withDoubleRow(true).withSpanRows(true)
+                    .withStatusBarHeight(48).withIconScale(200));
+
+            icon.measure(View.MeasureSpec.makeMeasureSpec(80, View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(24, View.MeasureSpec.EXACTLY));
+
+            assertEquals("control-center artwork uses an independent fit scale in "
+                            + host.getClass().getSimpleName(),
+                    FusionIconPlacement.iconHeight(24,
+                            FusionIconPlacement.CONTROL_CENTER_ICON_SCALE),
+                    icon.getMeasuredHeight());
+        }
+    }
+
     @Test public void allContentOrdersRenderAndProduceAVisualContactSheet() throws Exception {
         int panelWidth = 320;
         int panelHeight = 350;

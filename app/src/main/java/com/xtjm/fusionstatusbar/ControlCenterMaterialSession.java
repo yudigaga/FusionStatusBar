@@ -32,7 +32,8 @@ final class ControlCenterMaterialSession {
             view.setBackground(componentBackground);
             if (nativeBackground != null) nativeBackground.setCallback(componentBackground);
         }
-        componentBackground.configure(item.shape, item.cornerRadius, false, config, true, false, config.cardBlur);
+        componentBackground.configure(item.shape, item.cornerRadius, false,
+                config.resolveSurface(view.getContext()), true, false, config.cardBlur);
     }
 
     void applyCardBackground(ControlCenterLayoutPlan.Item item) {
@@ -123,7 +124,7 @@ final class ControlCenterMaterialSession {
         if (ControlCenterMaterials.surface(config, ControlCenterNativeMode.isEditing(view))
                 == ControlCenterSurface.DEFAULT) {
             restoreComponentBackground();
-        } else current.refresh(config);
+        } else current.refresh(config.resolveSurface(view.getContext()));
     }
 
     void release() {

@@ -2,6 +2,7 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -38,6 +39,7 @@ final class PowerMenuSideSlider extends FrameLayout {
     private float startY, travel, dragOffset;
     private int thumbSize, iconSize;
     private float contentScale = 1f;
+    private ControlCenterConfig appearance = ControlCenterConfig.defaults();
 
     PowerMenuSideSlider(Context context, String topLabel, int topDrawableResource,
             String bottomLabel, int bottomDrawableResource, IntConsumer action) {
@@ -69,10 +71,12 @@ final class PowerMenuSideSlider extends FrameLayout {
     }
 
     void applyAppearance(ControlCenterConfig config) {
+        appearance = config;
         contentScale = config.tileScale / 100f;
         SystemSurfaceStyle.applyTrack(track, config, true);
-        int foreground = config.surface == ControlCenterSurface.DEFAULT
-                ? Color.WHITE : config.surface.neutralForeground();
+        ControlCenterSurface surface = config.surface.resolve(getContext());
+        int foreground = surface == ControlCenterSurface.DEFAULT
+                ? Color.WHITE : surface.neutralForeground();
         topIcon.setImageTintList(android.content.res.ColorStateList.valueOf(foreground));
         bottomIcon.setImageTintList(android.content.res.ColorStateList.valueOf(foreground));
         for (TextView label : new TextView[] {topLabel, bottomLabel}) {
@@ -81,6 +85,11 @@ final class PowerMenuSideSlider extends FrameLayout {
         }
         cancelGesture();
         requestLayout();
+    }
+
+    @Override protected void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        applyAppearance(appearance);
     }
 
     void setActionEnabled(boolean top, boolean bottom) {

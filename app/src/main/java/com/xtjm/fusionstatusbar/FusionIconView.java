@@ -202,23 +202,34 @@ public class FusionIconView extends View {
             return;
         }
         boolean spanRows = displayConfig.doubleRow && displayConfig.spanRows;
+        boolean controlCenterHost = isControlCenterHosted();
         int availableHeight = spanRows ? dp(displayConfig.statusBarHeight)
                 : displayConfig.doubleRow ? Math.max(1, dp(displayConfig.statusBarHeight) / 2)
                 : Math.min(dp(40), dp(displayConfig.statusBarHeight));
         int mode = MeasureSpec.getMode(heightMeasureSpec);
         int size = MeasureSpec.getSize(heightMeasureSpec);
-        if (!spanRows && mode != MeasureSpec.UNSPECIFIED && size > 0) {
+        boolean constrainToHost = !spanRows || controlCenterHost;
+        if (constrainToHost && mode != MeasureSpec.UNSPECIFIED && size > 0) {
             availableHeight = Math.min(availableHeight, size);
         }
-        int height = FusionIconPlacement.iconHeight(availableHeight, displayConfig.iconScale);
+        int widthMode = MeasureSpec.getMode(widthMeasureSpec);
+        int widthSize = MeasureSpec.getSize(widthMeasureSpec);
+        if (constrainToHost && widthMode == MeasureSpec.AT_MOST && widthSize > 0) {
+            int heightForWidth = Math.round(widthSize * DESIGN_H / DESIGN_W);
+            availableHeight = Math.min(availableHeight, heightForWidth);
+        }
+        int iconScale = FusionIconPlacement.iconScalePercent(
+                displayConfig.iconScale, controlCenterHost);
+        int height = FusionIconPlacement.iconHeight(availableHeight, iconScale);
         int width = Math.round(height * DESIGN_W / DESIGN_H);
-        if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY) {
-            int exact = MeasureSpec.getSize(widthMeasureSpec);
-            if (exact > 0) {
-                width = exact;
-            }
+        if (widthMode == MeasureSpec.EXACTLY && widthSize > 0) {
+            width = widthSize;
         }
         setMeasuredDimension(Math.max(1, width), Math.max(1, height));
+    }
+
+    private boolean isControlCenterHosted() {
+        return FusionIconPlacement.isControlCenterHosted(this);
     }
 
     @Override

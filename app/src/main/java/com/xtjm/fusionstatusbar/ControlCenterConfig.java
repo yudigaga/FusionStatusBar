@@ -58,6 +58,11 @@ final class ControlCenterConfig {
     final boolean hideDate;
     final boolean hideCarrier;
 
+    ControlCenterConfig resolveSurface(android.content.Context context) {
+        ControlCenterSurface resolved = surface.resolve(context);
+        return resolved == surface ? this : withSurface(resolved);
+    }
+
     private ControlCenterConfig(boolean enabled, String order, String hidden, int columns,
             int tileScale, int cornerRadius, int spacing, int style, String layout) {
         this(enabled, order, hidden, columns, tileScale, cornerRadius, spacing, style, layout,

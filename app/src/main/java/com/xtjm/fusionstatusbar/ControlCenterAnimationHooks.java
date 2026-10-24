@@ -10,13 +10,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-/** Shortens the custom panel's settling tail without changing native gestures or transforms. */
+/** Bounds custom panel spring settling without changing native gestures or transforms. */
 final class ControlCenterAnimationHooks {
     static final String EXPANSION_CLASS =
             "miui.systemui.controlcenter.windowview.ControlCenterExpandController$expansionAnimator$1";
     static final String BLUR_CLASS =
             "miui.systemui.controlcenter.windowview.BlurController";
-    private static final float MAX_RESPONSE_SECONDS = 0.22f;
+    private static final float MAX_RESPONSE_SECONDS = 0.35f;
 
     interface Proceed { Object run() throws Throwable; }
 

@@ -1,6 +1,7 @@
 package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.text.TextUtils;
 import android.view.View;
@@ -28,6 +29,7 @@ final class ControlCenterGroupEntry extends ViewGroup {
     };
     private ViewTreeObserver observer;
     private int iconSize, baseIconSize, naturalSize, labelGap;
+    private ControlCenterSurface appearance = ControlCenterSurface.DEFAULT;
 
     View iconView() { return icon; }
 
@@ -70,9 +72,14 @@ final class ControlCenterGroupEntry extends ViewGroup {
     }
 
     void applySurface(ControlCenterSurface surface) {
-        boolean light = surface != null && surface.neutralForeground() == 0xff202124;
+        appearance = surface == null ? ControlCenterSurface.DEFAULT : surface;
+        boolean light = appearance.resolve(getContext()).neutralForeground() == 0xff202124;
         title.setTextColor(light ? 0xff202124 : Color.WHITE);
         subtitle.setTextColor(light ? 0xff555b62 : 0xffafb0b4);
+    }
+    @Override protected void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        applySurface(appearance);
     }
     private void refreshLabels() {
         if (!showLabel) return;
