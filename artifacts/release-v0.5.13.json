@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "versionName": "0.5.13",
+  "versionCode": 227,
+  "buildMode": "local_dirty_signed_candidate",
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "apk": "fusion-statusbar-v0.5.13-release.apk",
+  "apkSizeBytes": 21529577,
+  "apkSha256": "edb7a04bb2245a2b8e5e6dd63efcf7688f93fcadafb8b3169d5d3e0a5b60a893",
+  "signing": "official",
+  "certificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+  "zipAlignment": "16_KiB_passed",
+  "sourceCommit": "cf6ff50a11abe191eef9bf3eae14bf48e6dea0d7",
+  "sourceDirty": true,
+  "sourceArchive": "source.zip",
+  "sourceArchiveSha256": "2197e705111c2e16824d6221a35d1316ffe897d8e6af7b5b0750b78053fbe9ab",
+  "sourceFiles": 596,
+  "validation": {
+    "identity": {
+      "namespace": "com.xtjm.fusionstatusbar",
+      "applicationId": "io.github.yudigaga.fusionstatusbar",
+      "versionName": "0.5.13",
+      "versionCode": 227,
+      "compileSdk": 36,
+      "targetSdk": 35
+    },
+    "debugTargetedTests": {
+      "total": 221,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "debugTargetedClasses": [
+      "com.xtjm.fusionstatusbar.BoundedHookRetryTest",
+      "com.xtjm.fusionstatusbar.ControlCenterAdaptiveGlassConsumersTest",
+      "com.xtjm.fusionstatusbar.ControlCenterComponentMaterialTest",
+      "com.xtjm.fusionstatusbar.ControlCenterComponentShapeMaterialTest",
+      "com.xtjm.fusionstatusbar.ControlCenterFallbackOpacityRegressionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterGlassBorderInteractionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterGlassCapabilitiesTest",
+      "com.xtjm.fusionstatusbar.ControlCenterGlassCompatibilityPolicyTest",
+      "com.xtjm.fusionstatusbar.ControlCenterGlassSoftEdgeRegressionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterGlobalBorderTest",
+      "com.xtjm.fusionstatusbar.ControlCenterGridMaterialDirtyTest",
+      "com.xtjm.fusionstatusbar.ControlCenterHighlightGlassConfigTest",
+      "com.xtjm.fusionstatusbar.ControlCenterHighlightGlassMaterialsTest",
+      "com.xtjm.fusionstatusbar.ControlCenterHighlightGlassNativePathRuntimeTest",
+      "com.xtjm.fusionstatusbar.ControlCenterHighlightGlassNativePathTest",
+      "com.xtjm.fusionstatusbar.ControlCenterHighlightGlassReflectionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterHighlightGlassVisualTest",
+      "com.xtjm.fusionstatusbar.ControlCenterMaterialSessionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterMaterialsTest",
+      "com.xtjm.fusionstatusbar.ControlCenterNativeGlassRestorationTest",
+      "com.xtjm.fusionstatusbar.ControlCenterNativeMaterialBoundaryTest",
+      "com.xtjm.fusionstatusbar.ControlCenterPluginCapabilityRetentionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterPluginHookInstallerTest",
+      "com.xtjm.fusionstatusbar.ControlCenterPublishedMaterialTest",
+      "com.xtjm.fusionstatusbar.ControlCenterSoftGlassTest",
+      "com.xtjm.fusionstatusbar.ControlCenterSoftwareSurfaceOwnershipTest",
+      "com.xtjm.fusionstatusbar.ControlCenterSplitHeaderCapabilityRegressionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterSurfaceConfigTest",
+      "com.xtjm.fusionstatusbar.ControlCenterSurfaceMaterialsTest",
+      "com.xtjm.fusionstatusbar.ControlCenterSurfacePreviewTest",
+      "com.xtjm.fusionstatusbar.ControlCenterTileSurfaceRegressionTest",
+      "com.xtjm.fusionstatusbar.ControlCenterZeroOpacityRegressionTest",
+      "com.xtjm.fusionstatusbar.NotificationGlassBoundsRegressionTest",
+      "com.xtjm.fusionstatusbar.NotificationGlassShaderCacheRegressionTest",
+      "com.xtjm.fusionstatusbar.NotificationGlassThemeRestoreRegressionTest",
+      "com.xtjm.fusionstatusbar.NotificationSurfaceHooksTest",
+      "com.xtjm.fusionstatusbar.RuntimeApplicationPolicyTest",
+      "com.xtjm.fusionstatusbar.SystemSurfaceConfigTest",
+      "com.xtjm.fusionstatusbar.SystemSurfaceSettingsUiTest",
+      "com.xtjm.fusionstatusbar.SystemSurfaceStyleTest"
+    ],
+    "releaseLint": {
+      "errors": 0,
+      "warnings": 98,
+      "customChecksCompatible": true,
+      "highRiskPolicy": "passed"
+    },
+    "releaseAssembly": "passed",
+    "packagedXposedMetadata": "passed",
+    "packagedRuntimeMarkers": "soft edge present; retired forced native path absent",
+    "dexSha256": "1d13d04c13043a2f27ad7c9c80b928ba05c62de6837d300e818674fb5499682e",
+    "evidence": {
+      "log": "F:\\qq\\MobileFile\\LSPosed_20261025_191023.zip",
+      "logSha256": "2ba785a923f8c85771aad88c77fdfd69dfa5bd295388e1fbb93ad7eb7b59c4df",
+      "report": "E:\\vs\\claude\\xtjm\\fusion-statusbar-publish-v0.3.197\\docs\\2026-10-25_glass-soft-edge-bugfix.md",
+      "reportSha256": "6f0026c8903d324fa65306cbf963363e1d763f94fdc66c9b4d3d68d3d3178641"
+    },
+    "redReproduction": {
+      "softEdge": {
+        "total": 4,
+        "failures": 3
+      },
+      "notificationLifecycle": {
+        "total": 6,
+        "failures": 4
+      }
+    },
+    "behavior": {
+      "glass": "Canvas compatibility; true background refraction not implemented or validated",
+      "edges": "shared inward falloff; automatic day/night; manual soft glass preserved",
+      "notifications": "background-owned reflection follows native bounds, clipping and fade"
+    },
+    "scope": "Targeted Debug tests and complete Release lint; full Debug/Release suites and Debug lint not run",
+    "installation": "not_performed",
+    "targetRomVisualValidation": "not_performed",
+    "remotePublication": "not_performed"
+  },
+  "fullDebugSuite": "not_run",
+  "releaseUnitTests": "not_run",
+  "debugLint": "not_run",
+  "installation": "not_performed",
+  "lsposedRuntime": "not_validated",
+  "targetRomVisualValidation": "not_performed",
+  "remotePublication": "not_performed",
+  "createdUtc": "2026-10-25T11:40:30.4484527Z"
+}

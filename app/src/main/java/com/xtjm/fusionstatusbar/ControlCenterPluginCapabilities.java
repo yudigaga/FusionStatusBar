@@ -28,8 +28,21 @@ final class ControlCenterPluginCapabilities {
         if (loader != null) active = new WeakReference<>(loader);
     }
 
+    /** A built-in panel may be discovered before any plugin explicitly owns the host. */
+    synchronized void activateIfUnclaimed(ClassLoader loader) {
+        if (loader == null || active.get() != null) return;
+        Entry entry = entries.get(loader);
+        if (entry != null && entry.result != null && entry.result.layoutAvailable)
+            active = new WeakReference<>(loader);
+    }
+
     synchronized ControlCenterPluginHookInstaller.Result activeResult() {
         Entry entry = entries.get(active.get());
+        return entry == null ? null : entry.result;
+    }
+
+    synchronized ControlCenterPluginHookInstaller.Result resultFor(ClassLoader loader) {
+        Entry entry = loader == null ? null : entries.get(loader);
         return entry == null ? null : entry.result;
     }
 

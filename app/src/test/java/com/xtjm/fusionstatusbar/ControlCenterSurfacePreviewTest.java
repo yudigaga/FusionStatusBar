@@ -134,7 +134,7 @@ public class ControlCenterSurfacePreviewTest {
                 restored.getPixel(80, 1), restored.getPixel(80, 8));
         restored.recycle();
     }
-    @Test public void softGlassPreviewStaysDarkWithLowCardBlurAndSliderFillReadable() {
+    @Test public void softGlassPreviewScalesBackgroundWithCardBlurAndKeepsSliderFillReadable() {
         var context = RuntimeEnvironment.getApplication();
         var root = new FrameLayout(context);
         root.setBackgroundColor(Color.WHITE);
@@ -142,18 +142,33 @@ public class ControlCenterSurfacePreviewTest {
         root.addView(card, new FrameLayout.LayoutParams(160, 80));
         card.setSurface(ControlCenterSurface.SOFT_GLASS);
         card.setMaterialStrength(20, 20);
-        var image = render(root, 160, 80);
-        assertTrue("Glass should remain dark over a light backdrop",
-                Color.luminance(image.getPixel(80, 8)) < 0.25f);
+        var image = render(card, 160, 80);
+        assertEquals("Glass background opacity follows the card strength",
+                Math.round(Color.alpha(ControlCenterSurface.SOFT_GLASS.color) * 0.2f),
+                Color.alpha(image.getPixel(80, 8)));
+        image.recycle();
+        image = render(root, 160, 80);
+        assertTrue("Low-strength glass reveals the light backdrop",
+                Color.luminance(image.getPixel(80, 8)) > 0.65f);
         image.recycle();
 
         var slider = card(ControlCenterComponentSpec.BRIGHTNESS, "亮度", false, false);
         slider.setSurface(ControlCenterSurface.SOFT_GLASS);
         slider.setMaterialStrength(20, 20);
         image = render(slider, 100, 200);
+        assertEquals("The empty slider track follows the same card opacity",
+                Math.round(Color.alpha(ControlCenterSurface.SOFT_GLASS.color) * 0.2f),
+                Color.alpha(image.getPixel(50, 20)));
         assertTrue("The native-style fill should contrast with the track",
                 Color.luminance(image.getPixel(50, 180))
                         > Color.luminance(image.getPixel(50, 20)) + 0.30f);
+        image.recycle();
+        slider.setMaterialStrength(0, 0);
+        image = render(slider, 100, 200);
+        assertEquals("The transparent endpoint clears the track", 0,
+                Color.alpha(image.getPixel(50, 20)));
+        assertTrue("The transparent track must retain slider progress",
+                Color.alpha(image.getPixel(50, 180)) > 200);
         image.recycle();
     }
     private ControlCenterCardView card(String spec, String label, boolean active, boolean large) {

@@ -30,7 +30,7 @@ public class ControlCenterSurfaceMaterialsTest {
         return ControlCenterConfig.defaults().withEnabled(true).withSurface(surface);
     }
 
-    @Test public void softGlassKeepsDarkTintWhileCardAndTileBlurChange() {
+    @Test public void softGlassScalesBackgroundOpacityAlongsideCardAndTileBlur() {
         assertTrue(Color.luminance(ControlCenterSurface.SOFT_GLASS.color) < 0.10f);
         QSCardItemView card = new QSCardItemView();
         GradientDrawable background = new GradientDrawable();
@@ -38,13 +38,13 @@ public class ControlCenterSurfaceMaterialsTest {
         var low = config(ControlCenterSurface.SOFT_GLASS).withBlur(25, 20, 65);
         ControlCenterMaterials.register(card, background, ControlCenterMaterials.Layer.CARD, low);
         assertEquals(ControlCenterSurface.SOFT_GLASS.color, background.getColor().getDefaultColor());
-        assertEquals("Blur strength must not fade the glass tint", 255, background.getAlpha());
+        assertEquals("Card strength must continuously fade the glass background", 51, background.getAlpha());
 
         QSTileItemIconView tile = new QSTileItemIconView();
         ArrayList<Point> nativeColors = new ArrayList<>(List.of(new Point(0xffeeeeee, 3)));
         Object[] tint = ControlCenterMaterials.nativeArguments(tile,
                 "setMiBackgroundBlendColors", new Object[] {nativeColors}, low, false);
-        assertEquals(ControlCenterSurface.SOFT_GLASS.color,
+        assertEquals(ControlCenterMaterials.color(ControlCenterSurface.SOFT_GLASS.color, 65),
                 ((ArrayList<Point>) tint[0]).get(0).x);
         ControlCenterMaterials.nativeArguments(tile, "setMiViewBlurMode", new Object[] {1}, low, false);
         ControlCenterMaterials.updateNativeSurface(tile, low, false);

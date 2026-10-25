@@ -41,6 +41,26 @@ final class ControlCenterSurfaceShape {
     }
 
     void draw(Canvas canvas, Paint paint) {
+        draw(canvas, paint, 0f);
+    }
+
+    void roundRect(float width, float height, float radius) {
+        path.rewind();
+        rect.set(0, 0, width, height);
+        path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+        clipStroke = false;
+    }
+
+    /** Draw a band inward from the same exact contour, without re-resolving OEM geometry. */
+    void drawInside(Canvas canvas, Paint paint, float offset) {
+        boolean previous = clipStroke;
+        clipStroke = true;
+        try { draw(canvas, paint, offset); }
+        finally { clipStroke = previous; }
+    }
+
+    /** Native paths retain their exact contour; offset their stroke with a clipped edge band. */
+    void draw(Canvas canvas, Paint paint, float innerOffset) {
         if (path.isEmpty()) return;
         if (!clipStroke) {
             drawPath(canvas, paint);
@@ -51,7 +71,15 @@ final class ControlCenterSurfaceShape {
         try {
             // Preserve the exact OEM path and keep the entire stroke inside its surface.
             canvas.clipPath(path);
-            paint.setStrokeWidth(width * 2f);
+            float offset = Math.max(0f, innerOffset);
+            if (offset > 0f && paint.getStyle() == Paint.Style.STROKE) {
+                strokePaint.set(paint);
+                strokePaint.setStrokeWidth(offset * 2f);
+                strokePath.rewind();
+                if (!strokePaint.getFillPath(path, strokePath)) return;
+                canvas.clipOutPath(strokePath);
+            }
+            paint.setStrokeWidth((width + offset) * 2f);
             drawPath(canvas, paint);
         } finally {
             paint.setStrokeWidth(width);

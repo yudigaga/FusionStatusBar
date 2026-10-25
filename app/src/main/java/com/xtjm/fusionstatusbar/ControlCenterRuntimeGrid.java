@@ -1478,6 +1478,8 @@ final class ControlCenterRuntimeGrid {
                         settings.surface.resolve(overlay.getContext()).neutralForeground() == 0xff202124);
             }
             if (contentScaleChanged) requestLayout();
+            // Some surfaces are owned by drawable wrappers and refresh only in dispatchDraw.
+            invalidate();
         }
 
         @Override
@@ -1611,6 +1613,24 @@ final class ControlCenterRuntimeGrid {
                 Slot tileSlot = slotsByView.get(tile);
                 boolean active = isActiveTile(decoration.item);
                 ActiveTileBackground wrapper = activeTileBackgrounds.get(tile);
+                boolean editing = ControlCenterNativeMode.isEditing(tile);
+                if (!materialSettings.enabled || editing) {
+                    // The deferred slot pass can already have cleared the dirty flag.
+                    // Release our fallback before considering stable active-state shortcuts.
+                    if (wrapper != null) {
+                        activeTileBackgrounds.remove(tile);
+                        if (tile.getBackground() == wrapper) tile.setBackground(wrapper.nativeBackground);
+                    }
+                    continue;
+                }
+                int strength = ControlCenterMaterials.percent(materialSettings,
+                        ControlCenterMaterials.Layer.TILE, editing);
+                ControlCenterSurface surface = ControlCenterMaterials.surface(materialSettings, editing)
+                        .resolve(tile.getContext());
+                int surfaceColor = ControlCenterMaterials.color(surface.stateColor(true), strength);
+                // A settings refresh can change opacity without changing the active state.
+                // Apply it before the stable-state shortcut, including after drawable registration.
+                if (wrapper != null && tile.getBackground() == wrapper) wrapper.setSurfaceColor(surfaceColor);
                 if (tileSlot != null) {
                     boolean stateChanged = !tileSlot.materialActiveKnown
                             || tileSlot.materialActive != active;
@@ -1629,12 +1649,12 @@ final class ControlCenterRuntimeGrid {
                 }
                 if (active) {
                     if (tile.getBackground() instanceof ActiveTileBackground current) {
-                        current.setActive(true);
+                        current.setSurfaceColor(surfaceColor);
                         if (tileSlot != null) tileSlot.materialDirty = false;
                         continue;
                     }
                     Drawable nativeBackground = tile.getBackground();
-                    wrapper = new ActiveTileBackground(nativeBackground);
+                    wrapper = new ActiveTileBackground(nativeBackground, surfaceColor);
                     activeTileBackgrounds.put(tile, wrapper);
                     tile.setBackground(wrapper);
                     if (tileSlot != null) tileSlot.materialDirty = false;
@@ -2044,25 +2064,22 @@ final class ControlCenterRuntimeGrid {
     private static final class ActiveTileBackground extends Drawable {
         final Drawable nativeBackground;
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private boolean active = true;
 
-        ActiveTileBackground(Drawable nativeBackground) {
+        ActiveTileBackground(Drawable nativeBackground, int color) {
             this.nativeBackground = nativeBackground;
-            fill.setColor(ControlCenterCardView.ACTIVE_SURFACE);
+            fill.setColor(color);
         }
 
-        void setActive(boolean active) {
-            if (this.active == active) return;
-            this.active = active;
+        void setSurfaceColor(int color) {
+            if (fill.getColor() == color) return;
+            fill.setColor(color);
             invalidateSelf();
         }
 
         @Override public void draw(Canvas canvas) {
             android.graphics.Rect bounds = getBounds();
-            if (nativeBackground != null) {
-                nativeBackground.setBounds(bounds);
-                nativeBackground.draw(canvas);
-            }
+            // Replace the active fill instead of compositing it over another material.
+            // Keep the native background solely for restoration when the tile turns off.
             float size = Math.min(bounds.width(), bounds.height());
             float left = bounds.left + (bounds.width() - size) / 2f;
             float top = bounds.top + (bounds.height() - size) / 2f;
@@ -2073,7 +2090,12 @@ final class ControlCenterRuntimeGrid {
             if (nativeBackground != null) nativeBackground.setBounds(bounds);
         }
 
-        @Override public void setAlpha(int alpha) { fill.setAlpha(alpha); invalidateSelf(); }
+        @Override public void setAlpha(int alpha) {
+            if (fill.getAlpha() == alpha) return;
+            fill.setAlpha(alpha);
+            invalidateSelf();
+        }
+        @Override public int getAlpha() { return fill.getAlpha(); }
         @Override public void setColorFilter(ColorFilter filter) {
             fill.setColorFilter(filter);
             if (nativeBackground != null) nativeBackground.setColorFilter(filter);

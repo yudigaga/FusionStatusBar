@@ -506,13 +506,13 @@ public final class SystemUiHooks {
 
     private static int hookControlCenterPlugin(ClassLoader targetLoader) {
         if (targetLoader == null) return 0;
-        CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(targetLoader);
         int before = HANDLES.size();
         ControlCenterPluginHookInstaller installer = controlCenterPluginHookInstaller();
         ControlCenterPluginHookInstaller.Result result = installer.install(targetLoader);
         int count = HANDLES.size() - before;
         boolean layoutAvailable = result.layoutAvailable;
         CONTROL_CENTER_PLUGIN_CAPABILITIES.record(targetLoader, result);
+        CONTROL_CENTER_PLUGIN_CAPABILITIES.activateIfUnclaimed(targetLoader);
         CONTROL_CENTER_PLUGIN_CAPABILITIES.scheduleRetry(targetLoader,
                 SystemUiHooks::hookControlCenterPlugin);
         if (count > 0) {
@@ -775,9 +775,11 @@ public final class SystemUiHooks {
             } catch (NoSuchMethodException ignored) { }
         }
         if (HANDLES.size() != before) {
-            log(Log.INFO, "control-center native material APIs=" + nativeCount + "/5", null);
+            log(Log.INFO, "control-center native material APIs=" + nativeCount
+                    + "/5 (legacy blur/blend; not full MiGlass)", null);
             log(Log.INFO, "control-center native effect APIs=" + effectCount + "/"
-                    + ControlCenterNativeEffects.Api.values().length, null);
+                    + ControlCenterNativeEffects.Api.values().length
+                    + " (legacy bloom/shadow; not full MiGlass)", null);
         }
     }
 
@@ -3030,7 +3032,16 @@ public final class SystemUiHooks {
     }
 
     private static void reportFeature(String feature, String state, String reason) {
-        FEATURE_STATES.put(feature, new RuntimeApplicationPolicy.Result(feature, state, reason));
+        RuntimeApplicationPolicy.Result previous = FEATURE_STATES.put(feature,
+                new RuntimeApplicationPolicy.Result(feature, state, reason));
+        if (FusionActivationStatus.FEATURE_CONTROL_CENTER.equals(feature)
+                && (previous == null || !java.util.Objects.equals(previous.state(), state)
+                        || !java.util.Objects.equals(previous.reason(), reason))) {
+            int priority = FusionActivationStatus.DEGRADED.equals(state)
+                    || FusionActivationStatus.FAILED.equals(state) ? Log.WARN : Log.INFO;
+            log(priority, "control-center application state=" + state + " reason="
+                    + (reason == null ? "" : reason) + " revision=" + currentConfig.revision, null);
+        }
         if (configLifecycle != null)
             configLifecycle.report(currentConfig.revision, feature, state, reason);
     }
@@ -3053,7 +3064,8 @@ public final class SystemUiHooks {
                     FusionActivationStatus.WAITING, "control_center_loader_pending");
             return true;
         }
-        String missing = result.missingRequiredCapability(currentConfig.controlCenter);
+        String missing = result.missingRequiredCapability(currentConfig.controlCenter,
+                CONTROL_CENTER_PLUGIN_CAPABILITIES.resultFor(loader));
         if (missing.isEmpty()) return false;
         reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
                 FusionActivationStatus.DEGRADED, missing);

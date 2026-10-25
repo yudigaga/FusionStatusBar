@@ -32,7 +32,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         ControlCenterCardView light = fiveG(day), dark = fiveG(night);
         assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, surfaceColor(light));
         assertEquals(ControlCenterSurface.SOFT_GLASS.color, surfaceColor(dark));
-        assertEquals(0xff202124, fiveGText(light).getCurrentTextColor());
+        assertEquals(Color.WHITE, fiveGText(light).getCurrentTextColor());
         assertEquals(Color.WHITE, fiveGText(dark).getCurrentTextColor());
 
         changeTheme(light, true);
@@ -40,7 +40,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         assertEquals(Color.WHITE, fiveGText(light).getCurrentTextColor());
         changeTheme(light, false);
         assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, surfaceColor(light));
-        assertEquals(0xff202124, fiveGText(light).getCurrentTextColor());
+        assertEquals(Color.WHITE, fiveGText(light).getCurrentTextColor());
         assertEquals("Updating a different context must not change the night preview",
                 ControlCenterSurface.SOFT_GLASS.color, surfaceColor(dark));
     }
@@ -67,6 +67,34 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         grid.releaseMaterials();
     }
 
+    @Test public void dayGlassRetainsWallpaperColorWhileNightGlassDarkensIt() {
+        FrameLayout surface = new FrameLayout(context(false));
+        SystemSurfaceStyle.apply(surface, adaptive(), true);
+        try {
+            int redWallpaper = centerOver(surface, Color.RED);
+            int blueWallpaper = centerOver(surface, Color.BLUE);
+            int dayWhiteWallpaper = centerOver(surface, Color.WHITE);
+            assertTrue("Day glass must retain over eighty percent of the wallpaper color variation",
+                    Color.red(redWallpaper) - Color.red(blueWallpaper) > 204);
+            assertTrue(Color.blue(blueWallpaper) - Color.blue(redWallpaper) > 204);
+            assertTrue("Colorless glass must not impose a smoky gray tint on a white wallpaper",
+                    Color.red(dayWhiteWallpaper) >= 245);
+            int blackWallpaper = centerOver(surface, Color.BLACK);
+            assertTrue("Soft reflection must not wash out a dark wallpaper",
+                    Color.red(blackWallpaper) <= 32);
+            assertTrue(Math.abs(Color.red(blackWallpaper) - Color.blue(blackWallpaper)) < 3);
+
+            changeTheme(surface, true);
+            surface.getViewTreeObserver().dispatchOnPreDraw();
+            int nightWhiteWallpaper = centerOver(surface, Color.WHITE);
+            assertTrue("Night mode must darken the same wallpaper further",
+                    Color.luminance(nightWhiteWallpaper) < Color.luminance(dayWhiteWallpaper));
+            assertTrue("Dark glass must still transmit some wallpaper color",
+                    Color.red(centerOver(surface, Color.RED))
+                            - Color.red(centerOver(surface, Color.BLUE)) > 32);
+        } finally { SystemSurfaceStyle.restore(surface); }
+    }
+
     @Test public void systemSurfacesRefreshContentAndTintOnTheNextFrameAndRestoreOriginals() {
         Context context = context(false);
         FrameLayout root = new FrameLayout(context);
@@ -77,7 +105,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         root.addView(label);
         SystemSurfaceStyle.apply(root, adaptive(), true);
         SystemSurfaceStyle.applyContent(root, adaptive(), true);
-        assertEquals(0xff202124, label.getCurrentTextColor());
+        assertEquals(Color.WHITE, label.getCurrentTextColor());
         assertCenter(root, ControlCenterSurface.HIGHLIGHT_GLASS.color);
 
         changeTheme(root, true);
@@ -86,7 +114,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         assertCenter(root, ControlCenterSurface.SOFT_GLASS.color);
         changeTheme(root, false);
         root.getViewTreeObserver().dispatchOnPreDraw();
-        assertEquals(0xff202124, label.getCurrentTextColor());
+        assertEquals(Color.WHITE, label.getCurrentTextColor());
         assertCenter(root, ControlCenterSurface.HIGHLIGHT_GLASS.color);
 
         SystemSurfaceStyle.restore(root);
@@ -104,7 +132,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
                 true, false, () -> new String[] {"WLAN", "已关闭"});
         group.applySurface(ControlCenterSurface.HIGHLIGHT_GLASS);
         TextView title = (TextView) group.getChildAt(1);
-        assertEquals(0xff202124, title.getCurrentTextColor());
+        assertEquals(Color.WHITE, title.getCurrentTextColor());
         changeTheme(group, true);
         assertEquals(Color.WHITE, title.getCurrentTextColor());
 
@@ -114,7 +142,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         ImageView icon = (ImageView) slider.getChildAt(1);
         assertEquals(Color.WHITE, icon.getImageTintList().getDefaultColor());
         changeTheme(slider, false);
-        assertEquals(0xff202124, icon.getImageTintList().getDefaultColor());
+        assertEquals(Color.WHITE, icon.getImageTintList().getDefaultColor());
         changeTheme(slider, true);
         assertEquals(Color.WHITE, icon.getImageTintList().getDefaultColor());
         SystemSurfaceStyle.restore(slider.getChildAt(0));
@@ -177,6 +205,18 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
         view.draw(new Canvas(bitmap));
         return bitmap;
+    }
+
+    private static int centerOver(View view, int wallpaper) {
+        view.measure(View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY));
+        view.layout(0, 0, 100, 100);
+        Bitmap bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
+        try {
+            bitmap.eraseColor(wallpaper);
+            view.draw(new Canvas(bitmap));
+            return bitmap.getPixel(50, 50);
+        } finally { bitmap.recycle(); }
     }
 
     public static final class MediaPlayerPanel extends FrameLayout {

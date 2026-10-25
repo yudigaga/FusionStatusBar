@@ -105,13 +105,12 @@ final class ControlCenterCardView extends FrameLayout {
         int strength = cardSurface ? card : tile;
         ControlCenterSurface resolvedSurface = containerSurface.resolve(getContext());
         boolean glass = resolvedSurface.hasSoftGlassReflection();
-        int opacityStrength = glass ? 100 : strength;
-        material.setAlpha(Math.round(255f * opacityStrength / 100));
+        material.setAlpha(Math.round(255f * strength / 100));
         View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
         boolean groupSurface = content instanceof ControlCenterGroupView;
         ControlCenterSoftGlass.apply(surface, containerSurface, glass && !groupSurface, strength);
         if (groupSurface) ControlCenterSoftGlass.apply(content, containerSurface, glass, card);
-        int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), opacityStrength, 0xff080808);
+        int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), strength, 0xff080808);
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterPreviewTile preview) {
             preview.setBackdropColor(backdrop);
         }
@@ -123,10 +122,10 @@ final class ControlCenterCardView extends FrameLayout {
         }
         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterGroupView group) {
             tintPreviewSurface(group);
-            group.getBackground().setAlpha(Math.round(255f * (glass ? 100 : card) / 100));
+            group.getBackground().setAlpha(Math.round(255f * card / 100));
             int groupColor = resolvedSurface == ControlCenterSurface.DEFAULT
                     ? ControlCenterSurface.defaultGroupColor() : resolvedSurface.color;
-            int groupBackdrop = ControlCenterIcons.composite(groupColor, glass ? 100 : card, backdrop);
+            int groupBackdrop = ControlCenterIcons.composite(groupColor, card, backdrop);
             for (int i = 0; i < group.getChildCount(); i++) {
                 if (group.getChildAt(i) instanceof ControlCenterGroupEntry entry) {
                     entry.applySurface(containerSurface);
@@ -134,15 +133,15 @@ final class ControlCenterCardView extends FrameLayout {
             }
             group.visitMemberViews((spec, view) -> {
                 tintPreviewSurface(view);
-                if (view.getBackground() != null) view.getBackground().setAlpha(Math.round(255f * (glass ? 100 : tile) / 100));
-                updatePreviewBackdrop(view, glass ? 100 : tile, groupBackdrop);
+                if (view.getBackground() != null) view.getBackground().setAlpha(Math.round(255f * tile / 100));
+                updatePreviewBackdrop(view, tile, groupBackdrop);
             });
         }
         if (model.paired && surface.getChildCount() > 0 && surface.getChildAt(0) instanceof LinearLayout pair) {
             for (int i = 0; i < pair.getChildCount(); i++) {
                 tintPreviewSurface(pair.getChildAt(i));
-                if (pair.getChildAt(i).getBackground() != null) pair.getChildAt(i).getBackground().setAlpha(Math.round(255f * (glass ? 100 : tile) / 100));
-                updatePreviewBackdrop(pair.getChildAt(i), glass ? 100 : tile, backdrop);
+                if (pair.getChildAt(i).getBackground() != null) pair.getChildAt(i).getBackground().setAlpha(Math.round(255f * tile / 100));
+                updatePreviewBackdrop(pair.getChildAt(i), tile, backdrop);
             }
         }
     }
@@ -460,7 +459,7 @@ final class ControlCenterCardView extends FrameLayout {
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             if (displayTitle == null) return;
-            paint.setColor(containerSurface.resolve(getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS
+            paint.setColor(containerSurface.resolve(getContext()).neutralForeground() == 0xff202124
                     ? 0xff202124 : Color.rgb(235, 236, 238));
             float start = (getWidth() - paint.measureText(displayTitle) - mark - gap) / 2f;
             float cy = getHeight() / 2f;

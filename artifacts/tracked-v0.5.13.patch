@@ -1,0 +1,1258 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index d613d30..e4cbbad 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 223
+-        versionName "0.5.9"
++        versionCode 227
++        versionName "0.5.13"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java
+index 76d17d0..efd4b6d 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterCardView.java
+@@ -105,13 +105,12 @@ final class ControlCenterCardView extends FrameLayout {
+         int strength = cardSurface ? card : tile;
+         ControlCenterSurface resolvedSurface = containerSurface.resolve(getContext());
+         boolean glass = resolvedSurface.hasSoftGlassReflection();
+-        int opacityStrength = glass ? 100 : strength;
+-        material.setAlpha(Math.round(255f * opacityStrength / 100));
++        material.setAlpha(Math.round(255f * strength / 100));
+         View content = surface.getChildCount() == 0 ? null : surface.getChildAt(0);
+         boolean groupSurface = content instanceof ControlCenterGroupView;
+         ControlCenterSoftGlass.apply(surface, containerSurface, glass && !groupSurface, strength);
+         if (groupSurface) ControlCenterSoftGlass.apply(content, containerSurface, glass, card);
+-        int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), opacityStrength, 0xff080808);
++        int backdrop = ControlCenterIcons.composite(material.getColor().getDefaultColor(), strength, 0xff080808);
+         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterPreviewTile preview) {
+             preview.setBackdropColor(backdrop);
+         }
+@@ -123,10 +122,10 @@ final class ControlCenterCardView extends FrameLayout {
+         }
+         if (surface.getChildCount() > 0 && surface.getChildAt(0) instanceof ControlCenterGroupView group) {
+             tintPreviewSurface(group);
+-            group.getBackground().setAlpha(Math.round(255f * (glass ? 100 : card) / 100));
++            group.getBackground().setAlpha(Math.round(255f * card / 100));
+             int groupColor = resolvedSurface == ControlCenterSurface.DEFAULT
+                     ? ControlCenterSurface.defaultGroupColor() : resolvedSurface.color;
+-            int groupBackdrop = ControlCenterIcons.composite(groupColor, glass ? 100 : card, backdrop);
++            int groupBackdrop = ControlCenterIcons.composite(groupColor, card, backdrop);
+             for (int i = 0; i < group.getChildCount(); i++) {
+                 if (group.getChildAt(i) instanceof ControlCenterGroupEntry entry) {
+                     entry.applySurface(containerSurface);
+@@ -134,15 +133,15 @@ final class ControlCenterCardView extends FrameLayout {
+             }
+             group.visitMemberViews((spec, view) -> {
+                 tintPreviewSurface(view);
+-                if (view.getBackground() != null) view.getBackground().setAlpha(Math.round(255f * (glass ? 100 : tile) / 100));
+-                updatePreviewBackdrop(view, glass ? 100 : tile, groupBackdrop);
++                if (view.getBackground() != null) view.getBackground().setAlpha(Math.round(255f * tile / 100));
++                updatePreviewBackdrop(view, tile, groupBackdrop);
+             });
+         }
+         if (model.paired && surface.getChildCount() > 0 && surface.getChildAt(0) instanceof LinearLayout pair) {
+             for (int i = 0; i < pair.getChildCount(); i++) {
+                 tintPreviewSurface(pair.getChildAt(i));
+-                if (pair.getChildAt(i).getBackground() != null) pair.getChildAt(i).getBackground().setAlpha(Math.round(255f * (glass ? 100 : tile) / 100));
+-                updatePreviewBackdrop(pair.getChildAt(i), glass ? 100 : tile, backdrop);
++                if (pair.getChildAt(i).getBackground() != null) pair.getChildAt(i).getBackground().setAlpha(Math.round(255f * tile / 100));
++                updatePreviewBackdrop(pair.getChildAt(i), tile, backdrop);
+             }
+         }
+     }
+@@ -460,7 +459,7 @@ final class ControlCenterCardView extends FrameLayout {
+         @Override protected void onDraw(Canvas canvas) {
+             super.onDraw(canvas);
+             if (displayTitle == null) return;
+-            paint.setColor(containerSurface.resolve(getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS
++            paint.setColor(containerSurface.resolve(getContext()).neutralForeground() == 0xff202124
+                     ? 0xff202124 : Color.rgb(235, 236, 238));
+             float start = (getWidth() - paint.measureText(displayTitle) - mark - gap) / 2f;
+             float cy = getHeight() / 2f;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGlobalBorder.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGlobalBorder.java
+index 21aae55..3872b3e 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGlobalBorder.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterGlobalBorder.java
+@@ -27,13 +27,15 @@ final class ControlCenterGlobalBorder {
+             BORDERS.remove(view);
+             return;
+         }
+-        if (border == null) {
++        boolean added = border == null;
++        if (added) {
+             border = new Border(view);
+             BORDERS.put(view, new WeakReference<>(border));
+             view.addOnLayoutChangeListener(border);
+             view.getOverlay().add(border.drawable);
+         }
+         border.drawable.configure(view, widthDp, lightSurface);
++        if (added) ControlCenterSoftGlass.bringToFront(view);
+     }
+ 
+     static void refresh(View view) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+index 7cffc94..85f0411 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+@@ -65,8 +65,8 @@ final class ControlCenterMaterials {
+         if (!config.enabled || editing || layer == Layer.NONE) return 100;
+         return layer == Layer.CARD ? config.cardBlur : config.tileBlur;
+     }
+-    private static int opacityPercent(ControlCenterSurface surface, int blurPercent) {
+-        return surface.hasSoftGlassReflection() ? 100 : blurPercent;
++    private static int opacityPercent(int blurPercent) {
++        return Math.max(0, Math.min(100, blurPercent));
+     }
+     static float scale(float value, int strength) { return value * Math.max(0, Math.min(100, strength)) / 100f; }
+     static int color(int color, int strength) {
+@@ -263,7 +263,7 @@ final class ControlCenterMaterials {
+     }
+     private static int targetAlpha(Drawable drawable, Surface state, ControlCenterConfig config) {
+         View owner = state.owner.get();
+-        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(drawableSurface(state, config),
++        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(
+                 percent(config, state.layer, ControlCenterNativeMode.isEditing(owner)));
+         float alpha = state.alpha;
+         ControlCenterSurface style = drawableSurface(state, config);
+@@ -276,7 +276,7 @@ final class ControlCenterMaterials {
+     private static int alphaArgument(Drawable drawable, Surface state, ControlCenterConfig config) {
+         if (!(drawable instanceof ColorDrawable)) return targetAlpha(drawable, state, config);
+         View owner = state.owner.get();
+-        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(drawableSurface(state, config),
++        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(
+                 percent(config, state.layer, ControlCenterNativeMode.isEditing(owner)));
+         return Math.round(scale(255f * state.colorAlphaFactor, amount));
+     }
+@@ -419,14 +419,10 @@ final class ControlCenterMaterials {
+         if (operation.equals("setMiBackgroundBlendColors") && args[0] instanceof ArrayList<?> list) {
+             if (list.isEmpty()) return args;
+             ArrayList<Point> colors = new ArrayList<>();
+-            if (surface == ControlCenterSurface.HIGHLIGHT_GLASS && !activeTile(view)) {
+-                // The daytime material uses a blend stack over the host's real blur.
+-                // Keep the OEM request intact so changing style can replay it verbatim.
+-                colors.add(new Point(0xe6747474, 15));
+-                colors.add(new Point(0x99525252, 18));
+-                colors.add(new Point(0x33d1d1d1, 3));
+-            } else if (surface != ControlCenterSurface.DEFAULT) {
+-                colors.add(new Point(color(containerColor(view, surface), opacityPercent(surface, amount)), 3));
++            if (surface != ControlCenterSurface.DEFAULT) {
++                // Use the same translucent tint as the Canvas surface. Overlay/color-dodge
++                // brightening washes out the wallpaper behind the daytime glass.
++                colors.add(new Point(color(containerColor(view, surface), opacityPercent(amount)), 3));
+             } else for (Object value : list) if (value instanceof Point point) {
+                 colors.add(new Point(color(point.x, amount), point.y));
+             }
+@@ -575,6 +571,9 @@ final class ControlCenterMaterials {
+     }
+ 
+     static void registerRoot(View view, ControlCenterConfig config) {
++        if (view != null && config.enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS
++                && layer(view) != Layer.NONE && !(view instanceof TextView) && !isSliderForeground(view))
++            ControlCenterGlassCapabilities.reportCompatibility(view);
+         observeTheme(view, config);
+         if (TILE_SHAPES.containsKey(view) && !isGridDecorationManaged(view))
+             releaseGridSurface(view, config);
+@@ -689,7 +688,7 @@ final class ControlCenterMaterials {
+             image.setBackground(current);
+             if (current.getDrawable() != null) current.getDrawable().setCallback(current);
+         }
+-        current.setSurfaceColor(color(containerColor(tile, style), opacityPercent(style, config.tileBlur)));
++        current.setSurfaceColor(color(containerColor(tile, style), opacityPercent(config.tileBlur)));
+     }
+ 
+     private static void restoreNativeTileBackground(View image) {
+@@ -793,7 +792,7 @@ final class ControlCenterMaterials {
+         SURFACES.remove(background);
+         ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile)).resolve(tile.getContext());
+         int fill = config.enabled && !ControlCenterNativeMode.isEditing(tile)
+-                ? color(style.stateColor(activeTile(tile)), opacityPercent(style, config.tileBlur)) : 0;
++                ? color(style.stateColor(activeTile(tile)), opacityPercent(config.tileBlur)) : 0;
+         if (background.getColor() == null || background.getColor().getDefaultColor() != fill)
+             guarded(() -> background.setColor(fill));
+     }
+@@ -1064,55 +1063,24 @@ final class ControlCenterMaterials {
+     private static Object[] effectArguments(View view, String operation, Object[] args,
+             ControlCenterConfig config, boolean editing) {
+         boolean software = softwareSurface(view, config, editing);
+-        if (operation.equals("setMixEffectEnabled") && args.length == 1
+-                && daylightNativeGlass(view, config, editing)) return new Object[] {true};
+-        if (operation.equals("setMiBloomStroke") && args.length == 1
+-                && daylightNativeGlass(view, config, editing)) {
+-            return new Object[] {ControlCenterNativeEffects.daylightBloom(
+-                    view.getResources().getDisplayMetrics().density, percent(config, layer(view), editing))};
+-        }
+         boolean decoration = config.enabled && !editing
+                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
+         return ControlCenterNativeEffects.arguments(operation, args, decoration, software);
+     }
+ 
+-    private static boolean daylightNativeGlass(View view, ControlCenterConfig config, boolean editing) {
+-        return config.enabled && !editing && !softwareSurface(view, config, editing)
+-                && !insideBorderContainer(view) && !preservesNativeMaterial(view)
+-                && config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
+-    }
+-
+     private static void syncNativeEffects(View view, NativeSurface state,
+             ControlCenterConfig config, boolean editing) {
+         boolean software = softwareSurface(view, config, editing);
+         boolean decoration = config.enabled && !editing
+                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
+-        boolean daylight = daylightNativeGlass(view, config, editing);
+-        boolean addedBloom = false;
+-        if (daylight && !state.bloomChecked) {
+-            state.bloomChecked = true;
+-            // Directly recognized views are tracked from construction, before attachment.
+-            // For parent-derived layers, an unobserved earlier OEM bloom is not a safe zero baseline.
+-            if (directLayer(view.getClass().getSimpleName()) != Layer.NONE
+-                    && !state.requests.containsKey("setMiBloomStroke")) {
+-                try {
+-                    view.getClass().getMethod("setMiBloomStroke", float[].class);
+-                    state.requests.put("setMiBloomStroke", new Object[] {new float[21]});
+-                    addedBloom = true;
+-                } catch (NoSuchMethodException | SecurityException ignored) { }
+-            }
+-        }
+-        int policy = (decoration ? 1 : 0) | (software ? 2 : 0)
+-                | (daylight ? 4 | (percent(config, layer(view), editing) << 8) : 0);
+-        float density = view.getResources().getDisplayMetrics().density;
+-        if (!addedBloom && state.effectPolicy == policy
+-                && (!daylight || Float.compare(state.effectDensity, density) == 0)) return;
++        // Bloom is a legacy outline API, not the 42-parameter MiGlass material.
++        // Compatibility rendering must not synthesize a native glass profile or turn mix on.
++        int policy = (decoration ? 1 : 0) | (software ? 2 : 0);
++        if (state.effectPolicy == policy) return;
+         boolean wasSoftware = state.effectPolicy >= 0 && (state.effectPolicy & 2) != 0;
+-        boolean wasDaylight = state.effectPolicy >= 0 && (state.effectPolicy & 4) != 0;
+         for (Map.Entry<String, Object[]> entry : state.requests.entrySet()) {
+             String operation = entry.getKey();
+             if (!ControlCenterNativeEffects.decoration(operation)
+-                    && !((daylight || wasDaylight) && operation.equals("setMixEffectEnabled"))
+                     && !((software || wasSoftware) && ControlCenterNativeEffects.composition(operation))) continue;
+             if (software && operation.equals("setMiBackgroundBlendColors")) {
+                 clearNativeBlend(view);
+@@ -1128,7 +1096,6 @@ final class ControlCenterMaterials {
+             }
+         }
+         state.effectPolicy = policy;
+-        state.effectDensity = density;
+     }
+     private static boolean borderContainer(View view, String id, String name) {
+         return panelContainer(view, name) || name.contains("QSTileItemView")
+@@ -1478,7 +1445,7 @@ final class ControlCenterMaterials {
+             ControlCenterSurface surface = config.enabled ? config.surface : ControlCenterSurface.DEFAULT;
+             boolean replace = externalSurface || active || surface != ControlCenterSurface.DEFAULT;
+             int selected = surface == ControlCenterSurface.DEFAULT && !active ? 0 : surface.stateColor(active);
+-            int color = color(selected, opacityPercent(surface, blurPercent));
++            int color = color(selected, opacityPercent(blurPercent));
+             if (this.shape.shape == shape.shape && this.shape.radiusDp == shape.radiusDp
+                     && this.fillLayer == fillLayer && replaceSurface == replace && fillColor == color) return false;
+             this.shape = shape;
+@@ -1641,8 +1608,6 @@ final class ControlCenterMaterials {
+         }
+     }
+     private static final class NativeSurface {
+-        boolean bloomChecked;
+-        float effectDensity = Float.NaN;
+         final Map<String, Object[]> requests = new java.util.LinkedHashMap<>();
+         int mode, radius;
+         boolean overridden, failureLogged, ownedContainer, syntheticTint, blendAdjusted;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java
+index 020684b..61931f4 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterNativeEffects.java
+@@ -18,14 +18,6 @@ final class ControlCenterNativeEffects {
+ 
+     private ControlCenterNativeEffects() { }
+ 
+-    /** Static two-light bloom for OEM RenderNodes which expose the 21-float API. */
+-    static float[] daylightBloom(float density, int strength) {
+-        float opacity = Math.max(0, Math.min(100, strength)) / 100f;
+-        return new float[] {0.8f * density, 180f, 1f, 1f, 1f, 0.05f * opacity,
+-                2.6f * density, .5f, .5f, -.5f, 1f, 1f, 1f, .6f * opacity,
+-                .5f, .95f, -.5f, 1f, 1f, 1f, .35f * opacity};
+-    }
+-
+     static boolean decoration(String operation) {
+         return operation.equals("setMiBloomStroke") || operation.equals("setMiShadow");
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginCapabilities.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginCapabilities.java
+index b827ece..b40d805 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginCapabilities.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginCapabilities.java
+@@ -28,11 +28,24 @@ final class ControlCenterPluginCapabilities {
+         if (loader != null) active = new WeakReference<>(loader);
+     }
+ 
++    /** A built-in panel may be discovered before any plugin explicitly owns the host. */
++    synchronized void activateIfUnclaimed(ClassLoader loader) {
++        if (loader == null || active.get() != null) return;
++        Entry entry = entries.get(loader);
++        if (entry != null && entry.result != null && entry.result.layoutAvailable)
++            active = new WeakReference<>(loader);
++    }
++
+     synchronized ControlCenterPluginHookInstaller.Result activeResult() {
+         Entry entry = entries.get(active.get());
+         return entry == null ? null : entry.result;
+     }
+ 
++    synchronized ControlCenterPluginHookInstaller.Result resultFor(ClassLoader loader) {
++        Entry entry = loader == null ? null : entries.get(loader);
++        return entry == null ? null : entry.result;
++    }
++
+     void scheduleRetries(Consumer<ClassLoader> installer) {
+         ArrayList<ClassLoader> loaders;
+         synchronized (this) { loaders = new ArrayList<>(entries.keySet()); }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginHookInstaller.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginHookInstaller.java
+index 5b0a70f..474ecf7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginHookInstaller.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterPluginHookInstaller.java
+@@ -205,13 +205,21 @@ final class ControlCenterPluginHookInstaller {
+         }
+ 
+         String missingRequiredCapability(ControlCenterConfig settings) {
++            return missingRequiredCapability(settings, null);
++        }
++
++        String missingRequiredCapability(ControlCenterConfig settings, Result coreHeaderResult) {
+             if (!layoutAvailable) return "control_center_layout_hooks_unavailable";
+             if (settings.hasVisualOverride() && (count(Group.VISUAL) == 0
+                     || count(Group.SHAPE) == 0 || count(Group.COMPONENT_SHAPE) == 0))
+                 return "control_center_visual_hooks_unavailable";
+-            if (settings.hideDate && count(Group.HEADER_DATE) == 0)
++            // HyperOS can keep the header controller in core SystemUI while the QS layout
++            // lives in its plugin. Only these header groups may use the current core result.
++            if (settings.hideDate && count(Group.HEADER_DATE) == 0
++                    && (coreHeaderResult == null || coreHeaderResult.count(Group.HEADER_DATE) == 0))
+                 return "control_center_date_visibility_hook_unavailable";
+-            if (settings.hideCarrier && count(Group.HEADER_CARRIER) == 0)
++            if (settings.hideCarrier && count(Group.HEADER_CARRIER) == 0
++                    && (coreHeaderResult == null || coreHeaderResult.count(Group.HEADER_CARRIER) == 0))
+                 return "control_center_carrier_visibility_hook_unavailable";
+             return "";
+         }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index e32eeca..f453919 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -1478,6 +1478,8 @@ final class ControlCenterRuntimeGrid {
+                         settings.surface.resolve(overlay.getContext()).neutralForeground() == 0xff202124);
+             }
+             if (contentScaleChanged) requestLayout();
++            // Some surfaces are owned by drawable wrappers and refresh only in dispatchDraw.
++            invalidate();
+         }
+ 
+         @Override
+@@ -1611,6 +1613,24 @@ final class ControlCenterRuntimeGrid {
+                 Slot tileSlot = slotsByView.get(tile);
+                 boolean active = isActiveTile(decoration.item);
+                 ActiveTileBackground wrapper = activeTileBackgrounds.get(tile);
++                boolean editing = ControlCenterNativeMode.isEditing(tile);
++                if (!materialSettings.enabled || editing) {
++                    // The deferred slot pass can already have cleared the dirty flag.
++                    // Release our fallback before considering stable active-state shortcuts.
++                    if (wrapper != null) {
++                        activeTileBackgrounds.remove(tile);
++                        if (tile.getBackground() == wrapper) tile.setBackground(wrapper.nativeBackground);
++                    }
++                    continue;
++                }
++                int strength = ControlCenterMaterials.percent(materialSettings,
++                        ControlCenterMaterials.Layer.TILE, editing);
++                ControlCenterSurface surface = ControlCenterMaterials.surface(materialSettings, editing)
++                        .resolve(tile.getContext());
++                int surfaceColor = ControlCenterMaterials.color(surface.stateColor(true), strength);
++                // A settings refresh can change opacity without changing the active state.
++                // Apply it before the stable-state shortcut, including after drawable registration.
++                if (wrapper != null && tile.getBackground() == wrapper) wrapper.setSurfaceColor(surfaceColor);
+                 if (tileSlot != null) {
+                     boolean stateChanged = !tileSlot.materialActiveKnown
+                             || tileSlot.materialActive != active;
+@@ -1629,12 +1649,12 @@ final class ControlCenterRuntimeGrid {
+                 }
+                 if (active) {
+                     if (tile.getBackground() instanceof ActiveTileBackground current) {
+-                        current.setActive(true);
++                        current.setSurfaceColor(surfaceColor);
+                         if (tileSlot != null) tileSlot.materialDirty = false;
+                         continue;
+                     }
+                     Drawable nativeBackground = tile.getBackground();
+-                    wrapper = new ActiveTileBackground(nativeBackground);
++                    wrapper = new ActiveTileBackground(nativeBackground, surfaceColor);
+                     activeTileBackgrounds.put(tile, wrapper);
+                     tile.setBackground(wrapper);
+                     if (tileSlot != null) tileSlot.materialDirty = false;
+@@ -2044,25 +2064,22 @@ final class ControlCenterRuntimeGrid {
+     private static final class ActiveTileBackground extends Drawable {
+         final Drawable nativeBackground;
+         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+-        private boolean active = true;
+ 
+-        ActiveTileBackground(Drawable nativeBackground) {
++        ActiveTileBackground(Drawable nativeBackground, int color) {
+             this.nativeBackground = nativeBackground;
+-            fill.setColor(ControlCenterCardView.ACTIVE_SURFACE);
++            fill.setColor(color);
+         }
+ 
+-        void setActive(boolean active) {
+-            if (this.active == active) return;
+-            this.active = active;
++        void setSurfaceColor(int color) {
++            if (fill.getColor() == color) return;
++            fill.setColor(color);
+             invalidateSelf();
+         }
+ 
+         @Override public void draw(Canvas canvas) {
+             android.graphics.Rect bounds = getBounds();
+-            if (nativeBackground != null) {
+-                nativeBackground.setBounds(bounds);
+-                nativeBackground.draw(canvas);
+-            }
++            // Replace the active fill instead of compositing it over another material.
++            // Keep the native background solely for restoration when the tile turns off.
+             float size = Math.min(bounds.width(), bounds.height());
+             float left = bounds.left + (bounds.width() - size) / 2f;
+             float top = bounds.top + (bounds.height() - size) / 2f;
+@@ -2073,7 +2090,12 @@ final class ControlCenterRuntimeGrid {
+             if (nativeBackground != null) nativeBackground.setBounds(bounds);
+         }
+ 
+-        @Override public void setAlpha(int alpha) { fill.setAlpha(alpha); invalidateSelf(); }
++        @Override public void setAlpha(int alpha) {
++            if (fill.getAlpha() == alpha) return;
++            fill.setAlpha(alpha);
++            invalidateSelf();
++        }
++        @Override public int getAlpha() { return fill.getAlpha(); }
+         @Override public void setColorFilter(ColorFilter filter) {
+             fill.setColorFilter(filter);
+             if (nativeBackground != null) nativeBackground.setColorFilter(filter);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+index a3d850d..329a31d 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+@@ -5,6 +5,7 @@ import android.graphics.ColorFilter;
+ import android.graphics.LinearGradient;
+ import android.graphics.Paint;
+ import android.graphics.PixelFormat;
++import android.graphics.Rect;
+ import android.graphics.Shader;
+ import android.graphics.drawable.Drawable;
+ import android.view.View;
+@@ -39,7 +40,7 @@ final class ControlCenterSoftGlass {
+             view.addOnLayoutChangeListener(state);
+             view.getOverlay().add(state.drawable);
+         }
+-        state.drawable.configure(view, strength, surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS);
++        state.drawable.configure(view, strength, surface);
+     }
+ 
+     private static State current(View view) {
+@@ -47,6 +48,14 @@ final class ControlCenterSoftGlass {
+         return reference == null ? null : reference.get();
+     }
+ 
++    /** Keep reflection above a newly added solid border without rebuilding its shader. */
++    static void bringToFront(View view) {
++        State state = current(view);
++        if (state == null) return;
++        view.getOverlay().remove(state.drawable);
++        view.getOverlay().add(state.drawable);
++    }
++
+     private static final class State implements View.OnLayoutChangeListener {
+         final GlassDrawable drawable;
+ 
+@@ -58,7 +67,9 @@ final class ControlCenterSoftGlass {
+         }
+     }
+ 
+-    private static final class GlassDrawable extends Drawable {
++    static final class GlassDrawable extends Drawable {
++        private static final float[] BAND_WIDTHS = {1f, .67f, .40f, .22f};
++        private static final float[] BAND_OPACITY = {.08f, .10f, .14f, .16f};
+         private final WeakReference<View> owner;
+         private final Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
+         private final Paint inner = new Paint(Paint.ANTI_ALIAS_FLAG);
+@@ -66,7 +77,9 @@ final class ControlCenterSoftGlass {
+         private int width = -1, height = -1, strength = -1;
+         private int shaderStrength = -1;
+         private float shaderDensity = Float.NaN;
+-        private boolean daylight, shaderDaylight;
++        private boolean highlight, daylight, shaderHighlight, shaderDaylight;
++        private int drawableAlpha = 255;
++        private float edgeWidth;
+ 
+         GlassDrawable(View view) {
+             owner = new WeakReference<>(view);
+@@ -74,17 +87,30 @@ final class ControlCenterSoftGlass {
+             inner.setStyle(Paint.Style.STROKE);
+         }
+ 
+-        void configure(View view, int value, boolean daylight) {
++        void configure(View view, int value, ControlCenterSurface surface) {
++            configure(view, value, surface, true);
++        }
++
++        void configureBackground(View view, int value, ControlCenterSurface surface) {
++            configure(view, value, surface, false);
++        }
++
++        private void configure(View view, int value, ControlCenterSurface surface, boolean viewBounds) {
+             strength = Math.max(0, Math.min(100, value));
+-            this.daylight = daylight;
+-            updateBounds(view);
++            highlight = surface == ControlCenterSurface.HIGHLIGHT_GLASS;
++            daylight = highlight && surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
++            if (viewBounds) updateBounds(view);
++            else updateSize(view, Math.max(0, width), Math.max(0, height));
+         }
+ 
+         void updateBounds(View view) {
+-            int nextWidth = view.getWidth(), nextHeight = view.getHeight();
++            updateSize(view, view.getWidth(), view.getHeight());
++        }
++
++        private void updateSize(View view, int nextWidth, int nextHeight) {
+             float nextDensity = view.getResources().getDisplayMetrics().density;
+             if (nextWidth == width && nextHeight == height && strength == shaderStrength
+-                    && daylight == shaderDaylight
++                    && daylight == shaderDaylight && highlight == shaderHighlight
+                     && Float.compare(nextDensity, shaderDensity) == 0
+                     && (nextWidth <= 0 || nextHeight <= 0 || rim.getShader() != null)) return;
+             width = nextWidth;
+@@ -92,6 +118,7 @@ final class ControlCenterSoftGlass {
+             shaderStrength = strength;
+             shaderDensity = nextDensity;
+             shaderDaylight = daylight;
++            shaderHighlight = highlight;
+             setBounds(0, 0, nextWidth, nextHeight);
+             updateShaders(view);
+             invalidateSelf();
+@@ -101,15 +128,33 @@ final class ControlCenterSoftGlass {
+             if (width <= 0 || height <= 0) return;
+             float density = view.getResources().getDisplayMetrics().density;
+             float factor = strength / 100f;
++            if (highlight) {
++                // Several low-opacity bands create a continuous falloff, rather than a
++                // bright hairline paired with a second dark outline. The middle of the
++                // directional reflection fades out to avoid a uniformly lit closed ring.
++                edgeWidth = Math.min(density * 6f, Math.min(width, height) * .14f);
++                rim.setStrokeWidth(edgeWidth);
++                rim.setShader(new LinearGradient(0, 0, width * .35f, height,
++                        daylight
++                                ? new int[] {alpha(0xb0, factor), alpha(0x28, factor), alpha(0x00, factor), alpha(0x70, factor)}
++                                : new int[] {alpha(0xb0, factor), alpha(0x38, factor), alpha(0x00, factor), alpha(0x70, factor)},
++                        new float[] {0f, .28f, .62f, 1f}, Shader.TileMode.CLAMP));
++                inner.setStrokeWidth(edgeWidth * .75f);
++                inner.setShader(new LinearGradient(0, 0, width, height,
++                        new int[] {0x00131a20, (Math.round((daylight ? 0x24 : 0x18) * factor) << 24) | 0x00131a20,
++                                0x00131a20}, new float[] {0f, .58f, 1f}, Shader.TileMode.CLAMP));
++                return;
++            }
+             rim.setStrokeWidth(Math.max(1f, density * 1.2f));
+             rim.setShader(new LinearGradient(0, 0, width * 0.18f, height,
+                     daylight
+-                            ? new int[] {alpha(0xff, factor), alpha(0x24, factor), alpha(0xb0, factor)}
++                            ? new int[] {alpha(0xd8, factor), alpha(0x20, factor), alpha(0x90, factor)}
+                             : new int[] {alpha(0xf0, factor), alpha(0x50, factor), alpha(0x82, factor)},
+                     new float[] {0f, 0.56f, 1f}, Shader.TileMode.CLAMP));
+             inner.setStrokeWidth(Math.max(0.5f, density * 0.7f));
+-            // A restrained dark edge keeps the glass silhouette visible over a bright wallpaper.
+-            inner.setColor(daylight ? (Math.round(0x38 * factor) << 24) | 0x00384250 : alpha(0x3a, factor));
++            inner.setShader(null);
++            // Separate the inner shade from the bright rim to give the edge a shallow bevel.
++            inner.setColor(daylight ? (Math.round(0x48 * factor) << 24) | 0x00222529 : alpha(0x3a, factor));
+         }
+ 
+         private int alpha(int value, float factor) {
+@@ -119,16 +164,54 @@ final class ControlCenterSoftGlass {
+         @Override public void draw(Canvas canvas) {
+             View view = owner.get();
+             if (view == null || width <= 0 || height <= 0) return;
++            if (highlight) {
++                if (shape.resolve(view, 0f)) drawSoftEdge(canvas);
++                return;
++            }
+             if (!shape.resolve(view, rim.getStrokeWidth() / 2f)) return;
+             shape.draw(canvas, rim);
+-            shape.draw(canvas, inner);
++            if (daylight && !shape.resolve(view,
++                    rim.getStrokeWidth() + inner.getStrokeWidth() / 2f)) return;
++            shape.draw(canvas, inner, daylight ? rim.getStrokeWidth() : 0f);
++        }
++
++        /** Background-owned rendering inherits notification bounds, clipping and native fade. */
++        void drawRoundRect(Canvas canvas, Rect bounds, float radius) {
++            View view = owner.get();
++            if (view == null || bounds.isEmpty() || strength <= 0) return;
++            updateSize(view, bounds.width(), bounds.height());
++            shape.roundRect(width, height, radius);
++            int saved = canvas.save();
++            canvas.translate(bounds.left, bounds.top);
++            try { drawSoftEdge(canvas); }
++            finally { canvas.restoreToCount(saved); }
++        }
++
++        private void drawSoftEdge(Canvas canvas) {
++            if (drawableAlpha <= 0 || strength <= 0) return;
++            inner.setAlpha(Math.round(drawableAlpha * .38f));
++            shape.drawInside(canvas, inner, edgeWidth * .18f);
++            try {
++                for (int band = 0; band < BAND_WIDTHS.length; band++) {
++                    rim.setStrokeWidth(edgeWidth * BAND_WIDTHS[band]);
++                    rim.setAlpha(Math.round(drawableAlpha * BAND_OPACITY[band]));
++                    shape.drawInside(canvas, rim, 0f);
++                }
++            } finally {
++                rim.setStrokeWidth(edgeWidth);
++                rim.setAlpha(drawableAlpha);
++                inner.setAlpha(drawableAlpha);
++            }
+         }
+ 
+         @Override public void setAlpha(int alpha) {
++            if (drawableAlpha == alpha) return;
++            drawableAlpha = alpha;
+             rim.setAlpha(alpha); inner.setAlpha(alpha); invalidateSelf();
+         }
+ 
+         @Override public void setColorFilter(ColorFilter filter) {
++            if (rim.getColorFilter() == filter && inner.getColorFilter() == filter) return;
+             rim.setColorFilter(filter); inner.setColorFilter(filter);
+             invalidateSelf();
+         }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java
+index 6115b7c..47c311b 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurface.java
+@@ -10,7 +10,8 @@ enum ControlCenterSurface {
+     GLASS("晶透", 0x26ffffff), LIGHT("浅色", 0xe6f0f2f5),
+     GRAPHITE("石墨", 0xe6191b1f), ICE("冰蓝", 0x704e8eae),
+     MINT("薄荷", 0x70609680), SOFT_GLASS("柔光玻璃", 0xc03c4149),
+-    HIGHLIGHT_GLASS("高光玻璃（随系统）", 0xb8e8edf2);
++    // A neutral, very light lift lets the actual backdrop supply the glass color.
++    HIGHLIGHT_GLASS("高光玻璃（兼容·随系统）", 0x18ffffff);
+ 
+     final String label;
+     final int color;
+@@ -44,7 +45,7 @@ enum ControlCenterSurface {
+         return this == DEFAULT ? ControlCenterCardView.INACTIVE_SURFACE : color;
+     }
+ 
+-    int neutralForeground() { return this == LIGHT || this == HIGHLIGHT_GLASS ? 0xff202124 : 0xffffffff; }
++    int neutralForeground() { return this == LIGHT ? 0xff202124 : 0xffffffff; }
+ 
+     @Override public String toString() { return label; }
+ }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java
+index 61990d1..f4f94c6 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java
+@@ -41,6 +41,26 @@ final class ControlCenterSurfaceShape {
+     }
+ 
+     void draw(Canvas canvas, Paint paint) {
++        draw(canvas, paint, 0f);
++    }
++
++    void roundRect(float width, float height, float radius) {
++        path.rewind();
++        rect.set(0, 0, width, height);
++        path.addRoundRect(rect, radius, radius, Path.Direction.CW);
++        clipStroke = false;
++    }
++
++    /** Draw a band inward from the same exact contour, without re-resolving OEM geometry. */
++    void drawInside(Canvas canvas, Paint paint, float offset) {
++        boolean previous = clipStroke;
++        clipStroke = true;
++        try { draw(canvas, paint, offset); }
++        finally { clipStroke = previous; }
++    }
++
++    /** Native paths retain their exact contour; offset their stroke with a clipped edge band. */
++    void draw(Canvas canvas, Paint paint, float innerOffset) {
+         if (path.isEmpty()) return;
+         if (!clipStroke) {
+             drawPath(canvas, paint);
+@@ -51,7 +71,15 @@ final class ControlCenterSurfaceShape {
+         try {
+             // Preserve the exact OEM path and keep the entire stroke inside its surface.
+             canvas.clipPath(path);
+-            paint.setStrokeWidth(width * 2f);
++            float offset = Math.max(0f, innerOffset);
++            if (offset > 0f && paint.getStyle() == Paint.Style.STROKE) {
++                strokePaint.set(paint);
++                strokePaint.setStrokeWidth(offset * 2f);
++                strokePath.rewind();
++                if (!strokePaint.getFillPath(path, strokePath)) return;
++                canvas.clipOutPath(strokePath);
++            }
++            paint.setStrokeWidth((width + offset) * 2f);
+             drawPath(canvas, paint);
+         } finally {
+             paint.setStrokeWidth(width);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
+index 8e71f62..1c59792 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
+@@ -46,7 +46,7 @@ final class SystemSurfaceStyle {
+         if (state == null) {
+             state = new State(view);
+             SURFACES.put(view, state);
+-        } else if (view.getBackground() != state.material.get()) {
++        } else if (!ownsBackground(view.getBackground(), state.material.get())) {
+             state.background = view.getBackground();
+         }
+         state.config = config;
+@@ -54,15 +54,15 @@ final class SystemSurfaceStyle {
+         SurfaceDrawable drawable = state.drawable();
+         drawable.configure(state.background == null ? nativeBackground(view) : state.background,
+                 config, strength(state), view);
+-        if (view.getBackground() != drawable) {
++        if (!ownsBackground(view.getBackground(), drawable)) {
+             int left = view.getPaddingLeft(), top = view.getPaddingTop();
+             int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
+             view.setBackground(drawable);
+             view.setPadding(left, top, right, bottom);
+         }
+-        ControlCenterSoftGlass.apply(view, config.surface,
+-                config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS,
+-                strength(state));
++        // This background is also wrapped by NotificationSurfaceHooks. Keep its
++        // reflection inside the drawable so actual-height clipping and fade apply.
++        ControlCenterSoftGlass.apply(view, false, 0);
+         if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) watchTheme(view);
+         else releaseTheme(view);
+         updateNative(view, state);
+@@ -79,6 +79,15 @@ final class SystemSurfaceStyle {
+         return drawable instanceof SurfaceDrawable surface && surface.nativeContent();
+     }
+ 
++    private static boolean ownsBackground(Drawable background, Drawable material) {
++        // Theme callbacks can arrive outside applyRow's explicit unwrap/re-wrap.
++        // Never adopt our own bounds wrapper as the OEM original: it leads back
++        // to this material and would recurse when DEFAULT draws native content.
++        return material != null && (background == material
++                || background instanceof NotificationSurfaceHooks.BoundedBackground bounded
++                        && bounded.content == material);
++    }
++
+     static void restore(View view) {
+         if (view == null) return;
+         State state = SURFACES.remove(view);
+@@ -398,6 +407,7 @@ final class SystemSurfaceStyle {
+         private float density;
+         private int strength, alpha = 255;
+         private ColorFilter colorFilter;
++        private ControlCenterSoftGlass.GlassDrawable reflection;
+ 
+         void configure(Drawable original, ControlCenterConfig config, int strength, View view) {
+             this.original = original;
+@@ -405,6 +415,10 @@ final class SystemSurfaceStyle {
+             this.strength = strength;
+             this.owner = new WeakReference<>(view);
+             this.density = view.getResources().getDisplayMetrics().density;
++            if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) {
++                if (reflection == null) reflection = new ControlCenterSoftGlass.GlassDrawable(view);
++                reflection.configureBackground(view, strength, config.surface);
++            } else reflection = null;
+             invalidateSelf();
+         }
+ 
+@@ -447,7 +461,11 @@ final class SystemSurfaceStyle {
+                 canvas.drawRoundRect(bounds, Math.max(0, radius - stroke / 2f),
+                         Math.max(0, radius - stroke / 2f), paint);
+             }
+-            if (surface == ControlCenterSurface.SOFT_GLASS) {
++            if (reflection != null) {
++                reflection.setAlpha(alpha);
++                reflection.setColorFilter(colorFilter);
++                reflection.drawRoundRect(canvas, getBounds(), radius);
++            } else if (surface == ControlCenterSurface.SOFT_GLASS) {
+                 bounds.set(getBounds());
+                 bounds.inset(density / 2f, density / 2f);
+                 paint.setStyle(Paint.Style.STROKE);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index 15eab34..83ba9af 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -506,13 +506,13 @@ public final class SystemUiHooks {
+ 
+     private static int hookControlCenterPlugin(ClassLoader targetLoader) {
+         if (targetLoader == null) return 0;
+-        CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(targetLoader);
+         int before = HANDLES.size();
+         ControlCenterPluginHookInstaller installer = controlCenterPluginHookInstaller();
+         ControlCenterPluginHookInstaller.Result result = installer.install(targetLoader);
+         int count = HANDLES.size() - before;
+         boolean layoutAvailable = result.layoutAvailable;
+         CONTROL_CENTER_PLUGIN_CAPABILITIES.record(targetLoader, result);
++        CONTROL_CENTER_PLUGIN_CAPABILITIES.activateIfUnclaimed(targetLoader);
+         CONTROL_CENTER_PLUGIN_CAPABILITIES.scheduleRetry(targetLoader,
+                 SystemUiHooks::hookControlCenterPlugin);
+         if (count > 0) {
+@@ -775,9 +775,11 @@ public final class SystemUiHooks {
+             } catch (NoSuchMethodException ignored) { }
+         }
+         if (HANDLES.size() != before) {
+-            log(Log.INFO, "control-center native material APIs=" + nativeCount + "/5", null);
++            log(Log.INFO, "control-center native material APIs=" + nativeCount
++                    + "/5 (legacy blur/blend; not full MiGlass)", null);
+             log(Log.INFO, "control-center native effect APIs=" + effectCount + "/"
+-                    + ControlCenterNativeEffects.Api.values().length, null);
++                    + ControlCenterNativeEffects.Api.values().length
++                    + " (legacy bloom/shadow; not full MiGlass)", null);
+         }
+     }
+ 
+@@ -3030,7 +3032,16 @@ public final class SystemUiHooks {
+     }
+ 
+     private static void reportFeature(String feature, String state, String reason) {
+-        FEATURE_STATES.put(feature, new RuntimeApplicationPolicy.Result(feature, state, reason));
++        RuntimeApplicationPolicy.Result previous = FEATURE_STATES.put(feature,
++                new RuntimeApplicationPolicy.Result(feature, state, reason));
++        if (FusionActivationStatus.FEATURE_CONTROL_CENTER.equals(feature)
++                && (previous == null || !java.util.Objects.equals(previous.state(), state)
++                        || !java.util.Objects.equals(previous.reason(), reason))) {
++            int priority = FusionActivationStatus.DEGRADED.equals(state)
++                    || FusionActivationStatus.FAILED.equals(state) ? Log.WARN : Log.INFO;
++            log(priority, "control-center application state=" + state + " reason="
++                    + (reason == null ? "" : reason) + " revision=" + currentConfig.revision, null);
++        }
+         if (configLifecycle != null)
+             configLifecycle.report(currentConfig.revision, feature, state, reason);
+     }
+@@ -3053,7 +3064,8 @@ public final class SystemUiHooks {
+                     FusionActivationStatus.WAITING, "control_center_loader_pending");
+             return true;
+         }
+-        String missing = result.missingRequiredCapability(currentConfig.controlCenter);
++        String missing = result.missingRequiredCapability(currentConfig.controlCenter,
++                CONTROL_CENTER_PLUGIN_CAPABILITIES.resultFor(loader));
+         if (missing.isEmpty()) return false;
+         reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER,
+                 FusionActivationStatus.DEGRADED, missing);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAdaptiveGlassConsumersTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAdaptiveGlassConsumersTest.java
+index 293e4d4..c6e213e 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAdaptiveGlassConsumersTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAdaptiveGlassConsumersTest.java
+@@ -32,7 +32,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         ControlCenterCardView light = fiveG(day), dark = fiveG(night);
+         assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, surfaceColor(light));
+         assertEquals(ControlCenterSurface.SOFT_GLASS.color, surfaceColor(dark));
+-        assertEquals(0xff202124, fiveGText(light).getCurrentTextColor());
++        assertEquals(Color.WHITE, fiveGText(light).getCurrentTextColor());
+         assertEquals(Color.WHITE, fiveGText(dark).getCurrentTextColor());
+ 
+         changeTheme(light, true);
+@@ -40,7 +40,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         assertEquals(Color.WHITE, fiveGText(light).getCurrentTextColor());
+         changeTheme(light, false);
+         assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, surfaceColor(light));
+-        assertEquals(0xff202124, fiveGText(light).getCurrentTextColor());
++        assertEquals(Color.WHITE, fiveGText(light).getCurrentTextColor());
+         assertEquals("Updating a different context must not change the night preview",
+                 ControlCenterSurface.SOFT_GLASS.color, surfaceColor(dark));
+     }
+@@ -67,6 +67,34 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         grid.releaseMaterials();
+     }
+ 
++    @Test public void dayGlassRetainsWallpaperColorWhileNightGlassDarkensIt() {
++        FrameLayout surface = new FrameLayout(context(false));
++        SystemSurfaceStyle.apply(surface, adaptive(), true);
++        try {
++            int redWallpaper = centerOver(surface, Color.RED);
++            int blueWallpaper = centerOver(surface, Color.BLUE);
++            int dayWhiteWallpaper = centerOver(surface, Color.WHITE);
++            assertTrue("Day glass must retain over eighty percent of the wallpaper color variation",
++                    Color.red(redWallpaper) - Color.red(blueWallpaper) > 204);
++            assertTrue(Color.blue(blueWallpaper) - Color.blue(redWallpaper) > 204);
++            assertTrue("Colorless glass must not impose a smoky gray tint on a white wallpaper",
++                    Color.red(dayWhiteWallpaper) >= 245);
++            int blackWallpaper = centerOver(surface, Color.BLACK);
++            assertTrue("Soft reflection must not wash out a dark wallpaper",
++                    Color.red(blackWallpaper) <= 32);
++            assertTrue(Math.abs(Color.red(blackWallpaper) - Color.blue(blackWallpaper)) < 3);
++
++            changeTheme(surface, true);
++            surface.getViewTreeObserver().dispatchOnPreDraw();
++            int nightWhiteWallpaper = centerOver(surface, Color.WHITE);
++            assertTrue("Night mode must darken the same wallpaper further",
++                    Color.luminance(nightWhiteWallpaper) < Color.luminance(dayWhiteWallpaper));
++            assertTrue("Dark glass must still transmit some wallpaper color",
++                    Color.red(centerOver(surface, Color.RED))
++                            - Color.red(centerOver(surface, Color.BLUE)) > 32);
++        } finally { SystemSurfaceStyle.restore(surface); }
++    }
++
+     @Test public void systemSurfacesRefreshContentAndTintOnTheNextFrameAndRestoreOriginals() {
+         Context context = context(false);
+         FrameLayout root = new FrameLayout(context);
+@@ -77,7 +105,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         root.addView(label);
+         SystemSurfaceStyle.apply(root, adaptive(), true);
+         SystemSurfaceStyle.applyContent(root, adaptive(), true);
+-        assertEquals(0xff202124, label.getCurrentTextColor());
++        assertEquals(Color.WHITE, label.getCurrentTextColor());
+         assertCenter(root, ControlCenterSurface.HIGHLIGHT_GLASS.color);
+ 
+         changeTheme(root, true);
+@@ -86,7 +114,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         assertCenter(root, ControlCenterSurface.SOFT_GLASS.color);
+         changeTheme(root, false);
+         root.getViewTreeObserver().dispatchOnPreDraw();
+-        assertEquals(0xff202124, label.getCurrentTextColor());
++        assertEquals(Color.WHITE, label.getCurrentTextColor());
+         assertCenter(root, ControlCenterSurface.HIGHLIGHT_GLASS.color);
+ 
+         SystemSurfaceStyle.restore(root);
+@@ -104,7 +132,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+                 true, false, () -> new String[] {"WLAN", "已关闭"});
+         group.applySurface(ControlCenterSurface.HIGHLIGHT_GLASS);
+         TextView title = (TextView) group.getChildAt(1);
+-        assertEquals(0xff202124, title.getCurrentTextColor());
++        assertEquals(Color.WHITE, title.getCurrentTextColor());
+         changeTheme(group, true);
+         assertEquals(Color.WHITE, title.getCurrentTextColor());
+ 
+@@ -114,7 +142,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         ImageView icon = (ImageView) slider.getChildAt(1);
+         assertEquals(Color.WHITE, icon.getImageTintList().getDefaultColor());
+         changeTheme(slider, false);
+-        assertEquals(0xff202124, icon.getImageTintList().getDefaultColor());
++        assertEquals(Color.WHITE, icon.getImageTintList().getDefaultColor());
+         changeTheme(slider, true);
+         assertEquals(Color.WHITE, icon.getImageTintList().getDefaultColor());
+         SystemSurfaceStyle.restore(slider.getChildAt(0));
+@@ -179,6 +207,18 @@ public class ControlCenterAdaptiveGlassConsumersTest {
+         return bitmap;
+     }
+ 
++    private static int centerOver(View view, int wallpaper) {
++        view.measure(View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY),
++                View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY));
++        view.layout(0, 0, 100, 100);
++        Bitmap bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
++        try {
++            bitmap.eraseColor(wallpaper);
++            view.draw(new Canvas(bitmap));
++            return bitmap.getPixel(50, 50);
++        } finally { bitmap.recycle(); }
++    }
++
+     public static final class MediaPlayerPanel extends FrameLayout {
+         MediaPlayerPanel(Context context) { super(context); }
+     }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassConfigTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassConfigTest.java
+index 8a3f6ab..2e4f1b2 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassConfigTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassConfigTest.java
+@@ -35,7 +35,7 @@ public class ControlCenterHighlightGlassConfigTest {
+                     ? ControlCenterSurface.SOFT_GLASS : surface, surface.resolve(night));
+         }
+         assertSame(ControlCenterSurface.HIGHLIGHT_GLASS, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(null));
+-        assertEquals(0xff202124, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(day).neutralForeground());
++        assertEquals(0xffffffff, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(day).neutralForeground());
+         assertEquals(0xffffffff, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(night).neutralForeground());
+     }
+ 
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassMaterialsTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassMaterialsTest.java
+index 3e52769..6ed1125 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassMaterialsTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassMaterialsTest.java
+@@ -41,12 +41,12 @@ public class ControlCenterHighlightGlassMaterialsTest {
+ 
+         assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, background(day).getColor().getDefaultColor());
+         assertEquals(ControlCenterSurface.SOFT_GLASS.color, background(night).getColor().getDefaultColor());
+-        assertEquals("Glass opacity must stay independent from card blur", 255, background(day).getAlpha());
++        assertEquals("Glass background opacity follows card strength", 153, background(day).getAlpha());
+         assertDaylightBlend(day.colors);
+         assertEquals(1, night.colors.size());
+-        assertEquals(ControlCenterSurface.SOFT_GLASS.color, night.colors.get(0).x);
++        assertEquals(ControlCenterMaterials.color(ControlCenterSurface.SOFT_GLASS.color, 60), night.colors.get(0).x);
+         assertEquals(3, night.colors.get(0).y);
+-        assertTrue(Color.luminance(dayLabel.getCurrentTextColor()) < 0.04f);
++        assertTrue(Color.luminance(dayLabel.getCurrentTextColor()) > 0.9f);
+         assertTrue(Color.luminance(nightLabel.getCurrentTextColor()) > 0.9f);
+         assertEquals(0xcc, Color.alpha(dayLabel.getCurrentTextColor()));
+         assertEquals(0xcc, Color.alpha(nightLabel.getCurrentTextColor()));
+@@ -80,10 +80,8 @@ public class ControlCenterHighlightGlassMaterialsTest {
+         assertEquals(1, panel.viewMode);
+         assertEquals(1, panel.backgroundMode);
+         assertEquals(165, panel.radius);
+-        assertEquals("Two daylight lights and the outline use the native 21-float API", 21, panel.bloom.length);
+-        assertTrue(panel.bloom[0] > 0f);
+-        assertTrue(panel.bloom[13] > 0f);
+-        assertTrue(panel.bloom[20] > 0f);
++        assertArrayEquals("The compatibility edge must not activate an unverified native bloom profile",
++                new float[21], panel.bloom, 0f);
+         assertEquals("The old native shadow must not double the new rim", 0, panel.shadow[0]);
+         float[] daylight = panel.bloom.clone();
+ 
+@@ -91,7 +89,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
+         ControlCenterMaterials.refresh(settings);
+         assertEquals(ControlCenterSurface.SOFT_GLASS.color, background(panel).getColor().getDefaultColor());
+         assertEquals(1, panel.colors.size());
+-        assertEquals(ControlCenterSurface.SOFT_GLASS.color, panel.colors.get(0).x);
++        assertEquals(ControlCenterMaterials.color(ControlCenterSurface.SOFT_GLASS.color, 60), panel.colors.get(0).x);
+         assertArrayEquals(new float[21], panel.bloom, 0f);
+         assertEquals(165, panel.radius);
+ 
+@@ -102,10 +100,14 @@ public class ControlCenterHighlightGlassMaterialsTest {
+         oemBloom[0] = 7f;
+         record(panel, "setMiBloomStroke", new Object[] {oemBloom}, settings);
+         assertArrayEquals("A late OEM redraw must keep the daylight profile", daylight, panel.bloom, 0f);
++        ArrayList<Point> latestBlend = new ArrayList<>(List.of(new Point(0x88345678, 5),
++                new Point(0x20776655, 3)));
++        record(panel, "setMiBackgroundBlendColors", new Object[] {latestBlend}, settings);
++        assertDaylightBlend(panel.colors);
+         ControlCenterMaterials.refresh(settings.withSurface(ControlCenterSurface.DEFAULT).withBlur(100, 100, 100));
+         assertArrayEquals("Disabling the material restores the latest native bloom", oemBloom, panel.bloom, 0f);
+         assertArrayEquals(oemShadow, panel.shadow);
+-        assertEquals(nativeBlend(), panel.colors);
++        assertEquals("Disabling must restore the most recent OEM blend", latestBlend, panel.colors);
+         assertEquals(2, panel.backgroundMode);
+         assertEquals(90, panel.radius);
+         assertEquals(1, panel.viewMode);
+@@ -138,7 +140,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
+             ControlCenterMaterials.refresh(settings);
+             assertEquals(ControlCenterCardView.ACTIVE_SURFACE, background(panel).getColor().getDefaultColor());
+             assertEquals(1, panel.colors.size());
+-            assertEquals(ControlCenterCardView.ACTIVE_SURFACE, panel.colors.get(0).x);
++            assertEquals(ControlCenterMaterials.color(ControlCenterCardView.ACTIVE_SURFACE, 60), panel.colors.get(0).x);
+             assertEquals(3, panel.colors.get(0).y);
+             assertTrue("Active controls retain dark text on their highlighted state",
+                     Color.luminance(label.getCurrentTextColor()) < 0.04f);
+@@ -201,10 +203,10 @@ public class ControlCenterHighlightGlassMaterialsTest {
+             for (QSCardItemView card : new QSCardItemView[] {first, second}) {
+                 assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, background(card).getColor().getDefaultColor());
+                 assertEquals(1, card.blendCalls);
+-                assertTrue(card.mix);
++                assertFalse("Day compatibility must not force native mix on", card.mix);
+             }
+-            assertTrue(Color.luminance(firstLabel.getCurrentTextColor()) < 0.04f);
+-            assertTrue(Color.luminance(secondLabel.getCurrentTextColor()) < 0.04f);
++            assertTrue(Color.luminance(firstLabel.getCurrentTextColor()) > 0.9f);
++            assertTrue(Color.luminance(secondLabel.getCurrentTextColor()) > 0.9f);
+ 
+             ControlCenterMaterials.refresh(softGlass);
+             assertEquals("Leaving the automatic style releases its window observer", 0, themeRootCount());
+@@ -224,7 +226,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
+             for (QSCardItemView card : new QSCardItemView[] {first, second}) {
+                 assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, background(card).getColor().getDefaultColor());
+                 assertEquals(1, card.blendCalls);
+-                assertTrue(card.mix);
++                assertFalse("Re-enabling compatibility must not force native mix on", card.mix);
+             }
+         } finally {
+             ControlCenterMaterials.clearForTest();
+@@ -232,39 +234,37 @@ public class ControlCenterHighlightGlassMaterialsTest {
+         }
+     }
+ 
+-    @Test public void daylightMixIsEnabledWithoutOverwritingTheFalseOemRequest() throws Exception {
++    @Test public void compatibilityGlassKeepsTheFalseOemMixRequestAcrossDayAndNight() throws Exception {
+         QSCardItemView panel = panel(false);
+         ControlCenterConfig settings = settings();
+         ControlCenterMaterials.registerRoot(panel, settings);
+         record(panel, "setMixEffectEnabled", new Object[] {false}, settings);
+         ControlCenterMaterials.updateNativeSurface(panel, settings, false);
+-        assertTrue("The daylight blend stack needs the host mix effect", panel.mix);
++        assertFalse("The compatibility renderer must not infer a full glass backend from the mix setter", panel.mix);
+ 
+         setNight(panel, true);
+         ControlCenterMaterials.refresh(settings);
+         assertFalse("Soft glass restores the native mix preference", panel.mix);
+         setNight(panel, false);
+         ControlCenterMaterials.refresh(settings);
+-        assertTrue(panel.mix);
++        assertFalse(panel.mix);
+         ControlCenterMaterials.refresh(settings.withSurface(ControlCenterSurface.DEFAULT).withBlur(100, 100, 100));
+         assertFalse("Removing the custom style restores the original false request", panel.mix);
+     }
+ 
+-    @Test public void nativeCardGetsDaylightBloomWithoutAnOemRequestAndLaterRestoresTheLatestRequest()
++    @Test public void compatibilityCardDoesNotInventBloomAndLaterRestoresTheLatestOemRequest()
+             throws Exception {
+         QSCardItemView panel = panel(false);
+         ControlCenterConfig settings = settings();
+         record(panel, "setMiViewBlurMode", new Object[] {1}, settings);
+         ControlCenterMaterials.updateNativeSurface(panel, settings, false);
+-        assertTrue("A recognized native card must receive the daylight rim before the OEM supplies one",
+-                panel.bloom[0] > 0f);
+-        assertTrue(panel.bloom[13] > 0f);
+-        assertTrue(panel.bloom[20] > 0f);
++        assertArrayEquals("A missing OEM bloom request must not create a synthetic native glass profile",
++                new float[21], panel.bloom, 0f);
+         float[] daylight = panel.bloom.clone();
+ 
+         setNight(panel, true);
+         ControlCenterMaterials.refresh(settings);
+-        assertArrayEquals("The synthetic baseline must not create a native rim at night",
++        assertArrayEquals("Compatibility drawing must not create a native rim at night",
+                 new float[21], panel.bloom, 0f);
+         ControlCenterConfig original = settings.withSurface(ControlCenterSurface.DEFAULT).withBlur(100, 100, 100);
+         ControlCenterMaterials.refresh(original);
+@@ -276,13 +276,13 @@ public class ControlCenterHighlightGlassMaterialsTest {
+         float[] latestOem = new float[21];
+         latestOem[0] = 7f; latestOem[13] = 0.3f; latestOem[20] = 0.2f;
+         record(panel, "setMiBloomStroke", new Object[] {latestOem}, settings);
+-        assertArrayEquals("A late OEM request must keep the daylight rim while selected",
++        assertArrayEquals("Canvas decorations suppress the late OEM bloom without substituting another native profile",
+                 daylight, panel.bloom, 0f);
+         setNight(panel, true);
+         ControlCenterMaterials.refresh(settings);
+         assertArrayEquals(new float[21], panel.bloom, 0f);
+         ControlCenterMaterials.refresh(original);
+-        assertArrayEquals("The real OEM request replaces the synthetic zero baseline on restoration",
++        assertArrayEquals("Disabling restores the actual latest OEM bloom request",
+                 latestOem, panel.bloom, 0f);
+     }
+ 
+@@ -328,8 +328,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
+         return new ArrayList<>(List.of(new Point(0xccffffff, 14), new Point(0x80112233, 5)));
+     }
+     private static void assertDaylightBlend(ArrayList<Point> colors) {
+-        assertEquals(List.of(new Point(0xe6747474, 15), new Point(0x99525252, 18),
+-                new Point(0x33d1d1d1, 3)), colors);
++        assertEquals(List.of(new Point(ControlCenterMaterials.color(ControlCenterSurface.HIGHLIGHT_GLASS.color, 60), 3)), colors);
+     }
+     private static void record(View view, String operation, Object[] args, ControlCenterConfig settings)
+             throws Exception {
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassReflectionTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassReflectionTest.java
+index 5533d3d..6a15587 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassReflectionTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterHighlightGlassReflectionTest.java
+@@ -103,14 +103,35 @@ public class ControlCenterHighlightGlassReflectionTest {
+         assertNotNull(rim(overlay(surface)).getShader());
+     }
+ 
+-    @Test public void automaticNightReflectionMatchesExistingSoftGlass() {
++    @Test public void daytimeBevelFadesAcrossSeveralPixelsWithoutCoveringTheBody() {
++        View surface = measuredSurface();
++        ControlCenterSoftGlass.apply(surface, ControlCenterSurface.HIGHLIGHT_GLASS, true, 100);
++        Bitmap image = draw(surface);
++        try {
++            float body = Color.luminance(0xff353840);
++            assertTrue("The edge catches light above the background",
++                    Color.luminance(image.getPixel(80, 0)) > body);
++            assertTrue("The reflection reaches beyond a hairline then fades inward",
++                    Color.luminance(image.getPixel(80, 2)) > body
++                            && Color.luminance(image.getPixel(80, 2))
++                            < Color.luminance(image.getPixel(80, 0)));
++            assertEquals("The bevel leaves the surface interior unchanged",
++                    0xff353840, image.getPixel(80, 8));
++            assertEquals(Color.TRANSPARENT, image.getPixel(1, 1));
++        } finally {
++            image.recycle();
++            ControlCenterSoftGlass.apply(surface, false, 0);
++        }
++    }
++
++    @Test public void automaticNightUsesTheSoftEdgeInsteadOfTheLegacySoftGlassLine() {
+         View automatic = measuredSurface(), manual = measuredSurface();
+         setNight(automatic, true);
+         ControlCenterSoftGlass.apply(automatic, ControlCenterSurface.HIGHLIGHT_GLASS, true, 72);
+         ControlCenterSoftGlass.apply(manual, true, 72);
+         Bitmap autoImage = draw(automatic), manualImage = draw(manual);
+         try {
+-            assertTrue("Automatic night mode must preserve the established soft glass rendering",
++            assertFalse("Automatic night glass has its own soft edge; manual soft glass keeps its legacy reflection",
+                     autoImage.sameAs(manualImage));
+         } finally {
+             autoImage.recycle(); manualImage.recycle();
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceMaterialsTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceMaterialsTest.java
+index 13f6524..69c3ed9 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceMaterialsTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceMaterialsTest.java
+@@ -30,7 +30,7 @@ public class ControlCenterSurfaceMaterialsTest {
+         return ControlCenterConfig.defaults().withEnabled(true).withSurface(surface);
+     }
+ 
+-    @Test public void softGlassKeepsDarkTintWhileCardAndTileBlurChange() {
++    @Test public void softGlassScalesBackgroundOpacityAlongsideCardAndTileBlur() {
+         assertTrue(Color.luminance(ControlCenterSurface.SOFT_GLASS.color) < 0.10f);
+         QSCardItemView card = new QSCardItemView();
+         GradientDrawable background = new GradientDrawable();
+@@ -38,13 +38,13 @@ public class ControlCenterSurfaceMaterialsTest {
+         var low = config(ControlCenterSurface.SOFT_GLASS).withBlur(25, 20, 65);
+         ControlCenterMaterials.register(card, background, ControlCenterMaterials.Layer.CARD, low);
+         assertEquals(ControlCenterSurface.SOFT_GLASS.color, background.getColor().getDefaultColor());
+-        assertEquals("Blur strength must not fade the glass tint", 255, background.getAlpha());
++        assertEquals("Card strength must continuously fade the glass background", 51, background.getAlpha());
+ 
+         QSTileItemIconView tile = new QSTileItemIconView();
+         ArrayList<Point> nativeColors = new ArrayList<>(List.of(new Point(0xffeeeeee, 3)));
+         Object[] tint = ControlCenterMaterials.nativeArguments(tile,
+                 "setMiBackgroundBlendColors", new Object[] {nativeColors}, low, false);
+-        assertEquals(ControlCenterSurface.SOFT_GLASS.color,
++        assertEquals(ControlCenterMaterials.color(ControlCenterSurface.SOFT_GLASS.color, 65),
+                 ((ArrayList<Point>) tint[0]).get(0).x);
+         ControlCenterMaterials.nativeArguments(tile, "setMiViewBlurMode", new Object[] {1}, low, false);
+         ControlCenterMaterials.updateNativeSurface(tile, low, false);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfacePreviewTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfacePreviewTest.java
+index 398807b..2fd2580 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfacePreviewTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterSurfacePreviewTest.java
+@@ -134,7 +134,7 @@ public class ControlCenterSurfacePreviewTest {
+                 restored.getPixel(80, 1), restored.getPixel(80, 8));
+         restored.recycle();
+     }
+-    @Test public void softGlassPreviewStaysDarkWithLowCardBlurAndSliderFillReadable() {
++    @Test public void softGlassPreviewScalesBackgroundWithCardBlurAndKeepsSliderFillReadable() {
+         var context = RuntimeEnvironment.getApplication();
+         var root = new FrameLayout(context);
+         root.setBackgroundColor(Color.WHITE);
+@@ -142,19 +142,34 @@ public class ControlCenterSurfacePreviewTest {
+         root.addView(card, new FrameLayout.LayoutParams(160, 80));
+         card.setSurface(ControlCenterSurface.SOFT_GLASS);
+         card.setMaterialStrength(20, 20);
+-        var image = render(root, 160, 80);
+-        assertTrue("Glass should remain dark over a light backdrop",
+-                Color.luminance(image.getPixel(80, 8)) < 0.25f);
++        var image = render(card, 160, 80);
++        assertEquals("Glass background opacity follows the card strength",
++                Math.round(Color.alpha(ControlCenterSurface.SOFT_GLASS.color) * 0.2f),
++                Color.alpha(image.getPixel(80, 8)));
++        image.recycle();
++        image = render(root, 160, 80);
++        assertTrue("Low-strength glass reveals the light backdrop",
++                Color.luminance(image.getPixel(80, 8)) > 0.65f);
+         image.recycle();
+ 
+         var slider = card(ControlCenterComponentSpec.BRIGHTNESS, "亮度", false, false);
+         slider.setSurface(ControlCenterSurface.SOFT_GLASS);
+         slider.setMaterialStrength(20, 20);
+         image = render(slider, 100, 200);
++        assertEquals("The empty slider track follows the same card opacity",
++                Math.round(Color.alpha(ControlCenterSurface.SOFT_GLASS.color) * 0.2f),
++                Color.alpha(image.getPixel(50, 20)));
+         assertTrue("The native-style fill should contrast with the track",
+                 Color.luminance(image.getPixel(50, 180))
+                         > Color.luminance(image.getPixel(50, 20)) + 0.30f);
+         image.recycle();
++        slider.setMaterialStrength(0, 0);
++        image = render(slider, 100, 200);
++        assertEquals("The transparent endpoint clears the track", 0,
++                Color.alpha(image.getPixel(50, 20)));
++        assertTrue("The transparent track must retain slider progress",
++                Color.alpha(image.getPixel(50, 180)) > 200);
++        image.recycle();
+     }
+     private ControlCenterCardView card(String spec, String label, boolean active, boolean large) {
+         var card = new ControlCenterCardView(RuntimeEnvironment.getApplication());

@@ -65,8 +65,8 @@ final class ControlCenterMaterials {
         if (!config.enabled || editing || layer == Layer.NONE) return 100;
         return layer == Layer.CARD ? config.cardBlur : config.tileBlur;
     }
-    private static int opacityPercent(ControlCenterSurface surface, int blurPercent) {
-        return surface.hasSoftGlassReflection() ? 100 : blurPercent;
+    private static int opacityPercent(int blurPercent) {
+        return Math.max(0, Math.min(100, blurPercent));
     }
     static float scale(float value, int strength) { return value * Math.max(0, Math.min(100, strength)) / 100f; }
     static int color(int color, int strength) {
@@ -263,7 +263,7 @@ final class ControlCenterMaterials {
     }
     private static int targetAlpha(Drawable drawable, Surface state, ControlCenterConfig config) {
         View owner = state.owner.get();
-        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(drawableSurface(state, config),
+        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(
                 percent(config, state.layer, ControlCenterNativeMode.isEditing(owner)));
         float alpha = state.alpha;
         ControlCenterSurface style = drawableSurface(state, config);
@@ -276,7 +276,7 @@ final class ControlCenterMaterials {
     private static int alphaArgument(Drawable drawable, Surface state, ControlCenterConfig config) {
         if (!(drawable instanceof ColorDrawable)) return targetAlpha(drawable, state, config);
         View owner = state.owner.get();
-        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(drawableSurface(state, config),
+        int amount = owner == null || preservesNativeMaterial(owner) ? 100 : opacityPercent(
                 percent(config, state.layer, ControlCenterNativeMode.isEditing(owner)));
         return Math.round(scale(255f * state.colorAlphaFactor, amount));
     }
@@ -419,14 +419,10 @@ final class ControlCenterMaterials {
         if (operation.equals("setMiBackgroundBlendColors") && args[0] instanceof ArrayList<?> list) {
             if (list.isEmpty()) return args;
             ArrayList<Point> colors = new ArrayList<>();
-            if (surface == ControlCenterSurface.HIGHLIGHT_GLASS && !activeTile(view)) {
-                // The daytime material uses a blend stack over the host's real blur.
-                // Keep the OEM request intact so changing style can replay it verbatim.
-                colors.add(new Point(0xe6747474, 15));
-                colors.add(new Point(0x99525252, 18));
-                colors.add(new Point(0x33d1d1d1, 3));
-            } else if (surface != ControlCenterSurface.DEFAULT) {
-                colors.add(new Point(color(containerColor(view, surface), opacityPercent(surface, amount)), 3));
+            if (surface != ControlCenterSurface.DEFAULT) {
+                // Use the same translucent tint as the Canvas surface. Overlay/color-dodge
+                // brightening washes out the wallpaper behind the daytime glass.
+                colors.add(new Point(color(containerColor(view, surface), opacityPercent(amount)), 3));
             } else for (Object value : list) if (value instanceof Point point) {
                 colors.add(new Point(color(point.x, amount), point.y));
             }
@@ -575,6 +571,9 @@ final class ControlCenterMaterials {
     }
 
     static void registerRoot(View view, ControlCenterConfig config) {
+        if (view != null && config.enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS
+                && layer(view) != Layer.NONE && !(view instanceof TextView) && !isSliderForeground(view))
+            ControlCenterGlassCapabilities.reportCompatibility(view);
         observeTheme(view, config);
         if (TILE_SHAPES.containsKey(view) && !isGridDecorationManaged(view))
             releaseGridSurface(view, config);
@@ -689,7 +688,7 @@ final class ControlCenterMaterials {
             image.setBackground(current);
             if (current.getDrawable() != null) current.getDrawable().setCallback(current);
         }
-        current.setSurfaceColor(color(containerColor(tile, style), opacityPercent(style, config.tileBlur)));
+        current.setSurfaceColor(color(containerColor(tile, style), opacityPercent(config.tileBlur)));
     }
 
     private static void restoreNativeTileBackground(View image) {
@@ -793,7 +792,7 @@ final class ControlCenterMaterials {
         SURFACES.remove(background);
         ControlCenterSurface style = surface(config, ControlCenterNativeMode.isEditing(tile)).resolve(tile.getContext());
         int fill = config.enabled && !ControlCenterNativeMode.isEditing(tile)
-                ? color(style.stateColor(activeTile(tile)), opacityPercent(style, config.tileBlur)) : 0;
+                ? color(style.stateColor(activeTile(tile)), opacityPercent(config.tileBlur)) : 0;
         if (background.getColor() == null || background.getColor().getDefaultColor() != fill)
             guarded(() -> background.setColor(fill));
     }
@@ -1064,22 +1063,9 @@ final class ControlCenterMaterials {
     private static Object[] effectArguments(View view, String operation, Object[] args,
             ControlCenterConfig config, boolean editing) {
         boolean software = softwareSurface(view, config, editing);
-        if (operation.equals("setMixEffectEnabled") && args.length == 1
-                && daylightNativeGlass(view, config, editing)) return new Object[] {true};
-        if (operation.equals("setMiBloomStroke") && args.length == 1
-                && daylightNativeGlass(view, config, editing)) {
-            return new Object[] {ControlCenterNativeEffects.daylightBloom(
-                    view.getResources().getDisplayMetrics().density, percent(config, layer(view), editing))};
-        }
         boolean decoration = config.enabled && !editing
                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
         return ControlCenterNativeEffects.arguments(operation, args, decoration, software);
-    }
-
-    private static boolean daylightNativeGlass(View view, ControlCenterConfig config, boolean editing) {
-        return config.enabled && !editing && !softwareSurface(view, config, editing)
-                && !insideBorderContainer(view) && !preservesNativeMaterial(view)
-                && config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
     }
 
     private static void syncNativeEffects(View view, NativeSurface state,
@@ -1087,32 +1073,14 @@ final class ControlCenterMaterials {
         boolean software = softwareSurface(view, config, editing);
         boolean decoration = config.enabled && !editing
                 && (software || config.borderEnabled || config.surface.hasSoftGlassReflection());
-        boolean daylight = daylightNativeGlass(view, config, editing);
-        boolean addedBloom = false;
-        if (daylight && !state.bloomChecked) {
-            state.bloomChecked = true;
-            // Directly recognized views are tracked from construction, before attachment.
-            // For parent-derived layers, an unobserved earlier OEM bloom is not a safe zero baseline.
-            if (directLayer(view.getClass().getSimpleName()) != Layer.NONE
-                    && !state.requests.containsKey("setMiBloomStroke")) {
-                try {
-                    view.getClass().getMethod("setMiBloomStroke", float[].class);
-                    state.requests.put("setMiBloomStroke", new Object[] {new float[21]});
-                    addedBloom = true;
-                } catch (NoSuchMethodException | SecurityException ignored) { }
-            }
-        }
-        int policy = (decoration ? 1 : 0) | (software ? 2 : 0)
-                | (daylight ? 4 | (percent(config, layer(view), editing) << 8) : 0);
-        float density = view.getResources().getDisplayMetrics().density;
-        if (!addedBloom && state.effectPolicy == policy
-                && (!daylight || Float.compare(state.effectDensity, density) == 0)) return;
+        // Bloom is a legacy outline API, not the 42-parameter MiGlass material.
+        // Compatibility rendering must not synthesize a native glass profile or turn mix on.
+        int policy = (decoration ? 1 : 0) | (software ? 2 : 0);
+        if (state.effectPolicy == policy) return;
         boolean wasSoftware = state.effectPolicy >= 0 && (state.effectPolicy & 2) != 0;
-        boolean wasDaylight = state.effectPolicy >= 0 && (state.effectPolicy & 4) != 0;
         for (Map.Entry<String, Object[]> entry : state.requests.entrySet()) {
             String operation = entry.getKey();
             if (!ControlCenterNativeEffects.decoration(operation)
-                    && !((daylight || wasDaylight) && operation.equals("setMixEffectEnabled"))
                     && !((software || wasSoftware) && ControlCenterNativeEffects.composition(operation))) continue;
             if (software && operation.equals("setMiBackgroundBlendColors")) {
                 clearNativeBlend(view);
@@ -1128,7 +1096,6 @@ final class ControlCenterMaterials {
             }
         }
         state.effectPolicy = policy;
-        state.effectDensity = density;
     }
     private static boolean borderContainer(View view, String id, String name) {
         return panelContainer(view, name) || name.contains("QSTileItemView")
@@ -1478,7 +1445,7 @@ final class ControlCenterMaterials {
             ControlCenterSurface surface = config.enabled ? config.surface : ControlCenterSurface.DEFAULT;
             boolean replace = externalSurface || active || surface != ControlCenterSurface.DEFAULT;
             int selected = surface == ControlCenterSurface.DEFAULT && !active ? 0 : surface.stateColor(active);
-            int color = color(selected, opacityPercent(surface, blurPercent));
+            int color = color(selected, opacityPercent(blurPercent));
             if (this.shape.shape == shape.shape && this.shape.radiusDp == shape.radiusDp
                     && this.fillLayer == fillLayer && replaceSurface == replace && fillColor == color) return false;
             this.shape = shape;
@@ -1641,8 +1608,6 @@ final class ControlCenterMaterials {
         }
     }
     private static final class NativeSurface {
-        boolean bloomChecked;
-        float effectDensity = Float.NaN;
         final Map<String, Object[]> requests = new java.util.LinkedHashMap<>();
         int mode, radius;
         boolean overridden, failureLogged, ownedContainer, syntheticTint, blendAdjusted;

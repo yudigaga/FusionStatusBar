@@ -41,12 +41,12 @@ public class ControlCenterHighlightGlassMaterialsTest {
 
         assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, background(day).getColor().getDefaultColor());
         assertEquals(ControlCenterSurface.SOFT_GLASS.color, background(night).getColor().getDefaultColor());
-        assertEquals("Glass opacity must stay independent from card blur", 255, background(day).getAlpha());
+        assertEquals("Glass background opacity follows card strength", 153, background(day).getAlpha());
         assertDaylightBlend(day.colors);
         assertEquals(1, night.colors.size());
-        assertEquals(ControlCenterSurface.SOFT_GLASS.color, night.colors.get(0).x);
+        assertEquals(ControlCenterMaterials.color(ControlCenterSurface.SOFT_GLASS.color, 60), night.colors.get(0).x);
         assertEquals(3, night.colors.get(0).y);
-        assertTrue(Color.luminance(dayLabel.getCurrentTextColor()) < 0.04f);
+        assertTrue(Color.luminance(dayLabel.getCurrentTextColor()) > 0.9f);
         assertTrue(Color.luminance(nightLabel.getCurrentTextColor()) > 0.9f);
         assertEquals(0xcc, Color.alpha(dayLabel.getCurrentTextColor()));
         assertEquals(0xcc, Color.alpha(nightLabel.getCurrentTextColor()));
@@ -80,10 +80,8 @@ public class ControlCenterHighlightGlassMaterialsTest {
         assertEquals(1, panel.viewMode);
         assertEquals(1, panel.backgroundMode);
         assertEquals(165, panel.radius);
-        assertEquals("Two daylight lights and the outline use the native 21-float API", 21, panel.bloom.length);
-        assertTrue(panel.bloom[0] > 0f);
-        assertTrue(panel.bloom[13] > 0f);
-        assertTrue(panel.bloom[20] > 0f);
+        assertArrayEquals("The compatibility edge must not activate an unverified native bloom profile",
+                new float[21], panel.bloom, 0f);
         assertEquals("The old native shadow must not double the new rim", 0, panel.shadow[0]);
         float[] daylight = panel.bloom.clone();
 
@@ -91,7 +89,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
         ControlCenterMaterials.refresh(settings);
         assertEquals(ControlCenterSurface.SOFT_GLASS.color, background(panel).getColor().getDefaultColor());
         assertEquals(1, panel.colors.size());
-        assertEquals(ControlCenterSurface.SOFT_GLASS.color, panel.colors.get(0).x);
+        assertEquals(ControlCenterMaterials.color(ControlCenterSurface.SOFT_GLASS.color, 60), panel.colors.get(0).x);
         assertArrayEquals(new float[21], panel.bloom, 0f);
         assertEquals(165, panel.radius);
 
@@ -102,10 +100,14 @@ public class ControlCenterHighlightGlassMaterialsTest {
         oemBloom[0] = 7f;
         record(panel, "setMiBloomStroke", new Object[] {oemBloom}, settings);
         assertArrayEquals("A late OEM redraw must keep the daylight profile", daylight, panel.bloom, 0f);
+        ArrayList<Point> latestBlend = new ArrayList<>(List.of(new Point(0x88345678, 5),
+                new Point(0x20776655, 3)));
+        record(panel, "setMiBackgroundBlendColors", new Object[] {latestBlend}, settings);
+        assertDaylightBlend(panel.colors);
         ControlCenterMaterials.refresh(settings.withSurface(ControlCenterSurface.DEFAULT).withBlur(100, 100, 100));
         assertArrayEquals("Disabling the material restores the latest native bloom", oemBloom, panel.bloom, 0f);
         assertArrayEquals(oemShadow, panel.shadow);
-        assertEquals(nativeBlend(), panel.colors);
+        assertEquals("Disabling must restore the most recent OEM blend", latestBlend, panel.colors);
         assertEquals(2, panel.backgroundMode);
         assertEquals(90, panel.radius);
         assertEquals(1, panel.viewMode);
@@ -138,7 +140,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
             ControlCenterMaterials.refresh(settings);
             assertEquals(ControlCenterCardView.ACTIVE_SURFACE, background(panel).getColor().getDefaultColor());
             assertEquals(1, panel.colors.size());
-            assertEquals(ControlCenterCardView.ACTIVE_SURFACE, panel.colors.get(0).x);
+            assertEquals(ControlCenterMaterials.color(ControlCenterCardView.ACTIVE_SURFACE, 60), panel.colors.get(0).x);
             assertEquals(3, panel.colors.get(0).y);
             assertTrue("Active controls retain dark text on their highlighted state",
                     Color.luminance(label.getCurrentTextColor()) < 0.04f);
@@ -201,10 +203,10 @@ public class ControlCenterHighlightGlassMaterialsTest {
             for (QSCardItemView card : new QSCardItemView[] {first, second}) {
                 assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, background(card).getColor().getDefaultColor());
                 assertEquals(1, card.blendCalls);
-                assertTrue(card.mix);
+                assertFalse("Day compatibility must not force native mix on", card.mix);
             }
-            assertTrue(Color.luminance(firstLabel.getCurrentTextColor()) < 0.04f);
-            assertTrue(Color.luminance(secondLabel.getCurrentTextColor()) < 0.04f);
+            assertTrue(Color.luminance(firstLabel.getCurrentTextColor()) > 0.9f);
+            assertTrue(Color.luminance(secondLabel.getCurrentTextColor()) > 0.9f);
 
             ControlCenterMaterials.refresh(softGlass);
             assertEquals("Leaving the automatic style releases its window observer", 0, themeRootCount());
@@ -224,7 +226,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
             for (QSCardItemView card : new QSCardItemView[] {first, second}) {
                 assertEquals(ControlCenterSurface.HIGHLIGHT_GLASS.color, background(card).getColor().getDefaultColor());
                 assertEquals(1, card.blendCalls);
-                assertTrue(card.mix);
+                assertFalse("Re-enabling compatibility must not force native mix on", card.mix);
             }
         } finally {
             ControlCenterMaterials.clearForTest();
@@ -232,39 +234,37 @@ public class ControlCenterHighlightGlassMaterialsTest {
         }
     }
 
-    @Test public void daylightMixIsEnabledWithoutOverwritingTheFalseOemRequest() throws Exception {
+    @Test public void compatibilityGlassKeepsTheFalseOemMixRequestAcrossDayAndNight() throws Exception {
         QSCardItemView panel = panel(false);
         ControlCenterConfig settings = settings();
         ControlCenterMaterials.registerRoot(panel, settings);
         record(panel, "setMixEffectEnabled", new Object[] {false}, settings);
         ControlCenterMaterials.updateNativeSurface(panel, settings, false);
-        assertTrue("The daylight blend stack needs the host mix effect", panel.mix);
+        assertFalse("The compatibility renderer must not infer a full glass backend from the mix setter", panel.mix);
 
         setNight(panel, true);
         ControlCenterMaterials.refresh(settings);
         assertFalse("Soft glass restores the native mix preference", panel.mix);
         setNight(panel, false);
         ControlCenterMaterials.refresh(settings);
-        assertTrue(panel.mix);
+        assertFalse(panel.mix);
         ControlCenterMaterials.refresh(settings.withSurface(ControlCenterSurface.DEFAULT).withBlur(100, 100, 100));
         assertFalse("Removing the custom style restores the original false request", panel.mix);
     }
 
-    @Test public void nativeCardGetsDaylightBloomWithoutAnOemRequestAndLaterRestoresTheLatestRequest()
+    @Test public void compatibilityCardDoesNotInventBloomAndLaterRestoresTheLatestOemRequest()
             throws Exception {
         QSCardItemView panel = panel(false);
         ControlCenterConfig settings = settings();
         record(panel, "setMiViewBlurMode", new Object[] {1}, settings);
         ControlCenterMaterials.updateNativeSurface(panel, settings, false);
-        assertTrue("A recognized native card must receive the daylight rim before the OEM supplies one",
-                panel.bloom[0] > 0f);
-        assertTrue(panel.bloom[13] > 0f);
-        assertTrue(panel.bloom[20] > 0f);
+        assertArrayEquals("A missing OEM bloom request must not create a synthetic native glass profile",
+                new float[21], panel.bloom, 0f);
         float[] daylight = panel.bloom.clone();
 
         setNight(panel, true);
         ControlCenterMaterials.refresh(settings);
-        assertArrayEquals("The synthetic baseline must not create a native rim at night",
+        assertArrayEquals("Compatibility drawing must not create a native rim at night",
                 new float[21], panel.bloom, 0f);
         ControlCenterConfig original = settings.withSurface(ControlCenterSurface.DEFAULT).withBlur(100, 100, 100);
         ControlCenterMaterials.refresh(original);
@@ -276,13 +276,13 @@ public class ControlCenterHighlightGlassMaterialsTest {
         float[] latestOem = new float[21];
         latestOem[0] = 7f; latestOem[13] = 0.3f; latestOem[20] = 0.2f;
         record(panel, "setMiBloomStroke", new Object[] {latestOem}, settings);
-        assertArrayEquals("A late OEM request must keep the daylight rim while selected",
+        assertArrayEquals("Canvas decorations suppress the late OEM bloom without substituting another native profile",
                 daylight, panel.bloom, 0f);
         setNight(panel, true);
         ControlCenterMaterials.refresh(settings);
         assertArrayEquals(new float[21], panel.bloom, 0f);
         ControlCenterMaterials.refresh(original);
-        assertArrayEquals("The real OEM request replaces the synthetic zero baseline on restoration",
+        assertArrayEquals("Disabling restores the actual latest OEM bloom request",
                 latestOem, panel.bloom, 0f);
     }
 
@@ -328,8 +328,7 @@ public class ControlCenterHighlightGlassMaterialsTest {
         return new ArrayList<>(List.of(new Point(0xccffffff, 14), new Point(0x80112233, 5)));
     }
     private static void assertDaylightBlend(ArrayList<Point> colors) {
-        assertEquals(List.of(new Point(0xe6747474, 15), new Point(0x99525252, 18),
-                new Point(0x33d1d1d1, 3)), colors);
+        assertEquals(List.of(new Point(ControlCenterMaterials.color(ControlCenterSurface.HIGHLIGHT_GLASS.color, 60), 3)), colors);
     }
     private static void record(View view, String operation, Object[] args, ControlCenterConfig settings)
             throws Exception {

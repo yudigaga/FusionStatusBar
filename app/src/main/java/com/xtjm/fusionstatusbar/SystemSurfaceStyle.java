@@ -46,7 +46,7 @@ final class SystemSurfaceStyle {
         if (state == null) {
             state = new State(view);
             SURFACES.put(view, state);
-        } else if (view.getBackground() != state.material.get()) {
+        } else if (!ownsBackground(view.getBackground(), state.material.get())) {
             state.background = view.getBackground();
         }
         state.config = config;
@@ -54,15 +54,15 @@ final class SystemSurfaceStyle {
         SurfaceDrawable drawable = state.drawable();
         drawable.configure(state.background == null ? nativeBackground(view) : state.background,
                 config, strength(state), view);
-        if (view.getBackground() != drawable) {
+        if (!ownsBackground(view.getBackground(), drawable)) {
             int left = view.getPaddingLeft(), top = view.getPaddingTop();
             int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
             view.setBackground(drawable);
             view.setPadding(left, top, right, bottom);
         }
-        ControlCenterSoftGlass.apply(view, config.surface,
-                config.surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS,
-                strength(state));
+        // This background is also wrapped by NotificationSurfaceHooks. Keep its
+        // reflection inside the drawable so actual-height clipping and fade apply.
+        ControlCenterSoftGlass.apply(view, false, 0);
         if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) watchTheme(view);
         else releaseTheme(view);
         updateNative(view, state);
@@ -77,6 +77,15 @@ final class SystemSurfaceStyle {
 
     static boolean usesNativeBackground(Drawable drawable) {
         return drawable instanceof SurfaceDrawable surface && surface.nativeContent();
+    }
+
+    private static boolean ownsBackground(Drawable background, Drawable material) {
+        // Theme callbacks can arrive outside applyRow's explicit unwrap/re-wrap.
+        // Never adopt our own bounds wrapper as the OEM original: it leads back
+        // to this material and would recurse when DEFAULT draws native content.
+        return material != null && (background == material
+                || background instanceof NotificationSurfaceHooks.BoundedBackground bounded
+                        && bounded.content == material);
     }
 
     static void restore(View view) {
@@ -398,6 +407,7 @@ final class SystemSurfaceStyle {
         private float density;
         private int strength, alpha = 255;
         private ColorFilter colorFilter;
+        private ControlCenterSoftGlass.GlassDrawable reflection;
 
         void configure(Drawable original, ControlCenterConfig config, int strength, View view) {
             this.original = original;
@@ -405,6 +415,10 @@ final class SystemSurfaceStyle {
             this.strength = strength;
             this.owner = new WeakReference<>(view);
             this.density = view.getResources().getDisplayMetrics().density;
+            if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) {
+                if (reflection == null) reflection = new ControlCenterSoftGlass.GlassDrawable(view);
+                reflection.configureBackground(view, strength, config.surface);
+            } else reflection = null;
             invalidateSelf();
         }
 
@@ -447,7 +461,11 @@ final class SystemSurfaceStyle {
                 canvas.drawRoundRect(bounds, Math.max(0, radius - stroke / 2f),
                         Math.max(0, radius - stroke / 2f), paint);
             }
-            if (surface == ControlCenterSurface.SOFT_GLASS) {
+            if (reflection != null) {
+                reflection.setAlpha(alpha);
+                reflection.setColorFilter(colorFilter);
+                reflection.drawRoundRect(canvas, getBounds(), radius);
+            } else if (surface == ControlCenterSurface.SOFT_GLASS) {
                 bounds.set(getBounds());
                 bounds.inset(density / 2f, density / 2f);
                 paint.setStyle(Paint.Style.STROKE);

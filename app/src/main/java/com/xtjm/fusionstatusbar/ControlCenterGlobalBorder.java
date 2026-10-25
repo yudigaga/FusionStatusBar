@@ -27,13 +27,15 @@ final class ControlCenterGlobalBorder {
             BORDERS.remove(view);
             return;
         }
-        if (border == null) {
+        boolean added = border == null;
+        if (added) {
             border = new Border(view);
             BORDERS.put(view, new WeakReference<>(border));
             view.addOnLayoutChangeListener(border);
             view.getOverlay().add(border.drawable);
         }
         border.drawable.configure(view, widthDp, lightSurface);
+        if (added) ControlCenterSoftGlass.bringToFront(view);
     }
 
     static void refresh(View view) {

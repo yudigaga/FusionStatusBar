@@ -103,14 +103,35 @@ public class ControlCenterHighlightGlassReflectionTest {
         assertNotNull(rim(overlay(surface)).getShader());
     }
 
-    @Test public void automaticNightReflectionMatchesExistingSoftGlass() {
+    @Test public void daytimeBevelFadesAcrossSeveralPixelsWithoutCoveringTheBody() {
+        View surface = measuredSurface();
+        ControlCenterSoftGlass.apply(surface, ControlCenterSurface.HIGHLIGHT_GLASS, true, 100);
+        Bitmap image = draw(surface);
+        try {
+            float body = Color.luminance(0xff353840);
+            assertTrue("The edge catches light above the background",
+                    Color.luminance(image.getPixel(80, 0)) > body);
+            assertTrue("The reflection reaches beyond a hairline then fades inward",
+                    Color.luminance(image.getPixel(80, 2)) > body
+                            && Color.luminance(image.getPixel(80, 2))
+                            < Color.luminance(image.getPixel(80, 0)));
+            assertEquals("The bevel leaves the surface interior unchanged",
+                    0xff353840, image.getPixel(80, 8));
+            assertEquals(Color.TRANSPARENT, image.getPixel(1, 1));
+        } finally {
+            image.recycle();
+            ControlCenterSoftGlass.apply(surface, false, 0);
+        }
+    }
+
+    @Test public void automaticNightUsesTheSoftEdgeInsteadOfTheLegacySoftGlassLine() {
         View automatic = measuredSurface(), manual = measuredSurface();
         setNight(automatic, true);
         ControlCenterSoftGlass.apply(automatic, ControlCenterSurface.HIGHLIGHT_GLASS, true, 72);
         ControlCenterSoftGlass.apply(manual, true, 72);
         Bitmap autoImage = draw(automatic), manualImage = draw(manual);
         try {
-            assertTrue("Automatic night mode must preserve the established soft glass rendering",
+            assertFalse("Automatic night glass has its own soft edge; manual soft glass keeps its legacy reflection",
                     autoImage.sameAs(manualImage));
         } finally {
             autoImage.recycle(); manualImage.recycle();

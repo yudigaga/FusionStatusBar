@@ -35,7 +35,7 @@ public class ControlCenterHighlightGlassConfigTest {
                     ? ControlCenterSurface.SOFT_GLASS : surface, surface.resolve(night));
         }
         assertSame(ControlCenterSurface.HIGHLIGHT_GLASS, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(null));
-        assertEquals(0xff202124, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(day).neutralForeground());
+        assertEquals(0xffffffff, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(day).neutralForeground());
         assertEquals(0xffffffff, ControlCenterSurface.HIGHLIGHT_GLASS.resolve(night).neutralForeground());
     }
 

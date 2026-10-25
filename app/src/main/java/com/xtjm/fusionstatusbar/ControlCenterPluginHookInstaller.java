@@ -205,13 +205,21 @@ final class ControlCenterPluginHookInstaller {
         }
 
         String missingRequiredCapability(ControlCenterConfig settings) {
+            return missingRequiredCapability(settings, null);
+        }
+
+        String missingRequiredCapability(ControlCenterConfig settings, Result coreHeaderResult) {
             if (!layoutAvailable) return "control_center_layout_hooks_unavailable";
             if (settings.hasVisualOverride() && (count(Group.VISUAL) == 0
                     || count(Group.SHAPE) == 0 || count(Group.COMPONENT_SHAPE) == 0))
                 return "control_center_visual_hooks_unavailable";
-            if (settings.hideDate && count(Group.HEADER_DATE) == 0)
+            // HyperOS can keep the header controller in core SystemUI while the QS layout
+            // lives in its plugin. Only these header groups may use the current core result.
+            if (settings.hideDate && count(Group.HEADER_DATE) == 0
+                    && (coreHeaderResult == null || coreHeaderResult.count(Group.HEADER_DATE) == 0))
                 return "control_center_date_visibility_hook_unavailable";
-            if (settings.hideCarrier && count(Group.HEADER_CARRIER) == 0)
+            if (settings.hideCarrier && count(Group.HEADER_CARRIER) == 0
+                    && (coreHeaderResult == null || coreHeaderResult.count(Group.HEADER_CARRIER) == 0))
                 return "control_center_carrier_visibility_hook_unavailable";
             return "";
         }

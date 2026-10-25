@@ -10,7 +10,8 @@ enum ControlCenterSurface {
     GLASS("晶透", 0x26ffffff), LIGHT("浅色", 0xe6f0f2f5),
     GRAPHITE("石墨", 0xe6191b1f), ICE("冰蓝", 0x704e8eae),
     MINT("薄荷", 0x70609680), SOFT_GLASS("柔光玻璃", 0xc03c4149),
-    HIGHLIGHT_GLASS("高光玻璃（随系统）", 0xb8e8edf2);
+    // A neutral, very light lift lets the actual backdrop supply the glass color.
+    HIGHLIGHT_GLASS("高光玻璃（兼容·随系统）", 0x18ffffff);
 
     final String label;
     final int color;
@@ -44,7 +45,7 @@ enum ControlCenterSurface {
         return this == DEFAULT ? ControlCenterCardView.INACTIVE_SURFACE : color;
     }
 
-    int neutralForeground() { return this == LIGHT || this == HIGHLIGHT_GLASS ? 0xff202124 : 0xffffffff; }
+    int neutralForeground() { return this == LIGHT ? 0xff202124 : 0xffffffff; }
 
     @Override public String toString() { return label; }
 }
