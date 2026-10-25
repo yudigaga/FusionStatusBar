@@ -2,15 +2,15 @@
 
 面向 SystemUI 的 LibXposed 模块，提供融合图标、双排状态栏、时钟天气、遥测，以及控制中心布局与外观编辑。
 
-当前正式版本为 0.5.13（构建号 227）。更新高光玻璃的 Canvas 兼容绘制、自动日夜软边和通知背景裁剪、恢复逻辑，并修复控制中心能力探测的归属判断。见 [0.5.13 更新说明与验证范围](docs/release-notes-v0.5.13.md)。
+当前正式版本为 0.5.15（构建号 229）。减少控制中心玻璃路径计算与稳定磁贴的重复状态查询，并调整自定义网格竖向展开、回收及松手收尾的弹簧响应。见 [0.5.15 更新说明与验证范围](docs/release-notes-v0.5.15.md)。
 
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 组件：[Miuix](https://github.com/compose-miuix-ui/miuix) 0.8.8，Apache-2.0；自定义预览与画布通过 View/Compose 互操作复用。
-- 最新正式版：[FusionStatusBar 0.5.13](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.13)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/227-0.5.13)
-- [0.5.13 更新说明与验证范围](docs/release-notes-v0.5.13.md)
+- 最新正式版：[FusionStatusBar 0.5.15](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.15)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/229-0.5.15)
+- [0.5.15 更新说明与验证范围](docs/release-notes-v0.5.15.md)
 - [0.3.193 到 0.3.197 历史更新与作用域升级步骤](docs/release-notes-v0.3.197.md)
 
 ## 构建
@@ -38,7 +38,7 @@ GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug
 
 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
 
-版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本正式版为 `227`。
+版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本正式版为 `229`。
 
 ## 模块关系
 

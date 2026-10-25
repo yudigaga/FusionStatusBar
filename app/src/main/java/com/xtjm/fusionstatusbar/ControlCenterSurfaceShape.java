@@ -4,29 +4,41 @@ import android.graphics.Canvas;
 import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PathEffect;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableWrapper;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.View;
 import android.view.ViewOutlineProvider;
+import java.lang.reflect.Field;
 
 /** Resolves only confirmed surface geometry for both borders and glass reflections. */
 final class ControlCenterSurfaceShape {
+    private static final int NONE = 0, ROUND_RECT = 1, CORNER_RADII = 2, OVAL = 3, NATIVE_PATH = 4;
+    private static final int STROKE_CACHE_SIZE = 8;
     private final Path path = new Path();
-    private final Path strokePath = new Path();
     private final Paint strokePaint = new Paint();
     private final Outline outline = new Outline();
     private final Rect outlineRect = new Rect();
     private final RectF rect = new RectF();
     private final float[] radii = new float[8];
+    private final float[] geometryRadii = new float[8];
+    private final StrokeGeometry[] strokes = new StrokeGeometry[STROKE_CACHE_SIZE];
+    private final Class<?>[] pathFieldOwners = new Class<?>[2];
+    private final Field[] pathFields = new Field[2];
+    private int geometryKind, geometryVersion, nextStroke;
+    private float geometryLeft, geometryTop, geometryRight, geometryBottom, geometryRadius;
+    private Path nativeSource;
+    private int nativeGeneration;
+    private Path.FillType nativeFillType;
     private boolean clipStroke;
 
     boolean resolve(View view, float inset) {
-        path.reset();
         clipStroke = false;
-        if (view.getWidth() <= inset * 2 || view.getHeight() <= inset * 2) return false;
+        if (view.getWidth() <= inset * 2 || view.getHeight() <= inset * 2) return clearGeometry();
         ViewOutlineProvider provider = view.getOutlineProvider();
         // Default providers describe layout bounds even when no material is present.
         if (provider != null && provider != ViewOutlineProvider.BACKGROUND
@@ -37,7 +49,8 @@ final class ControlCenterSurfaceShape {
             catch (RuntimeException | LinkageError ignored) { outline.setEmpty(); }
             if (readOutline(inset, true)) return true;
         }
-        return readDrawable(view.getBackground(), inset, 0);
+        if (readDrawable(view.getBackground(), inset, 0)) return true;
+        return clearGeometry();
     }
 
     void draw(Canvas canvas, Paint paint) {
@@ -45,10 +58,10 @@ final class ControlCenterSurfaceShape {
     }
 
     void roundRect(float width, float height, float radius) {
-        path.rewind();
         rect.set(0, 0, width, height);
-        path.addRoundRect(rect, radius, radius, Path.Direction.CW);
         clipStroke = false;
+        if (width <= 0 || height <= 0) clearGeometry();
+        else setRoundRect(radius, null);
     }
 
     /** Draw a band inward from the same exact contour, without re-resolving OEM geometry. */
@@ -75,9 +88,9 @@ final class ControlCenterSurfaceShape {
             if (offset > 0f && paint.getStyle() == Paint.Style.STROKE) {
                 strokePaint.set(paint);
                 strokePaint.setStrokeWidth(offset * 2f);
-                strokePath.rewind();
-                if (!strokePaint.getFillPath(path, strokePath)) return;
-                canvas.clipOutPath(strokePath);
+                StrokeGeometry excluded = filledStroke();
+                if (!excluded.filled) return;
+                canvas.clipOutPath(excluded.path);
             }
             paint.setStrokeWidth((width + offset) * 2f);
             drawPath(canvas, paint);
@@ -95,10 +108,96 @@ final class ControlCenterSurfaceShape {
         // Keep the center geometrically empty even if an OEM smooth-corner
         // renderer rewrites round-rect stroke operations as filled shapes.
         strokePaint.set(paint);
-        strokePath.rewind();
-        if (!strokePaint.getFillPath(path, strokePath)) return;
+        StrokeGeometry stroke = filledStroke();
+        if (!stroke.filled) return;
         strokePaint.setStyle(Paint.Style.FILL);
-        canvas.drawPath(strokePath, strokePaint);
+        canvas.drawPath(stroke.path, strokePaint);
+    }
+
+    /** Colors and shaders affect painting, not the stroke-to-fill geometry. */
+    private StrokeGeometry filledStroke() {
+        float width = strokePaint.getStrokeWidth(), miter = strokePaint.getStrokeMiter();
+        Paint.Cap cap = strokePaint.getStrokeCap();
+        Paint.Join join = strokePaint.getStrokeJoin();
+        PathEffect effect = strokePaint.getPathEffect();
+        for (StrokeGeometry entry : strokes) {
+            if (entry != null && entry.version == geometryVersion
+                    && Float.compare(entry.width, width) == 0 && Float.compare(entry.miter, miter) == 0
+                    && entry.cap == cap && entry.join == join && entry.effect == effect) return entry;
+        }
+        int slot = nextStroke;
+        nextStroke = (nextStroke + 1) % STROKE_CACHE_SIZE;
+        StrokeGeometry entry = strokes[slot];
+        if (entry == null) strokes[slot] = entry = new StrokeGeometry();
+        entry.path.rewind();
+        entry.filled = strokePaint.getFillPath(path, entry.path);
+        entry.version = geometryVersion;
+        entry.width = width;
+        entry.miter = miter;
+        entry.cap = cap;
+        entry.join = join;
+        entry.effect = effect;
+        return entry;
+    }
+
+    private boolean sameRect(int kind) {
+        return geometryKind == kind && Float.compare(geometryLeft, rect.left) == 0
+                && Float.compare(geometryTop, rect.top) == 0
+                && Float.compare(geometryRight, rect.right) == 0
+                && Float.compare(geometryBottom, rect.bottom) == 0;
+    }
+
+    private void setRoundRect(float radius, float[] corners) {
+        int kind = corners == null ? ROUND_RECT : CORNER_RADII;
+        boolean unchanged = sameRect(kind);
+        if (corners == null) unchanged &= Float.compare(geometryRadius, radius) == 0;
+        else for (int i = 0; unchanged && i < geometryRadii.length; i++)
+            unchanged = Float.compare(geometryRadii[i], corners[i]) == 0;
+        if (unchanged) return;
+        rememberGeometry(kind);
+        geometryRadius = radius;
+        if (corners == null) path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+        else {
+            System.arraycopy(corners, 0, geometryRadii, 0, geometryRadii.length);
+            path.addRoundRect(rect, geometryRadii, Path.Direction.CW);
+        }
+    }
+
+    private void setOval() {
+        if (sameRect(OVAL)) return;
+        rememberGeometry(OVAL);
+        path.addOval(rect, Path.Direction.CW);
+    }
+
+    private void rememberGeometry(int kind) {
+        geometryKind = kind;
+        geometryLeft = rect.left;
+        geometryTop = rect.top;
+        geometryRight = rect.right;
+        geometryBottom = rect.bottom;
+        nativeSource = null;
+        nativeFillType = null;
+        path.rewind();
+        path.setFillType(Path.FillType.WINDING);
+        invalidateStrokes();
+    }
+
+    private void invalidateStrokes() {
+        geometryVersion++;
+        nextStroke = 0;
+        for (StrokeGeometry stroke : strokes) if (stroke != null) stroke.version = -1;
+    }
+
+    private boolean clearGeometry() {
+        if (geometryKind != NONE || !path.isEmpty()) {
+            geometryKind = NONE;
+            nativeSource = null;
+            nativeFillType = null;
+            path.rewind();
+            invalidateStrokes();
+        }
+        clipStroke = false;
+        return false;
     }
 
     private boolean readOutline(float inset, boolean explicitProvider) {
@@ -110,7 +209,7 @@ final class ControlCenterSurfaceShape {
                     outlineRect.right - inset, outlineRect.bottom - inset);
             if (rect.width() <= 0 || rect.height() <= 0) return false;
             float radius = Math.max(0f, outline.getRadius() - inset);
-            path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+            setRoundRect(radius, null);
             return true;
         }
         return copyNativePath(outline, "mPath");
@@ -124,7 +223,7 @@ final class ControlCenterSurfaceShape {
                     bounds.right - inset, bounds.bottom - inset);
             if (rect.width() <= 0 || rect.height() <= 0) return false;
             if (gradient.getShape() == GradientDrawable.OVAL) {
-                path.addOval(rect, Path.Direction.CW);
+                setOval();
                 return true;
             }
             if (gradient.getShape() != GradientDrawable.RECTANGLE) return false;
@@ -132,11 +231,11 @@ final class ControlCenterSurfaceShape {
             if (corners != null && corners.length == 8) {
                 for (int i = 0; i < radii.length; i++)
                     radii[i] = Math.max(0f, corners[i] - inset);
-                path.addRoundRect(rect, radii, Path.Direction.CW);
+                setRoundRect(0f, radii);
                 return true;
             }
             float radius = Math.max(0f, gradient.getCornerRadius() - inset);
-            path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+            setRoundRect(radius, null);
             return true;
         }
         if (drawable instanceof DrawableWrapper wrapper
@@ -154,14 +253,50 @@ final class ControlCenterSurfaceShape {
 
     private boolean copyNativePath(Object source, String name) {
         try {
-            java.lang.reflect.Field field = source.getClass().getDeclaredField(name);
-            field.setAccessible(true);
+            int slot = name.equals("mPath") ? 0 : 1;
+            Class<?> type = source.getClass();
+            if (pathFieldOwners[slot] != type) {
+                pathFieldOwners[slot] = type;
+                pathFields[slot] = null;
+                try {
+                    Field field = type.getDeclaredField(name);
+                    field.setAccessible(true);
+                    pathFields[slot] = field;
+                } catch (ReflectiveOperationException | RuntimeException ignored) { }
+            }
+            Field field = pathFields[slot];
+            if (field == null) return false;
             if (!(field.get(source) instanceof Path nativePath) || nativePath.isEmpty()) return false;
+            Path.FillType fillType = nativePath.getFillType();
+            // API 33 has no public generation identifier. Rebuild unknown OEM paths
+            // there so an in-place contour mutation cannot leave a stale outline.
+            int generation = Build.VERSION.SDK_INT >= 34 ? nativePath.getGenerationId() : 0;
+            if (Build.VERSION.SDK_INT >= 34 && geometryKind == NATIVE_PATH
+                    && nativeSource == nativePath && nativeGeneration == generation
+                    && nativeFillType == fillType) {
+                clipStroke = true;
+                return true;
+            }
             path.set(nativePath);
+            geometryKind = NATIVE_PATH;
+            nativeSource = nativePath;
+            nativeGeneration = generation;
+            nativeFillType = fillType;
+            invalidateStrokes();
             clipStroke = true;
             return true;
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             return false;
         }
+    }
+
+    private static final class StrokeGeometry {
+        final Path path = new Path();
+        int version = -1;
+        float width, miter;
+        Paint.Cap cap;
+        Paint.Join join;
+        PathEffect effect;
+        boolean filled;
     }
 }

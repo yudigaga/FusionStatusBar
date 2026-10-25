@@ -1207,6 +1207,7 @@ final class ControlCenterMaterials {
             removeDecorations(view);
         } else GRID_CARRIERS.remove(view);
     }
+    static boolean isGridCarrier(View view) { return view != null && GRID_CARRIERS.containsKey(view); }
     static void applyGlobalBorder(View view, ControlCenterConfig config) {
         if (view == null) return;
         if (isGridDecorationManaged(view)) {

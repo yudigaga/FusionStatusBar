@@ -1,0 +1,791 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index e4cbbad..c5e4d84 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 227
+-        versionName "0.5.13"
++        versionCode 229
++        versionName "0.5.15"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java
+index 2627f1d..302a548 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooks.java
+@@ -10,23 +10,36 @@ import java.util.Collections;
+ import java.util.List;
+ import java.util.function.Supplier;
+ 
+-/** Bounds custom panel spring settling without changing native gestures or transforms. */
++/** Bounds custom panel spring settling while retaining native targets and completion callbacks. */
+ final class ControlCenterAnimationHooks {
+     static final String EXPANSION_CLASS =
+             "miui.systemui.controlcenter.windowview.ControlCenterExpandController$expansionAnimator$1";
+     static final String BLUR_CLASS =
+             "miui.systemui.controlcenter.windowview.BlurController";
+-    private static final float MAX_RESPONSE_SECONDS = 0.35f;
++    static final float OPEN_RESPONSE_SECONDS = 0.30f;
++    static final float CLOSE_RESPONSE_SECONDS = 0.20f;
++    private static volatile PlanGate lastPlan;
++
++    private record PlanGate(String encoded, boolean usable) { }
+ 
+     interface Proceed { Object run() throws Throwable; }
+ 
+     static final class Result {
+         final int installed;
+         final List<String> unavailable;
++        final int carrierInstalled;
++        final List<String> carrierUnavailable;
+ 
+         Result(int installed, List<String> unavailable) {
+-            this.installed = installed;
++            this(installed, unavailable, 0, List.of());
++        }
++
++        Result(int installed, List<String> unavailable, int carrierInstalled,
++                List<String> carrierUnavailable) {
++            this.installed = installed + carrierInstalled;
+             this.unavailable = Collections.unmodifiableList(new ArrayList<>(unavailable));
++            this.carrierInstalled = carrierInstalled;
++            this.carrierUnavailable = Collections.unmodifiableList(new ArrayList<>(carrierUnavailable));
+         }
+     }
+ 
+@@ -43,9 +56,13 @@ final class ControlCenterAnimationHooks {
+                 chain -> {
+                     List<?> args = chain.getArgs();
+                     Object owner = chain.getThisObject();
+-                    if (!Boolean.TRUE.equals(args.get(2)) || !enabled(settings.get())
+-                            || expansionMirror(owner)) return chain.proceed();
+-                    return withFastConfig(owner, chain::proceed);
++                    if (!Boolean.TRUE.equals(args.get(2)) || !enabled(settings.get())) return chain.proceed();
++                    float target = ((Number) args.get(1)).floatValue();
++                    // Intermediate progress belongs to the native tracking spring.
++                    // Only completed gesture targets need the faster settling profile.
++                    if (target != 0f && target != 1f || expansionMirror(owner)) return chain.proceed();
++                    return withFastConfig(owner, target <= 0f ? CLOSE_RESPONSE_SECONDS
++                            : OPEN_RESPONSE_SECONDS, chain::proceed);
+                 }, unavailable);
+         installed += install(loader, resolver, registrar, BLUR_CLASS,
+                 "showBlur", new Class<?>[] {boolean.class, boolean.class, boolean.class,
+@@ -55,9 +72,12 @@ final class ControlCenterAnimationHooks {
+                             || !Boolean.TRUE.equals(args.get(2))
+                             || Boolean.TRUE.equals(args.get(3))
+                             || !enabled(settings.get())) return chain.proceed();
+-                    return withFastConfig(chain.getThisObject(), chain::proceed);
++                    return withFastConfig(chain.getThisObject(), Boolean.TRUE.equals(args.get(0))
++                            ? OPEN_RESPONSE_SECONDS : CLOSE_RESPONSE_SECONDS, chain::proceed);
+                 }, unavailable);
+-        return new Result(installed, unavailable);
++        ControlCenterCarrierMotionHooks.Result carrier = ControlCenterCarrierMotionHooks.install(
++                loader, resolver, registrar, settings);
++        return new Result(installed, unavailable, carrier.installed, carrier.unavailable);
+     }
+ 
+     private static int install(ClassLoader loader,
+@@ -88,8 +108,13 @@ final class ControlCenterAnimationHooks {
+ 
+     static boolean enabled(ControlCenterConfig settings) {
+         if (settings == null || !settings.enabled || settings.layoutPlan.isEmpty()) return false;
++        PlanGate cached = lastPlan;
++        if (cached != null && cached.encoded.equals(settings.layoutPlan)) return cached.usable;
+         ControlCenterLayoutPlan plan = ControlCenterLayoutPlan.decode(settings.layoutPlan);
+-        return plan != null && (!plan.regular.items.isEmpty() || !plan.compact.items.isEmpty());
++        boolean usable = plan != null && (!plan.regular.items.isEmpty() || !plan.compact.items.isEmpty());
++        // Gesture progress can arrive every frame; the encoded plan is immutable.
++        lastPlan = new PlanGate(settings.layoutPlan, usable);
++        return usable;
+     }
+ 
+     private static boolean expansionMirror(Object animator) {
+@@ -105,6 +130,10 @@ final class ControlCenterAnimationHooks {
+     }
+ 
+     static Object withFastConfig(Object owner, Proceed proceed) throws Throwable {
++        return withFastConfig(owner, OPEN_RESPONSE_SECONDS, proceed);
++    }
++
++    private static Object withFastConfig(Object owner, float response, Proceed proceed) throws Throwable {
+         if (owner == null) return proceed.run();
+         Field configField;
+         Object original;
+@@ -112,7 +141,7 @@ final class ControlCenterAnimationHooks {
+         try {
+             configField = field(owner.getClass(), "animConfig");
+             original = configField.get(owner);
+-            replacement = original == null ? null : fastConfig(original);
++            replacement = original == null ? null : fastConfig(original, response);
+             if (replacement != original) configField.set(owner, replacement);
+         } catch (ReflectiveOperationException | RuntimeException ignored) {
+             return proceed.run();
+@@ -127,22 +156,12 @@ final class ControlCenterAnimationHooks {
+         }
+     }
+ 
+-    private static Object fastConfig(Object original) throws ReflectiveOperationException {
++    private static Object fastConfig(Object original, float response) throws ReflectiveOperationException {
+         Class<?> type = original.getClass();
+         Object ease = field(type, "ease").get(original);
+         if (ease == null) ease = type.getField("sDefEase").get(null);
+-        if (ease == null || field(ease.getClass(), "style").getInt(ease) != -2) return original;
+-        Object values = field(ease.getClass(), "factors").get(ease);
+-        float[] factors;
+-        if (values instanceof double[] doubles) {
+-            factors = new float[doubles.length];
+-            for (int i = 0; i < doubles.length; i++) factors[i] = (float) doubles[i];
+-        } else if (values instanceof float[] floats) {
+-            factors = floats.clone();
+-        } else return original;
+-        if (factors.length < 2 || !Float.isFinite(factors[0]) || factors[0] <= 0f
+-                || !Float.isFinite(factors[1]) || factors[1] <= MAX_RESPONSE_SECONDS) return original;
+-        factors[1] = MAX_RESPONSE_SECONDS;
++        float[] factors = fastFactors(ease, response);
++        if (factors == null) return original;
+         Constructor<?> copy = type.getConstructor(type);
+         Object replacement = copy.newInstance(original);
+         // FolmeState.to posts its arguments. Give it a stable copy, retaining native listeners.
+@@ -150,6 +169,32 @@ final class ControlCenterAnimationHooks {
+         return replacement;
+     }
+ 
++    static float[] fastFactors(Object ease, float response) throws ReflectiveOperationException {
++        if (ease == null || field(ease.getClass(), "style").getInt(ease) != -2) return null;
++        Object values = field(ease.getClass(), "factors").get(ease);
++        float damping, nativeResponse;
++        int length;
++        if (values instanceof double[] doubles) {
++            if (doubles.length < 2) return null;
++            length = doubles.length;
++            damping = (float) doubles[0]; nativeResponse = (float) doubles[1];
++        } else if (values instanceof float[] floats) {
++            if (floats.length < 2) return null;
++            length = floats.length;
++            damping = floats[0]; nativeResponse = floats[1];
++        } else return null;
++        if (!Float.isFinite(damping) || damping <= 0f || !Float.isFinite(nativeResponse)
++                || nativeResponse <= 0f || nativeResponse < response
++                || nativeResponse == response && damping >= 0.9f) return null;
++        float[] factors = new float[length];
++        if (values instanceof double[] doubles) {
++            for (int i = 0; i < length; i++) factors[i] = (float) doubles[i];
++        } else System.arraycopy(values, 0, factors, 0, length);
++        factors[0] = Math.max(0.9f, damping);
++        factors[1] = Math.min(response, nativeResponse);
++        return factors;
++    }
++
+     private static Field field(Class<?> type, String name) throws NoSuchFieldException {
+         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+             try {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+index 85f0411..de0493c 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+@@ -1207,6 +1207,7 @@ final class ControlCenterMaterials {
+             removeDecorations(view);
+         } else GRID_CARRIERS.remove(view);
+     }
++    static boolean isGridCarrier(View view) { return view != null && GRID_CARRIERS.containsKey(view); }
+     static void applyGlobalBorder(View view, ControlCenterConfig config) {
+         if (view == null) return;
+         if (isGridDecorationManaged(view)) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index f453919..ac214e0 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -1613,7 +1613,21 @@ final class ControlCenterRuntimeGrid {
+                 Slot tileSlot = slotsByView.get(tile);
+                 boolean active = isActiveTile(decoration.item);
+                 ActiveTileBackground wrapper = activeTileBackgrounds.get(tile);
+-                boolean editing = ControlCenterNativeMode.isEditing(tile);
++                boolean stable = false;
++                if (tileSlot != null) {
++                    boolean stateChanged = !tileSlot.materialActiveKnown
++                            || tileSlot.materialActive != active;
++                    tileSlot.materialActiveKnown = true;
++                    tileSlot.materialActive = active;
++                    stable = !tileSlot.materialDirty && !stateChanged && !tileSlot.materialFallbackSuspended
++                            && (active || wrapper == null);
++                }
++                // Ordinary ImageView tiles already own their material. Keep the
++                // settled-frame shortcut ahead of reflective native-mode queries.
++                // A fallback still needs a live mode check so EDIT can release it.
++                if (materialSettings.enabled && stable && wrapper == null) continue;
++                boolean editing = materialSettings.enabled && ControlCenterNativeMode.isEditing(tile);
++                if (tileSlot != null) tileSlot.materialFallbackSuspended = !materialSettings.enabled || editing;
+                 if (!materialSettings.enabled || editing) {
+                     // The deferred slot pass can already have cleared the dirty flag.
+                     // Release our fallback before considering stable active-state shortcuts.
+@@ -1631,12 +1645,10 @@ final class ControlCenterRuntimeGrid {
+                 // A settings refresh can change opacity without changing the active state.
+                 // Apply it before the stable-state shortcut, including after drawable registration.
+                 if (wrapper != null && tile.getBackground() == wrapper) wrapper.setSurfaceColor(surfaceColor);
++                if (stable) continue;
+                 if (tileSlot != null) {
+-                    boolean stateChanged = !tileSlot.materialActiveKnown
+-                            || tileSlot.materialActive != active;
+-                    tileSlot.materialActiveKnown = true;
+-                    tileSlot.materialActive = active;
+-                    if (!tileSlot.materialDirty && !stateChanged && (active || wrapper == null)) continue;
++                    // A suspended fallback survives the earlier dirty-slot pass,
++                    // so NORMAL or re-enabling can recreate its active fill.
+                     tileSlot.materialDirty = true;
+                 }
+                 if (ControlCenterMaterials.syncTileView(tile, materialSettings)) {
+@@ -2030,6 +2042,7 @@ final class ControlCenterRuntimeGrid {
+         boolean materialDirty = true;
+         boolean materialActive;
+         boolean materialActiveKnown;
++        boolean materialFallbackSuspended;
+         Drawable materialRootBackground;
+         final View view;
+         final ControlCenterLayoutPlan.Item item;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java
+index f4f94c6..96096a7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSurfaceShape.java
+@@ -4,29 +4,41 @@ import android.graphics.Canvas;
+ import android.graphics.Outline;
+ import android.graphics.Paint;
+ import android.graphics.Path;
++import android.graphics.PathEffect;
+ import android.graphics.Rect;
+ import android.graphics.RectF;
+ import android.graphics.drawable.Drawable;
+ import android.graphics.drawable.DrawableWrapper;
+ import android.graphics.drawable.GradientDrawable;
++import android.os.Build;
+ import android.view.View;
+ import android.view.ViewOutlineProvider;
++import java.lang.reflect.Field;
+ 
+ /** Resolves only confirmed surface geometry for both borders and glass reflections. */
+ final class ControlCenterSurfaceShape {
++    private static final int NONE = 0, ROUND_RECT = 1, CORNER_RADII = 2, OVAL = 3, NATIVE_PATH = 4;
++    private static final int STROKE_CACHE_SIZE = 8;
+     private final Path path = new Path();
+-    private final Path strokePath = new Path();
+     private final Paint strokePaint = new Paint();
+     private final Outline outline = new Outline();
+     private final Rect outlineRect = new Rect();
+     private final RectF rect = new RectF();
+     private final float[] radii = new float[8];
++    private final float[] geometryRadii = new float[8];
++    private final StrokeGeometry[] strokes = new StrokeGeometry[STROKE_CACHE_SIZE];
++    private final Class<?>[] pathFieldOwners = new Class<?>[2];
++    private final Field[] pathFields = new Field[2];
++    private int geometryKind, geometryVersion, nextStroke;
++    private float geometryLeft, geometryTop, geometryRight, geometryBottom, geometryRadius;
++    private Path nativeSource;
++    private int nativeGeneration;
++    private Path.FillType nativeFillType;
+     private boolean clipStroke;
+ 
+     boolean resolve(View view, float inset) {
+-        path.reset();
+         clipStroke = false;
+-        if (view.getWidth() <= inset * 2 || view.getHeight() <= inset * 2) return false;
++        if (view.getWidth() <= inset * 2 || view.getHeight() <= inset * 2) return clearGeometry();
+         ViewOutlineProvider provider = view.getOutlineProvider();
+         // Default providers describe layout bounds even when no material is present.
+         if (provider != null && provider != ViewOutlineProvider.BACKGROUND
+@@ -37,7 +49,8 @@ final class ControlCenterSurfaceShape {
+             catch (RuntimeException | LinkageError ignored) { outline.setEmpty(); }
+             if (readOutline(inset, true)) return true;
+         }
+-        return readDrawable(view.getBackground(), inset, 0);
++        if (readDrawable(view.getBackground(), inset, 0)) return true;
++        return clearGeometry();
+     }
+ 
+     void draw(Canvas canvas, Paint paint) {
+@@ -45,10 +58,10 @@ final class ControlCenterSurfaceShape {
+     }
+ 
+     void roundRect(float width, float height, float radius) {
+-        path.rewind();
+         rect.set(0, 0, width, height);
+-        path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+         clipStroke = false;
++        if (width <= 0 || height <= 0) clearGeometry();
++        else setRoundRect(radius, null);
+     }
+ 
+     /** Draw a band inward from the same exact contour, without re-resolving OEM geometry. */
+@@ -75,9 +88,9 @@ final class ControlCenterSurfaceShape {
+             if (offset > 0f && paint.getStyle() == Paint.Style.STROKE) {
+                 strokePaint.set(paint);
+                 strokePaint.setStrokeWidth(offset * 2f);
+-                strokePath.rewind();
+-                if (!strokePaint.getFillPath(path, strokePath)) return;
+-                canvas.clipOutPath(strokePath);
++                StrokeGeometry excluded = filledStroke();
++                if (!excluded.filled) return;
++                canvas.clipOutPath(excluded.path);
+             }
+             paint.setStrokeWidth((width + offset) * 2f);
+             drawPath(canvas, paint);
+@@ -95,10 +108,96 @@ final class ControlCenterSurfaceShape {
+         // Keep the center geometrically empty even if an OEM smooth-corner
+         // renderer rewrites round-rect stroke operations as filled shapes.
+         strokePaint.set(paint);
+-        strokePath.rewind();
+-        if (!strokePaint.getFillPath(path, strokePath)) return;
++        StrokeGeometry stroke = filledStroke();
++        if (!stroke.filled) return;
+         strokePaint.setStyle(Paint.Style.FILL);
+-        canvas.drawPath(strokePath, strokePaint);
++        canvas.drawPath(stroke.path, strokePaint);
++    }
++
++    /** Colors and shaders affect painting, not the stroke-to-fill geometry. */
++    private StrokeGeometry filledStroke() {
++        float width = strokePaint.getStrokeWidth(), miter = strokePaint.getStrokeMiter();
++        Paint.Cap cap = strokePaint.getStrokeCap();
++        Paint.Join join = strokePaint.getStrokeJoin();
++        PathEffect effect = strokePaint.getPathEffect();
++        for (StrokeGeometry entry : strokes) {
++            if (entry != null && entry.version == geometryVersion
++                    && Float.compare(entry.width, width) == 0 && Float.compare(entry.miter, miter) == 0
++                    && entry.cap == cap && entry.join == join && entry.effect == effect) return entry;
++        }
++        int slot = nextStroke;
++        nextStroke = (nextStroke + 1) % STROKE_CACHE_SIZE;
++        StrokeGeometry entry = strokes[slot];
++        if (entry == null) strokes[slot] = entry = new StrokeGeometry();
++        entry.path.rewind();
++        entry.filled = strokePaint.getFillPath(path, entry.path);
++        entry.version = geometryVersion;
++        entry.width = width;
++        entry.miter = miter;
++        entry.cap = cap;
++        entry.join = join;
++        entry.effect = effect;
++        return entry;
++    }
++
++    private boolean sameRect(int kind) {
++        return geometryKind == kind && Float.compare(geometryLeft, rect.left) == 0
++                && Float.compare(geometryTop, rect.top) == 0
++                && Float.compare(geometryRight, rect.right) == 0
++                && Float.compare(geometryBottom, rect.bottom) == 0;
++    }
++
++    private void setRoundRect(float radius, float[] corners) {
++        int kind = corners == null ? ROUND_RECT : CORNER_RADII;
++        boolean unchanged = sameRect(kind);
++        if (corners == null) unchanged &= Float.compare(geometryRadius, radius) == 0;
++        else for (int i = 0; unchanged && i < geometryRadii.length; i++)
++            unchanged = Float.compare(geometryRadii[i], corners[i]) == 0;
++        if (unchanged) return;
++        rememberGeometry(kind);
++        geometryRadius = radius;
++        if (corners == null) path.addRoundRect(rect, radius, radius, Path.Direction.CW);
++        else {
++            System.arraycopy(corners, 0, geometryRadii, 0, geometryRadii.length);
++            path.addRoundRect(rect, geometryRadii, Path.Direction.CW);
++        }
++    }
++
++    private void setOval() {
++        if (sameRect(OVAL)) return;
++        rememberGeometry(OVAL);
++        path.addOval(rect, Path.Direction.CW);
++    }
++
++    private void rememberGeometry(int kind) {
++        geometryKind = kind;
++        geometryLeft = rect.left;
++        geometryTop = rect.top;
++        geometryRight = rect.right;
++        geometryBottom = rect.bottom;
++        nativeSource = null;
++        nativeFillType = null;
++        path.rewind();
++        path.setFillType(Path.FillType.WINDING);
++        invalidateStrokes();
++    }
++
++    private void invalidateStrokes() {
++        geometryVersion++;
++        nextStroke = 0;
++        for (StrokeGeometry stroke : strokes) if (stroke != null) stroke.version = -1;
++    }
++
++    private boolean clearGeometry() {
++        if (geometryKind != NONE || !path.isEmpty()) {
++            geometryKind = NONE;
++            nativeSource = null;
++            nativeFillType = null;
++            path.rewind();
++            invalidateStrokes();
++        }
++        clipStroke = false;
++        return false;
+     }
+ 
+     private boolean readOutline(float inset, boolean explicitProvider) {
+@@ -110,7 +209,7 @@ final class ControlCenterSurfaceShape {
+                     outlineRect.right - inset, outlineRect.bottom - inset);
+             if (rect.width() <= 0 || rect.height() <= 0) return false;
+             float radius = Math.max(0f, outline.getRadius() - inset);
+-            path.addRoundRect(rect, radius, radius, Path.Direction.CW);
++            setRoundRect(radius, null);
+             return true;
+         }
+         return copyNativePath(outline, "mPath");
+@@ -124,7 +223,7 @@ final class ControlCenterSurfaceShape {
+                     bounds.right - inset, bounds.bottom - inset);
+             if (rect.width() <= 0 || rect.height() <= 0) return false;
+             if (gradient.getShape() == GradientDrawable.OVAL) {
+-                path.addOval(rect, Path.Direction.CW);
++                setOval();
+                 return true;
+             }
+             if (gradient.getShape() != GradientDrawable.RECTANGLE) return false;
+@@ -132,11 +231,11 @@ final class ControlCenterSurfaceShape {
+             if (corners != null && corners.length == 8) {
+                 for (int i = 0; i < radii.length; i++)
+                     radii[i] = Math.max(0f, corners[i] - inset);
+-                path.addRoundRect(rect, radii, Path.Direction.CW);
++                setRoundRect(0f, radii);
+                 return true;
+             }
+             float radius = Math.max(0f, gradient.getCornerRadius() - inset);
+-            path.addRoundRect(rect, radius, radius, Path.Direction.CW);
++            setRoundRect(radius, null);
+             return true;
+         }
+         if (drawable instanceof DrawableWrapper wrapper
+@@ -154,14 +253,50 @@ final class ControlCenterSurfaceShape {
+ 
+     private boolean copyNativePath(Object source, String name) {
+         try {
+-            java.lang.reflect.Field field = source.getClass().getDeclaredField(name);
+-            field.setAccessible(true);
++            int slot = name.equals("mPath") ? 0 : 1;
++            Class<?> type = source.getClass();
++            if (pathFieldOwners[slot] != type) {
++                pathFieldOwners[slot] = type;
++                pathFields[slot] = null;
++                try {
++                    Field field = type.getDeclaredField(name);
++                    field.setAccessible(true);
++                    pathFields[slot] = field;
++                } catch (ReflectiveOperationException | RuntimeException ignored) { }
++            }
++            Field field = pathFields[slot];
++            if (field == null) return false;
+             if (!(field.get(source) instanceof Path nativePath) || nativePath.isEmpty()) return false;
++            Path.FillType fillType = nativePath.getFillType();
++            // API 33 has no public generation identifier. Rebuild unknown OEM paths
++            // there so an in-place contour mutation cannot leave a stale outline.
++            int generation = Build.VERSION.SDK_INT >= 34 ? nativePath.getGenerationId() : 0;
++            if (Build.VERSION.SDK_INT >= 34 && geometryKind == NATIVE_PATH
++                    && nativeSource == nativePath && nativeGeneration == generation
++                    && nativeFillType == fillType) {
++                clipStroke = true;
++                return true;
++            }
+             path.set(nativePath);
++            geometryKind = NATIVE_PATH;
++            nativeSource = nativePath;
++            nativeGeneration = generation;
++            nativeFillType = fillType;
++            invalidateStrokes();
+             clipStroke = true;
+             return true;
+         } catch (ReflectiveOperationException | RuntimeException ignored) {
+             return false;
+         }
+     }
++
++    private static final class StrokeGeometry {
++        final Path path = new Path();
++        int version = -1;
++        float width, miter;
++        Paint.Cap cap;
++        Paint.Join join;
++        PathEffect effect;
++        boolean filled;
++    }
+ }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index 83ba9af..712f79e 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -402,7 +402,9 @@ public final class SystemUiHooks {
+                 classLoader, SystemUiHooks::findClass, SystemUiHooks::hookMethod,
+                 () -> currentConfig.controlCenter);
+         log(Log.INFO, "plugin animation hooks=" + animationHooks.installed
+-                + " unavailable=" + animationHooks.unavailable, null);
++                + " unavailable=" + animationHooks.unavailable
++                + " carrierMotion=" + animationHooks.carrierInstalled
++                + " carrierUnavailable=" + animationHooks.carrierUnavailable, null);
+         CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(classLoader);
+         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
+                 SystemUiHooks::ensureConfigObserver);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java
+index 9ad1d02..56b4be1 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterAnimationHooksTest.java
+@@ -1,8 +1,10 @@
+ package com.xtjm.fusionstatusbar;
+ 
+ import io.github.libxposed.api.XposedInterface;
++import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
+ import java.lang.reflect.Proxy;
++import java.util.ArrayDeque;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+@@ -20,7 +22,8 @@ public class ControlCenterAnimationHooksTest {
+         Owner owner = new Owner();
+         NativeConfig original = owner.animConfig;
+         original.ease = new Ease(-2, 0.95, 0.45, 1.0);
+-        Object listener = new Object();
++        AtomicInteger completed = new AtomicInteger();
++        Runnable listener = completed::incrementAndGet;
+         original.listener = listener;
+         NativeConfig[] queued = new NativeConfig[1];
+         Object result = ControlCenterAnimationHooks.withFastConfig(owner, () -> {
+@@ -31,10 +34,14 @@ public class ControlCenterAnimationHooksTest {
+         assertSame(original, owner.animConfig);
+         assertNotSame(original, queued[0]);
+         assertSame(listener, queued[0].listener);
+-        assertEquals(0.35, queued[0].ease.factors[1], 0.0001);
++        assertEquals("The copied config is consumed after the owner field has been restored", 0,
++                completed.get());
++        assertEquals(0.30, queued[0].ease.factors[1], 0.0001);
+         assertEquals(0.45, original.ease.factors[1], 0.0001);
+         assertEquals(original.ease.factors[0], queued[0].ease.factors[0], 0.000001);
+         assertEquals(original.ease.factors[2], queued[0].ease.factors[2], 0.000001);
++        ((Runnable) queued[0].listener).run();
++        assertEquals(1, completed.get());
+     }
+ 
+     @Test public void restoresConfigurationAndPropagatesNativeFailureExactlyOnce() throws Throwable {
+@@ -57,12 +64,15 @@ public class ControlCenterAnimationHooksTest {
+ 
+     @Test public void preservesFastAndNonSpringNativeTimings() throws Throwable {
+         Owner owner = new Owner();
+-        owner.animConfig.ease = new Ease(-2, 0.9, 0.16);
++        owner.animConfig.ease = new Ease(-2, 0.7, 0.16, 9.0);
+         NativeConfig fast = owner.animConfig;
++        Ease originalEase = fast.ease;
+         ControlCenterAnimationHooks.withFastConfig(owner, () -> {
+             assertSame(fast, owner.animConfig);
++            assertSame("An already faster native spring keeps its damping and extra factors", originalEase, owner.animConfig.ease);
+             return null;
+         });
++        assertArrayEquals(new double[] {.7, .16, 9.0}, fast.ease.factors, 0);
+         owner.animConfig.ease = new Ease(2, 120);
+         ControlCenterAnimationHooks.withFastConfig(owner, () -> {
+             assertSame(fast, owner.animConfig);
+@@ -96,15 +106,24 @@ public class ControlCenterAnimationHooksTest {
+         assertEquals(1, calls.get());
+     }
+ 
+-    @Test public void defaultEaseRemainsNativeWithoutChangingGlobalNativeDefault() throws Throwable {
++    @Test public void nullEaseQueuesAnExplicitOpenProfileWithoutChangingTheGlobalNativeDefault() throws Throwable {
+         Owner owner = new Owner();
+         owner.animConfig.ease = null;
+         NativeConfig original = owner.animConfig;
++        Ease nativeDefault = NativeConfig.sDefEase;
++        double[] originalFactors = nativeDefault.factors.clone();
++        NativeConfig[] queued = new NativeConfig[1];
+         ControlCenterAnimationHooks.withFastConfig(owner, () -> {
+-            assertNull(owner.animConfig.ease);
++            queued[0] = owner.animConfig;
+             return null;
+         });
++        assertSame(original, owner.animConfig);
++        assertNotSame("The queue must receive a stable copy when the native field uses the default ease", original, queued[0]);
++        assertNotNull(queued[0].ease);
++        assertEquals(.30, queued[0].ease.factors[1], .0001);
+         assertNull(original.ease);
++        assertSame(nativeDefault, NativeConfig.sDefEase);
++        assertArrayEquals(originalFactors, NativeConfig.sDefEase.factors, 0);
+         assertEquals(0.35, NativeConfig.sDefEase.factors[1], 0.0001);
+     }
+ 
+@@ -119,13 +138,19 @@ public class ControlCenterAnimationHooksTest {
+                 }, registry, () -> current[0]);
+         assertEquals(2, result.installed);
+         assertTrue(result.unavailable.isEmpty());
++        assertEquals("Missing optional carrier classes do not change the two base-hook results", 0, result.carrierInstalled);
+         Expansion expansion = new Expansion();
+-        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
++        // The target value, rather than the legacy boolean, determines opening versus closing.
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 1f, true), 0.30);
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(true, 0f, true), 0.20);
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, .4f, true), 0.35);
+         assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, false), 0.35);
+         expansion.this$0.mirror = true;
+         assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
+         Blur blur = new Blur();
+-        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
++        assertPeriod(registry, blur, "showBlur", List.of(true, true, true, false), 0.30);
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.20);
++        assertPeriod(registry, blur, "showBlur", List.of(false, false, true, false), 0.35);
+         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, true), 0.35);
+         assertPeriod(registry, blur, "showBlur", List.of(false, true, false, false), 0.35);
+         current[0] = current[0].withEnabled(false);
+@@ -136,7 +161,7 @@ public class ControlCenterAnimationHooksTest {
+         assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
+     }
+ 
+-    @Test public void customPanelExpansionKeepsTheNativeSpringResponse() throws Throwable {
++    @Test public void installedHooksConsumeOpeningAndClosingCopiesAfterRestoringTheNativeField() throws Throwable {
+         Registry registry = new Registry();
+         ControlCenterAnimationHooks.install(getClass().getClassLoader(), (name, loader) -> switch (name) {
+             case ControlCenterAnimationHooks.EXPANSION_CLASS -> Expansion.class;
+@@ -145,9 +170,57 @@ public class ControlCenterAnimationHooksTest {
+         }, registry, ControlCenterAnimationHooksTest::customSettings);
+ 
+         Expansion expansion = new Expansion();
+-        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.35);
++        expansion.animConfig.ease = null;
++        AtomicInteger completed = new AtomicInteger();
++        expansion.animConfig.listener = (Runnable) completed::incrementAndGet;
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(true, 1f, true), 0.30);
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), 0.20);
++        assertNull("A default-ease owner remains null between native requests", expansion.animConfig.ease);
++        assertEquals("Both original native completion callbacks survive deferred consumption", 2, completed.get());
+         Blur blur = new Blur();
+-        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.35);
++        assertPeriod(registry, blur, "showBlur", List.of(true, true, true, false), 0.30);
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), 0.20);
++    }
++
++    @Test public void excludedInstalledPathsKeepAnActuallySlowerOemProfile() throws Throwable {
++        Registry registry = new Registry();
++        ControlCenterConfig[] current = {customSettings()};
++        ControlCenterAnimationHooks.install(getClass().getClassLoader(), (name, loader) -> switch (name) {
++            case ControlCenterAnimationHooks.EXPANSION_CLASS -> Expansion.class;
++            case ControlCenterAnimationHooks.BLUR_CLASS -> Blur.class;
++            default -> null;
++        }, registry, () -> current[0]);
++        Expansion expansion = new Expansion();
++        expansion.animConfig.ease = new Ease(-2, .95, .48);
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, .6f, false), .48);
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, .6f, true), .48);
++        expansion.this$0.mirror = true;
++        assertPeriod(registry, expansion, "setExpandProgress", List.of(false, 0f, true), .48);
++        Blur blur = new Blur();
++        blur.animConfig.ease = new Ease(-2, .95, .48);
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, true), .48);
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, false, false), .48);
++        assertPeriod(registry, blur, "showBlur", List.of(false, false, true, false), .48);
++        current[0] = current[0].withEnabled(false);
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), .48);
++        current[0] = customSettings().withLayoutPlan("invalid");
++        assertPeriod(registry, blur, "showBlur", List.of(false, true, true, false), .48);
++    }
++
++    @Test public void nativeReplacementDuringProceedIsNotOverwrittenByTheScopeCleanup() throws Throwable {
++        Owner owner = new Owner();
++        NativeConfig original = owner.animConfig;
++        NativeConfig latest = new NativeConfig();
++        latest.ease = new Ease(-2, .95, .16);
++        NativeConfig[] queued = new NativeConfig[1];
++        ControlCenterAnimationHooks.withFastConfig(owner, () -> {
++            queued[0] = owner.animConfig;
++            owner.animConfig = latest;
++            return null;
++        });
++        assertSame("A native settings replacement must survive module cleanup", latest, owner.animConfig);
++        assertEquals(.30, queued[0].ease.factors[1], .0001);
++        assertEquals(.35, original.ease.factors[1], .0001);
+     }
+ 
+     @Test public void unavailableOemMethodDoesNotPreventOtherLocalHook() {
+@@ -171,14 +244,38 @@ public class ControlCenterAnimationHooksTest {
+     private static void assertPeriod(Registry registry, Owner owner, String method,
+             List<?> args, double expected) throws Throwable {
+         NativeConfig original = owner.animConfig;
++        Ease originalEase = original.ease;
++        double originalResponse = (originalEase == null ? NativeConfig.sDefEase : originalEase).factors[1];
+         AtomicInteger calls = new AtomicInteger();
+         registry.call(owner, method, args, () -> {
+             calls.incrementAndGet();
+-            assertEquals(expected, owner.animConfig.ease.factors[1], 0.0001);
++            invokeNative(owner, method, args);
+             return null;
+         });
+         assertSame(original, owner.animConfig);
++        assertSame("The owner's original ease field must be restored, including null", originalEase, original.ease);
+         assertEquals(1, calls.get());
++        NativeRequest queued = owner.pending.poll();
++        boolean animated = method.equals("setExpandProgress") ? Boolean.TRUE.equals(args.get(2))
++                : Boolean.TRUE.equals(args.get(1));
++        NativeRequest consumed = animated ? queued : owner.direct;
++        assertNotNull("The fixture must consume the config passed by the actual native method body", consumed);
++        if (Math.abs(expected - originalResponse) > .0001) assertNotSame(original, consumed.config);
++        else assertSame("Untuned paths retain the actual native configuration object", original, consumed.config);
++        assertSame(original.listener, consumed.config.listener);
++        // Folme reads the queued config after the hook has returned and restored the owner.
++        consumed.consume();
++        assertEquals(expected, consumed.response, .0001);
++        assertEquals(method.equals("setExpandProgress") ? ((Number) args.get(1)).floatValue()
++                : Boolean.TRUE.equals(args.get(0)) ? 1f : 0f, consumed.target, 0f);
++    }
++
++    private static void invokeNative(Owner owner, String name, List<?> arguments) throws Throwable {
++        Method method = owner instanceof Expansion
++                ? Expansion.class.getDeclaredMethod(name, boolean.class, float.class, boolean.class)
++                : Blur.class.getDeclaredMethod(name, boolean.class, boolean.class, boolean.class, boolean.class);
++        try { method.invoke(owner, arguments.toArray()); }
++        catch (InvocationTargetException failure) { throw failure.getCause(); }
+     }
+ 
+     public static class Ease {
+@@ -201,17 +298,38 @@ public class ControlCenterAnimationHooksTest {
+         }
+     }
+ 
+-    public static class Owner { public NativeConfig animConfig = new NativeConfig(); }
++    public static class Owner {
++        public NativeConfig animConfig = new NativeConfig();
++        final ArrayDeque<NativeRequest> pending = new ArrayDeque<>();
++        NativeRequest direct;
++        void submit(float target, boolean animated) {
++            NativeRequest request = new NativeRequest(animConfig, target);
++            if (animated) pending.add(request);
++            else direct = request;
++        }
++    }
+     public static class Parent {
+         boolean mirror;
+         public boolean getInMirror() { return mirror; }
+     }
+     public static class Expansion extends Owner {
+         public final Parent this$0 = new Parent();
+-        public void setExpandProgress(boolean expanded, float value, boolean animated) { }
++        public void setExpandProgress(boolean expanded, float value, boolean animated) { submit(value, animated); }
+     }
+     public static class Blur extends Owner {
+-        public void showBlur(boolean shown, boolean animated, boolean withBlur, boolean mirror) { }
++        public void showBlur(boolean shown, boolean animated, boolean withBlur, boolean mirror) {
++            submit(shown ? 1f : 0f, animated);
++        }
++    }
++    private static final class NativeRequest {
++        final NativeConfig config;
++        final float target;
++        double response;
++        NativeRequest(NativeConfig config, float target) { this.config = config; this.target = target; }
++        void consume() {
++            response = (config.ease == null ? NativeConfig.sDefEase : config.ease).factors[1];
++            if (config.listener instanceof Runnable listener) listener.run();
++        }
+     }
+     private static class Registry implements ControlCenterPluginHookInstaller.Registrar {
+         final Map<Method, XposedInterface.Hooker> hooks = new HashMap<>();

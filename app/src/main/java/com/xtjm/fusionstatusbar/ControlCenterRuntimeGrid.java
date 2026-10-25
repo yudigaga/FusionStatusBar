@@ -1613,7 +1613,21 @@ final class ControlCenterRuntimeGrid {
                 Slot tileSlot = slotsByView.get(tile);
                 boolean active = isActiveTile(decoration.item);
                 ActiveTileBackground wrapper = activeTileBackgrounds.get(tile);
-                boolean editing = ControlCenterNativeMode.isEditing(tile);
+                boolean stable = false;
+                if (tileSlot != null) {
+                    boolean stateChanged = !tileSlot.materialActiveKnown
+                            || tileSlot.materialActive != active;
+                    tileSlot.materialActiveKnown = true;
+                    tileSlot.materialActive = active;
+                    stable = !tileSlot.materialDirty && !stateChanged && !tileSlot.materialFallbackSuspended
+                            && (active || wrapper == null);
+                }
+                // Ordinary ImageView tiles already own their material. Keep the
+                // settled-frame shortcut ahead of reflective native-mode queries.
+                // A fallback still needs a live mode check so EDIT can release it.
+                if (materialSettings.enabled && stable && wrapper == null) continue;
+                boolean editing = materialSettings.enabled && ControlCenterNativeMode.isEditing(tile);
+                if (tileSlot != null) tileSlot.materialFallbackSuspended = !materialSettings.enabled || editing;
                 if (!materialSettings.enabled || editing) {
                     // The deferred slot pass can already have cleared the dirty flag.
                     // Release our fallback before considering stable active-state shortcuts.
@@ -1631,12 +1645,10 @@ final class ControlCenterRuntimeGrid {
                 // A settings refresh can change opacity without changing the active state.
                 // Apply it before the stable-state shortcut, including after drawable registration.
                 if (wrapper != null && tile.getBackground() == wrapper) wrapper.setSurfaceColor(surfaceColor);
+                if (stable) continue;
                 if (tileSlot != null) {
-                    boolean stateChanged = !tileSlot.materialActiveKnown
-                            || tileSlot.materialActive != active;
-                    tileSlot.materialActiveKnown = true;
-                    tileSlot.materialActive = active;
-                    if (!tileSlot.materialDirty && !stateChanged && (active || wrapper == null)) continue;
+                    // A suspended fallback survives the earlier dirty-slot pass,
+                    // so NORMAL or re-enabling can recreate its active fill.
                     tileSlot.materialDirty = true;
                 }
                 if (ControlCenterMaterials.syncTileView(tile, materialSettings)) {
@@ -2030,6 +2042,7 @@ final class ControlCenterRuntimeGrid {
         boolean materialDirty = true;
         boolean materialActive;
         boolean materialActiveKnown;
+        boolean materialFallbackSuspended;
         Drawable materialRootBackground;
         final View view;
         final ControlCenterLayoutPlan.Item item;

@@ -402,7 +402,9 @@ public final class SystemUiHooks {
                 classLoader, SystemUiHooks::findClass, SystemUiHooks::hookMethod,
                 () -> currentConfig.controlCenter);
         log(Log.INFO, "plugin animation hooks=" + animationHooks.installed
-                + " unavailable=" + animationHooks.unavailable, null);
+                + " unavailable=" + animationHooks.unavailable
+                + " carrierMotion=" + animationHooks.carrierInstalled
+                + " carrierUnavailable=" + animationHooks.carrierUnavailable, null);
         CONTROL_CENTER_PLUGIN_CAPABILITIES.activate(classLoader);
         int menuHooks = SystemMenuHooks.install(classLoader, SystemUiHooks::hookMethod,
                 SystemUiHooks::ensureConfigObserver);
