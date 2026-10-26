@@ -58,6 +58,268 @@ class DesktopComposeUiTest {
             DesktopConfig.read(compose.activity).gestureAction(2)) }
     }
 
+    @Test fun backHoldRowEditsAndRestoresNativeWithoutChangingOtherGestures() {
+        compose.runOnIdle {
+            DesktopConfig.save(compose.activity, DesktopConfig.defaults()
+                .withGesture(DesktopConfig.GESTURE_SINGLE_UP, DesktopConfig.ACTION_NOTIFICATIONS))
+            page().refresh()
+        }
+        compose.onNodeWithTag("desktop_gesture_10").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_back_hold_summary").assertIsDisplayed()
+        compose.onNodeWithTag("desktop_editor_action").performClick()
+        compose.onNodeWithTag("desktop_action_0").assertExists()
+        compose.onNodeWithTag("desktop_action_1").assertDoesNotExist()
+        compose.onNodeWithTag("desktop_action_6").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(DesktopConfig.ACTION_NATIVE,
+            DesktopConfig.read(compose.activity).gestureAction(DesktopConfig.GESTURE_BACK_HOLD)) }
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.ACTION_SCREENSHOT, saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
+            assertEquals(DesktopConfig.ACTION_NOTIFICATIONS, saved.gestureAction(DesktopConfig.GESTURE_SINGLE_UP))
+        }
+
+        compose.onNodeWithTag("desktop_gesture_10").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_editor_action").performClick()
+        compose.onNodeWithTag("desktop_action_0").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.ACTION_NATIVE, saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
+            assertEquals(DesktopConfig.ACTION_NOTIFICATIONS, saved.gestureAction(DesktopConfig.GESTURE_SINGLE_UP))
+        }
+    }
+
+    @Test fun backHoldThresholdEditsStayDraftUntilDoneAndReopenWithSavedValues() {
+        backHoldEditor()
+        editBackHoldDistance("72")
+        editBackHoldDelay("850")
+        compose.onNodeWithTag("desktop_back_hold_summary").performScrollTo()
+            .assertTextContains("72 dp", substring = true)
+            .assertTextContains("850 毫秒", substring = true)
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
+            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
+        }
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(72, saved.backHoldDistanceDp)
+            assertEquals(850, saved.backHoldDelayMs)
+        }
+        backHoldEditor()
+        openBackHoldThreshold("desktop_back_hold_distance")
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("72")
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        openBackHoldThreshold("desktop_back_hold_delay")
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("850")
+    }
+
+    @Test fun invalidBackHoldThresholdInputsCannotChangeDraftOrPersistentValues() {
+        backHoldEditor()
+        openBackHoldThreshold("desktop_back_hold_distance")
+        compose.onNodeWithTag("desktop_back_hold_distance_system").performClick()
+        for (invalid in listOf("", "abc", "15", "241", "-16", "16.5", "2147483648")) {
+            compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(invalid)
+            compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+            compose.onNodeWithTag("desktop_back_hold_threshold_error").performScrollTo().assertIsDisplayed()
+        }
+        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
+        openBackHoldThreshold("desktop_back_hold_delay")
+        for (invalid in listOf("", "abc", "199", "3001", "-200", "200.5", "2147483648")) {
+            compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(invalid)
+            compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+            compose.onNodeWithTag("desktop_back_hold_threshold_error").performScrollTo().assertIsDisplayed()
+        }
+        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
+            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
+        }
+    }
+
+    @Test fun backHoldResetRestoresBothDefaultsOnlyAfterFinalConfirmation() {
+        setBackHoldThresholds(88, 1100)
+        backHoldEditor()
+        compose.onNodeWithTag("desktop_back_hold_reset").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_back_hold_summary").performScrollTo()
+            .assertTextContains("跟随系统距离", substring = true)
+            .assertTextContains("500 毫秒", substring = true)
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(88, saved.backHoldDistanceDp)
+            assertEquals(1100, saved.backHoldDelayMs)
+        }
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
+            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
+        }
+    }
+
+    @Test fun backHoldSubEditorsCanRestoreSystemDistanceAndDefaultDelay() {
+        setBackHoldThresholds(80, 900)
+        backHoldEditor()
+        openBackHoldThreshold("desktop_back_hold_distance")
+        compose.onNodeWithTag("desktop_back_hold_threshold_reset").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertDoesNotExist()
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        openBackHoldThreshold("desktop_back_hold_delay")
+        compose.onNodeWithTag("desktop_back_hold_threshold_reset").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("500")
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
+            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
+        }
+    }
+
+    @Test fun cancellingBackHoldEditorDiscardsBothThresholdDrafts() {
+        backHoldEditor()
+        editBackHoldDistance("96")
+        editBackHoldDelay("1200")
+        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
+        backHoldEditor()
+        compose.onNodeWithTag("desktop_back_hold_summary")
+            .assertTextContains("跟随系统距离", substring = true)
+            .assertTextContains("500 毫秒", substring = true)
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
+            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
+        }
+    }
+
+    @Test fun cancellingANumericSubEditorPreservesTheLastAcceptedDraftValue() {
+        backHoldEditor()
+        editBackHoldDistance("64")
+        openBackHoldThreshold("desktop_back_hold_distance")
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement("100")
+        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
+        openBackHoldThreshold("desktop_back_hold_distance")
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("64")
+        compose.runOnIdle { assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM,
+            DesktopConfig.read(compose.activity).backHoldDistanceDp) }
+    }
+
+    @Test fun choosingActionAndApplicationPreservesBothThresholdDrafts() {
+        install("test.threshold", "阈值测试应用")
+        backHoldEditor()
+        editBackHoldDistance("76")
+        editBackHoldDelay("700")
+        compose.onNodeWithTag("desktop_editor_action").performScrollTo().performClick()
+        compose.onNodeWithTag("desktop_action_list").performScrollToNode(
+            hasTestTag("desktop_action_${DesktopConfig.ACTION_LAUNCH_APP}"))
+        compose.onNodeWithTag("desktop_action_${DesktopConfig.ACTION_LAUNCH_APP}").performClick()
+        compose.onNodeWithTag("desktop_editor_app").performScrollTo().performClick()
+        awaitApp("test.threshold")
+        compose.onNodeWithTag("desktop_app_search").performTextInput("test.threshold")
+        compose.onNodeWithTag("desktop_app_test.threshold").performClick()
+        compose.onNodeWithTag("desktop_back_hold_summary").performScrollTo()
+            .assertTextContains("76 dp", substring = true)
+            .assertTextContains("700 毫秒", substring = true)
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(76, saved.backHoldDistanceDp)
+            assertEquals(700, saved.backHoldDelayMs)
+            assertEquals("test.threshold|test.threshold.Main",
+                saved.gestureTarget(DesktopConfig.GESTURE_BACK_HOLD))
+        }
+    }
+
+    @Test fun otherGestureEditorsDoNotExposeBackHoldThresholds() {
+        gestureEditor()
+        compose.onNodeWithTag("desktop_back_hold_distance").assertDoesNotExist()
+        compose.onNodeWithTag("desktop_back_hold_delay").assertDoesNotExist()
+        compose.onNodeWithTag("desktop_back_hold_reset").assertDoesNotExist()
+    }
+
+    @Test fun backAppearancePresetAndArgbColorsSaveWithoutChangingHoldAction() {
+        compose.runOnIdle {
+            DesktopConfig.save(compose.activity, DesktopConfig.defaults()
+                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_SCREENSHOT))
+            page().refresh()
+        }
+        openAppearanceRow("desktop_back_style")
+        chooseBackStyle(DesktopConfig.BACK_STYLE_NEON)
+        compose.runOnIdle {
+            assertEquals(DesktopConfig.BACK_STYLE_NEON, DesktopConfig.read(compose.activity).backGestureStyle)
+        }
+        openAppearanceRow("desktop_back_background")
+        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#804488CC")
+        compose.runOnIdle { assertEquals(DesktopConfig.backGesturePresetBackground(DesktopConfig.BACK_STYLE_NEON),
+            DesktopConfig.read(compose.activity).backGestureBackgroundColor) }
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        openAppearanceRow("desktop_back_arrow")
+        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#12345")
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.onNodeWithTag("desktop_back_color_error").performScrollTo().assertIsDisplayed()
+        compose.runOnIdle { assertEquals(DesktopConfig.backGesturePresetArrow(DesktopConfig.BACK_STYLE_NEON),
+            DesktopConfig.read(compose.activity).backGestureArrowColor) }
+        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("44AACC")
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_STYLE_NEON, saved.backGestureStyle)
+            assertEquals(0x804488CC.toInt(), saved.backGestureBackgroundColor)
+            assertEquals(0xFF44AACC.toInt(), saved.backGestureArrowColor)
+            assertEquals(DesktopConfig.ACTION_SCREENSHOT, saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
+        }
+    }
+
+    @Test fun nativeAppearanceColorEditActivatesClassicAndNativePresetRestoresDefaults() {
+        openAppearanceRow("desktop_back_background")
+        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#40223344")
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_STYLE_CLASSIC, saved.backGestureStyle)
+            assertEquals(0x40223344, saved.backGestureBackgroundColor)
+        }
+        openAppearanceRow("desktop_back_style")
+        chooseBackStyle(DesktopConfig.BACK_STYLE_NATIVE)
+        compose.runOnIdle { assertEquals(DesktopConfig.defaults(), DesktopConfig.read(compose.activity)) }
+    }
+
+    @Test fun rainbowPresetIsSelectableAsTheSixthChoiceAndKeepsHoldAction() {
+        compose.runOnIdle {
+            DesktopConfig.save(compose.activity, DesktopConfig.defaults()
+                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_SCREENSHOT))
+            page().refresh()
+        }
+        openAppearanceRow("desktop_back_style")
+        chooseBackStyle(DesktopConfig.BACK_STYLE_RAINBOW)
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_STYLE_RAINBOW, saved.backGestureStyle)
+            assertEquals(0xD94F6BEA.toInt(), saved.backGestureBackgroundColor)
+            assertEquals(0xFFFFFFFF.toInt(), saved.backGestureArrowColor)
+            assertEquals(DesktopConfig.ACTION_SCREENSHOT,
+                saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
+        }
+        openAppearanceRow("desktop_back_background")
+        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#804477CC")
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+        compose.runOnIdle {
+            val saved = DesktopConfig.read(compose.activity)
+            assertEquals(DesktopConfig.BACK_STYLE_RAINBOW, saved.backGestureStyle)
+            assertEquals(0x804477CC.toInt(), saved.backGestureBackgroundColor)
+            assertEquals(DesktopConfig.ACTION_SCREENSHOT,
+                saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
+        }
+        openAppearanceRow("desktop_back_style")
+        compose.onNodeWithTag("desktop_back_style_list").performScrollToNode(
+            hasTestTag("desktop_back_style_5"))
+        compose.onNodeWithTag("desktop_back_style_5").assertIsSelected()
+    }
+
     @Test fun appSearchKeepsFrozenApplicationsAndSavesTheFilteredTarget() {
         install("test.alpha", "普通应用")
         install("test.frozen", "冻结应用")
@@ -167,6 +429,36 @@ class DesktopComposeUiTest {
     private fun page(): DesktopSettingsPage = MainActivity::class.java.getDeclaredField("desktopSettingsPage")
         .apply { isAccessible = true }.get(compose.activity) as DesktopSettingsPage
     private fun gestureEditor() = compose.onNodeWithTag("desktop_gesture_2").performScrollTo().performClick()
+    private fun backHoldEditor() = compose.onNodeWithTag("desktop_gesture_10").performScrollTo().performClick()
+    private fun setBackHoldThresholds(distanceDp: Int, delayMs: Int) {
+        compose.runOnIdle {
+            DesktopConfig.save(compose.activity, DesktopConfig.defaults().withBackHoldThresholds(distanceDp, delayMs))
+            page().refresh()
+        }
+    }
+    private fun openBackHoldThreshold(tag: String) = compose.onNodeWithTag(tag).performScrollTo().performClick()
+    private fun editBackHoldDistance(value: String) {
+        openBackHoldThreshold("desktop_back_hold_distance")
+        if (compose.onAllNodesWithTag("desktop_back_hold_threshold_input").fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithTag("desktop_back_hold_distance_system").performClick()
+        }
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(value)
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+    }
+    private fun editBackHoldDelay(value: String) {
+        openBackHoldThreshold("desktop_back_hold_delay")
+        compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(value)
+        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
+    }
+    private fun openAppearanceRow(tag: String) {
+        compose.onNodeWithTag("desktop_page").performScrollToNode(hasTestTag(tag))
+        compose.onNodeWithTag(tag).performScrollTo().performClick()
+    }
+    private fun chooseBackStyle(style: Int) {
+        val tag = "desktop_back_style_$style"
+        compose.onNodeWithTag("desktop_back_style_list").performScrollToNode(hasTestTag(tag))
+        compose.onNodeWithTag(tag).performScrollTo().performClick()
+    }
     private fun chooseAction(action: Int) {
         gestureEditor()
         compose.onNodeWithTag("desktop_editor_action").performClick()

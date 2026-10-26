@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 2,
+  "versionName": "0.5.20",
+  "versionCode": 234,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "namespace": "com.xtjm.fusionstatusbar",
+  "buildMode": "local_dirty_signed",
+  "sourceCommit": "c2ad317ac55af574d938e39a6fa53dc416e920c8",
+  "sourceRef": "HEAD",
+  "sourceTags": [
+    "v0.5.15"
+  ],
+  "sourceDirty": true,
+  "sourceArchiveSha256": "74368f61b281ae896d98a9a3304702ebbc6be00fdda25a66bb410b70d719560e",
+  "sourceIndexSha256": "67d61829d883ad5d1bd42d9c8b611bde91917db6c8f901426a51a4404e770182",
+  "sourcePatchSha256": "5c93fa2fe77a90116ead14ce3398fc3e48db02809d47e72ec8cd604b590d6762",
+  "sourceSnapshot": "source.zip",
+  "variants": {
+    "debug": {
+      "apk": "fusion-statusbar-v0.5.20-debug.apk",
+      "apkSha256": "88f8c56295c3f6a62ef21e7598d02c1598ad9552be0a7fe06c06a289a0c119a8",
+      "apkSize": 27344667,
+      "debuggable": true,
+      "signing": "debug",
+      "signingCertificateSha256": "4e06d06e242802a8b8e77f696079ddd78e3d615d0cf73b781f3a187abb51f980",
+      "zipAlignment": "not_performed",
+      "tests": {
+        "total": 242,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 99,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      }
+    },
+    "release": {
+      "apk": "fusion-statusbar-v0.5.20-release.apk",
+      "apkSha256": "f58333f44372685aabc65bb92f2eb39df1b50581cde069a8d29d4dde0c182e89",
+      "apkSize": 21652726,
+      "debuggable": false,
+      "signing": "official",
+      "signingCertificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+      "zipAlignment": "passed",
+      "tests": {
+        "total": 242,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 98,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      }
+    }
+  },
+  "createdUtc": "2026-10-26T14:37:18.6034237Z",
+  "toolchain": {
+    "jdk": "openjdk 21.0.12.1 2026-08-18 LTS\r\nOpenJDK Runtime Environment Microsoft-14941484 (build 21.0.12.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Microsoft-14941484 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+    "gradle": "8.13",
+    "agp": "8.13.2",
+    "compileSdk": 36,
+    "targetSdk": 35,
+    "buildTools": "36.0.0",
+    "dependencyLocks": [
+      {
+        "path": "app/gradle.lockfile",
+        "sha256": "f6ef1537703be449923ac0eb16d007569ffcfb714bbe31cac052c53bfb61a73a"
+      }
+    ]
+  },
+  "validationInput": "existing_build_outputs",
+  "installation": "not_performed",
+  "systemUiInjection": "not_performed",
+  "romValidation": "not_performed",
+  "unitTestScope": "targeted",
+  "fullUnitTestSuites": "not_performed",
+  "unitTestFilters": [
+    "com.xtjm.fusionstatusbar.Desktop*",
+    "com.xtjm.fusionstatusbar.Launcher*",
+    "com.xtjm.fusionstatusbar.BackGesture*",
+    "com.xtjm.fusionstatusbar.RuntimeConfigExchangeTest",
+    "com.xtjm.fusionstatusbar.ControlCenterGlassAutomaticThemeRegressionTest",
+    "com.xtjm.fusionstatusbar.ControlCenterThemeResourceGroupsRegressionTest"
+  ],
+  "unitTestSummary": {
+    "debug": {
+      "classes": 26,
+      "tests": 242,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "release": {
+      "classes": 26,
+      "tests": 242,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "pythonToolTests": {
+    "command": "python -m unittest discover -s tools/tests -v",
+    "total": 28,
+    "status": "passed"
+  },
+  "distribution": "local_only",
+  "delivery": {
+    "apk": "E:\\vs\\claude\\xtjm\\fusion-statusbar-v0.5.20.apk",
+    "sha256": "f58333f44372685aabc65bb92f2eb39df1b50581cde069a8d29d4dde0c182e89",
+    "size": 21652726
+  },
+  "featureVerification": "feature-verification.json",
+  "alignmentReport": "alignment-release.txt",
+  "interaction": {
+    "defaultDelayMs": 500,
+    "delayMsRange": [
+      200,
+      3000
+    ],
+    "defaultDistance": "system",
+    "distanceDpRange": [
+      16,
+      240
+    ],
+    "captureMs": 100,
+    "jitterDp": 16,
+    "pendingRetractionDp": 12,
+    "readyRetractionDp": 24,
+    "customHapticTiming": "ready_before_up",
+    "actionHaptic": "none",
+    "deviceValidation": "not_performed"
+  },
+  "gradleJvmArgs": "-Xmx768m -Xms128m -XX:ActiveProcessorCount=2 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=128m -XX:HeapBaseMinAddress=8g -Dfile.encoding=UTF-8"
+}

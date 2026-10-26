@@ -10,8 +10,8 @@ android {
         applicationId "io.github.yudigaga.fusionstatusbar"
         minSdk 33
         targetSdk 35
-        versionCode 229
-        versionName "0.5.15"
+        versionCode 234
+        versionName "0.5.20"
     }
 
     compileOptions {
@@ -31,6 +31,7 @@ android {
 
     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/xposed"))
     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/miuix-license"))
+    sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/materialkolor-license"))
 
     buildTypes {
         release {
@@ -75,7 +76,14 @@ def packageMiuixLicense = tasks.register("packageMiuixLicense", Copy) {
     rename { "miuix-license.txt" }
 }
 
-tasks.named("preBuild").configure { dependsOn(generateXposedMetadata, packageMiuixLicense) }
+def packageMaterialKolorLicense = tasks.register("packageMaterialKolorLicense", Copy) {
+    from(rootProject.file("third_party/materialkolor"))
+    into(layout.buildDirectory.dir("generated/materialkolor-license/META-INF/licenses/materialkolor"))
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateXposedMetadata, packageMiuixLicense, packageMaterialKolorLicense)
+}
 tasks.withType(JavaCompile).configureEach { options.encoding = "UTF-8" }
 
 tasks.withType(Test).configureEach {
@@ -90,6 +98,7 @@ dependencyLocking {
 
 dependencies {
     implementation "top.yukonga.miuix.kmp:miuix:0.8.8"
+    implementation "com.materialkolor:material-color-utilities:4.1.1"
     implementation "androidx.activity:activity-compose:1.12.4"
     implementation "androidx.compose.ui:ui:1.10.5"
     implementation "androidx.compose.foundation:foundation:1.10.5"

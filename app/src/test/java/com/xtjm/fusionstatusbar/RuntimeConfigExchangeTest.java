@@ -90,6 +90,27 @@ public class RuntimeConfigExchangeTest {
         assertTrue(sent.getComponent() == null);
     }
 
+    @Test public void backHoldThresholdsReachTheLauncherCacheBeforeRefresh() {
+        DesktopConfig configured = DesktopConfig.defaults()
+                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_RECENTS)
+                .withBackHoldThresholds(72, 850);
+        assertTrue(DesktopConfigStore.write(module, configured));
+        RuntimeConfigExchange.publish(module);
+        RecordingContext launcher = new RecordingContext(module, "com.miui.home");
+        int[] changes = {0};
+        assertTrue(RuntimeConfigExchange.receiveHostConfig(launcher, "com.miui.home",
+                module.broadcasts.get(1), () -> {
+                    DesktopConfig received = DesktopConfig.readForRuntime(launcher);
+                    assertEquals(72, received.backHoldDistanceDp);
+                    assertEquals(850, received.backHoldDelayMs);
+                    changes[0]++;
+                }));
+        assertEquals(1, changes[0]);
+        assertTrue(DesktopConfigStore.write(module, DesktopConfig.defaults()));
+        DesktopConfig cached = DesktopConfig.readForRuntime(launcher, true);
+        assertEquals(configured, cached);
+    }
+
     @Test public void hostReceiversRequireTheModuleSignaturePermission() {
         RecordingContext systemUi = new RecordingContext(module, "com.android.systemui");
         RecordingContext launcher = new RecordingContext(module, "com.miui.home");

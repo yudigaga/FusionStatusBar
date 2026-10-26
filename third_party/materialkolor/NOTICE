@@ -1,0 +1,26 @@
+MaterialKolor / Material Color Utilities
+======================================
+
+FusionStatusBar uses the Material Color Utilities implementation supplied by
+MaterialKolor 4.1.1 to derive light and dark tones from a selected color seed.
+
+MaterialKolor 4.1.1
+Copyright (c) 2025 Jordon de Hoog
+Project license: MIT; see LICENSE-MIT in this directory.
+Source tag: 4.1.1
+Source commit: 473e6c7a5c603e51944fcf53402cc30bd4ab0586
+https://github.com/jordond/MaterialKolor/tree/473e6c7a5c603e51944fcf53402cc30bd4ab0586
+
+The Material Color Utilities portion retains Google copyright and
+Apache License 2.0 headers. For example, the HCT implementation carries:
+Copyright 2021 Google LLC
+See LICENSE-APACHE-2.0 in this directory.
+https://github.com/jordond/MaterialKolor/blob/473e6c7a5c603e51944fcf53402cc30bd4ab0586/material-color-utilities/src/commonMain/kotlin/com/materialkolor/hct/Hct.kt
+
+Upstream Material Color Utilities:
+https://github.com/material-foundation/material-color-utilities
+Apache License 2.0 text was obtained from upstream commit:
+bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3
+https://github.com/material-foundation/material-color-utilities/blob/bd811e4ca2ab94c4ce3cadc89c19b1820b9704b3/LICENSE
+
+The accompanying license files are unmodified upstream license texts.

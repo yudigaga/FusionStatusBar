@@ -1456,6 +1456,9 @@ final class ControlCenterRuntimeGrid {
             boolean contentScaleChanged = materialSettings.tileScale != settings.tileScale
                     || materialSettings.enabled != settings.enabled;
             materialSettings = settings;
+            // Decoration overlays use the grid's resources, which may differ from
+            // a native component or the window hosting this reused grid.
+            ControlCenterMaterials.observeTheme(this, settings);
             markAllMaterialsDirty();
             for (Slot slot : slots) {
                 if (slot.item.type != ControlCenterLayoutPlan.Type.TILE

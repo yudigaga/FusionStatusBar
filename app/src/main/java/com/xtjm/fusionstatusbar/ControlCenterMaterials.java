@@ -1,6 +1,8 @@
 package com.xtjm.fusionstatusbar;
 
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.graphics.ColorFilter;
 import android.graphics.Canvas;
 import android.graphics.Outline;
@@ -115,7 +117,8 @@ final class ControlCenterMaterials {
         return Layer.NONE;
     }
     static void register(View owner, Drawable drawable, Layer layer, ControlCenterConfig config) {
-        if (drawable == null || layer == Layer.NONE) return;
+        if (owner == null || drawable == null || layer == Layer.NONE) return;
+        observeTheme(owner, config);
         ControlCenterMaterialSession session = MATERIAL_SESSIONS.get(owner);
         if (session != null && session.componentBackground == drawable) return;
         if (drawable instanceof ClippedBackgroundDrawable clipped) {
@@ -568,6 +571,9 @@ final class ControlCenterMaterials {
         }
         for (Map.Entry<TextView, ColorStateList> entry : new ArrayList<>(TEXT.entrySet()))
             guarded(() -> entry.getKey().setTextColor(contrast(entry.getValue(), textSurface(entry.getKey(), config))));
+        // Grid decorations own glass overlays outside GLASS_VIEWS. Update and
+        // invalidate their shaders before HWUI can reuse a recorded display list.
+        ControlCenterSoftGlass.refreshTheme();
     }
 
     static void registerRoot(View view, ControlCenterConfig config) {
@@ -584,31 +590,59 @@ final class ControlCenterMaterials {
         }
     }
 
-    private static void observeTheme(View view, ControlCenterConfig config) {
-        if (!config.enabled || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return;
+    static void observeTheme(View view, ControlCenterConfig config) {
+        if (view == null || config == null || !config.enabled
+                || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return;
         View root = view.getRootView();
         ThemeObserver observer = THEME_ROOTS.get(root);
         if (observer == null) {
             observer = new ThemeObserver(root);
             THEME_ROOTS.put(root, observer);
+            observer.track(view.getResources());
             observer.configure(config);
         } else {
             observer.config = config;
+            observer.track(root.getResources());
+            observer.track(view.getResources());
         }
     }
 
-    /** One cheap theme check per root; refresh only when its actual view configuration changes. */
+    /** Check distinct resource groups, since plugin resources can update after their window. */
     private static final class ThemeObserver implements android.view.ViewTreeObserver.OnPreDrawListener,
             View.OnAttachStateChangeListener {
         private final WeakReference<View> owner;
         private WeakReference<android.view.ViewTreeObserver> tree = new WeakReference<>(null);
+        private final ArrayList<ResourceStamp> resources = new ArrayList<>();
         private ControlCenterConfig config;
-        private ControlCenterSurface resolved;
 
         ThemeObserver(View root) {
             owner = new WeakReference<>(root);
+            track(root.getResources());
             root.addOnAttachStateChangeListener(this);
             if (root.isAttachedToWindow()) onViewAttachedToWindow(root);
+        }
+
+        void track(Resources value) {
+            if (value == null) return;
+            for (int index = resources.size() - 1; index >= 0; index--) {
+                Resources existing = resources.get(index).owner.get();
+                // Re-registering the same resource group must not accept a pending
+                // mode change as already applied before the material refresh.
+                if (existing == value) return;
+                if (existing == null) resources.remove(index);
+            }
+            resources.add(new ResourceStamp(value));
+        }
+
+        boolean hasPendingChanges() {
+            boolean changed = false;
+            for (int index = resources.size() - 1; index >= 0; index--) {
+                ResourceStamp stamp = resources.get(index);
+                Resources value = stamp.owner.get();
+                if (value == null) resources.remove(index);
+                else if (stamp.changed(value)) changed = true;
+            }
+            return changed;
         }
 
         void configure(ControlCenterConfig next) {
@@ -619,19 +653,34 @@ final class ControlCenterMaterials {
                 dispose(root);
                 return;
             }
-            resolved = next.surface.resolve(root.getContext());
+            for (int index = resources.size() - 1; index >= 0; index--) {
+                ResourceStamp stamp = resources.get(index);
+                Resources value = stamp.owner.get();
+                if (value == null) resources.remove(index);
+                else stamp.capture(value);
+            }
         }
 
         @Override public boolean onPreDraw() {
             View root = owner.get();
-            if (root == null || config == null) return true;
+            if (root == null || config == null || !config.enabled
+                    || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return true;
             // A surface registered before attachment may now share a window with other surfaces.
             if (root.getRootView() != root) {
+                boolean pending = hasPendingChanges();
                 dispose(root);
                 observeTheme(root, config);
+                ThemeObserver merged = THEME_ROOTS.get(root.getRootView());
+                if (merged != null) {
+                    for (int index = 0; index < resources.size(); index++)
+                        merged.track(resources.get(index).owner.get());
+                }
+                // Ordinary attachment only merges observers. A change that happened
+                // while detached still needs application after ownership has moved.
+                if (pending) refresh(config);
                 return true;
             }
-            if (resolved != config.surface.resolve(root.getContext())) refresh(config);
+            if (hasPendingChanges()) refresh(config);
             return true;
         }
 
@@ -650,6 +699,31 @@ final class ControlCenterMaterials {
             onViewDetachedFromWindow(root);
             root.removeOnAttachStateChangeListener(this);
             THEME_ROOTS.remove(root);
+        }
+    }
+
+    private static final class ResourceStamp {
+        final WeakReference<Resources> owner;
+        private int nightMode, densityDpi;
+        private float density;
+
+        ResourceStamp(Resources resources) {
+            owner = new WeakReference<>(resources);
+            capture(resources);
+        }
+
+        boolean changed(Resources resources) {
+            Configuration configuration = resources.getConfiguration();
+            return nightMode != (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                    || densityDpi != configuration.densityDpi
+                    || Float.compare(density, resources.getDisplayMetrics().density) != 0;
+        }
+
+        void capture(Resources resources) {
+            Configuration configuration = resources.getConfiguration();
+            nightMode = configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            densityDpi = configuration.densityDpi;
+            density = resources.getDisplayMetrics().density;
         }
     }
 

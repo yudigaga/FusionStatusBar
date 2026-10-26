@@ -428,6 +428,7 @@ final class SystemSurfaceStyle {
             bounds.set(getBounds());
             if (bounds.isEmpty()) return;
             View view = owner.get();
+            if (view != null) density = view.getResources().getDisplayMetrics().density;
             ControlCenterSurface surface = view == null ? config.surface : config.surface.resolve(view.getContext());
             float radius = Math.min(config.cornerRadius * density, Math.min(bounds.width(), bounds.height()) / 2f);
             float opacity = alpha / 255f * strength / 100f;
@@ -476,6 +477,8 @@ final class SystemSurfaceStyle {
         }
 
         @Override public void getOutline(Outline outline) {
+            View view = owner.get();
+            if (view != null) density = view.getResources().getDisplayMetrics().density;
             outline.setRoundRect(getBounds(), config.cornerRadius * density);
             outline.setAlpha(0f);
         }

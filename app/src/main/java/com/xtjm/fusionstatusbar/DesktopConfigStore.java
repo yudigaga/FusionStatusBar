@@ -22,6 +22,17 @@ final class DesktopConfigStore {
         boolean legacy = preferences.getInt("desktop_schema_version", 1) < 2;
         values.putInt("desktop_schema_version", 2);
         values.putBoolean(KEY_HIDE_ICONS, preferences.getBoolean(KEY_HIDE_ICONS, false));
+        DesktopConfig defaults = DesktopConfig.defaults();
+        values.putInt(DesktopConfig.KEY_BACK_STYLE, preferences.getInt(
+                DesktopConfig.KEY_BACK_STYLE, defaults.backGestureStyle));
+        values.putInt(DesktopConfig.KEY_BACK_BACKGROUND, preferences.getInt(
+                DesktopConfig.KEY_BACK_BACKGROUND, defaults.backGestureBackgroundColor));
+        values.putInt(DesktopConfig.KEY_BACK_ARROW, preferences.getInt(
+                DesktopConfig.KEY_BACK_ARROW, defaults.backGestureArrowColor));
+        values.putInt(DesktopConfig.KEY_BACK_HOLD_DISTANCE, preferences.getInt(
+                DesktopConfig.KEY_BACK_HOLD_DISTANCE, defaults.backHoldDistanceDp));
+        values.putInt(DesktopConfig.KEY_BACK_HOLD_DELAY, preferences.getInt(
+                DesktopConfig.KEY_BACK_HOLD_DELAY, defaults.backHoldDelayMs));
         try {
             values.putStringArrayList(KEY_HIDDEN_PACKAGES,
                     new ArrayList<>(preferences.getStringSet(KEY_HIDDEN_PACKAGES, new HashSet<>())));
@@ -59,6 +70,11 @@ final class DesktopConfigStore {
         SharedPreferences.Editor editor = preferences(context).edit();
         editor.putInt("desktop_schema_version", 2);
         editor.putBoolean(KEY_HIDE_ICONS, config.hideIcons);
+        editor.putInt(DesktopConfig.KEY_BACK_STYLE, config.backGestureStyle);
+        editor.putInt(DesktopConfig.KEY_BACK_BACKGROUND, config.backGestureBackgroundColor);
+        editor.putInt(DesktopConfig.KEY_BACK_ARROW, config.backGestureArrowColor);
+        editor.putInt(DesktopConfig.KEY_BACK_HOLD_DISTANCE, config.backHoldDistanceDp);
+        editor.putInt(DesktopConfig.KEY_BACK_HOLD_DELAY, config.backHoldDelayMs);
         editor.putStringSet(KEY_HIDDEN_PACKAGES, new HashSet<>(config.hiddenPackages()));
         for (int i = 0; i < DesktopConfig.GESTURE_COUNT; i++) {
             editor.putInt(gestureActionKey(i), config.gestureAction(i));

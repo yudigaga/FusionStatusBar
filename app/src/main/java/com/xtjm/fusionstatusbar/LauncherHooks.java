@@ -49,6 +49,7 @@ final class LauncherHooks {
             Collections.synchronizedMap(new WeakHashMap<>());
 
     private static volatile DesktopConfig config = DesktopConfig.defaults();
+    private static volatile WeakReference<Context> runtimeContext = new WeakReference<>(null);
     private static volatile WeakReference<Activity> currentActivity = new WeakReference<>(null);
     private static volatile ContentObserver configObserver;
     private static final java.util.concurrent.ExecutorService SHORTCUT_WORKER =
@@ -88,6 +89,11 @@ final class LauncherHooks {
         });
         count += hook(module, loader, WORKSPACE, "onVerticalGesture",
                 new Class<?>[] {int.class, MotionEvent.class}, LauncherHooks::verticalGesture);
+        count += LauncherBackHoldGesture.install(module, loader, () -> config,
+                LauncherHooks::attachRuntime, LauncherHooks::prepareBackHoldAction);
+        count += LauncherBackReadyFeedbackGuard.install(module, loader);
+        count += LauncherBackAppearance.install(module, loader, () -> config,
+                LauncherHooks::attachRuntime);
         count += installVerticalOverrides(module, loader);
         count += hook(module, loader, LAUNCHER, "onDestroy", new Class<?>[0], chain -> {
             if (chain.getThisObject() == currentActivity.get()) {
@@ -581,10 +587,55 @@ final class LauncherHooks {
         }
     }
 
+    static Runnable prepareBackHoldAction(Context context, DesktopConfig snapshot) {
+        int gesture = DesktopConfig.GESTURE_BACK_HOLD;
+        if (context == null || snapshot == null
+                || snapshot.gestureAction(gesture) <= DesktopConfig.ACTION_NONE
+                || !snapshot.isGestureComplete(gesture)) return null;
+        android.app.KeyguardManager keyguard = context.getSystemService(android.app.KeyguardManager.class);
+        android.os.PowerManager power = context.getSystemService(android.os.PowerManager.class);
+        if (keyguard != null && keyguard.isKeyguardLocked()
+                || power != null && !power.isInteractive()) return null;
+        int action = snapshot.gestureAction(gesture);
+        String target = snapshot.gestureTarget(gesture);
+        if (action == DesktopConfig.ACTION_LAUNCH_SHORTCUT) {
+            try {
+                org.json.JSONObject shortcut = new org.json.JSONObject(target);
+                String packageName = shortcut.getString("package");
+                String shortcutId = shortcut.getString("id");
+                android.content.pm.LauncherApps launcher =
+                        context.getSystemService(android.content.pm.LauncherApps.class);
+                if (packageName.isEmpty() || shortcutId.isEmpty() || launcher == null
+                        || !launcher.hasShortcutHostPermission()) return null;
+            } catch (Exception error) {
+                return null;
+            }
+            return () -> MAIN.post(() -> DesktopShortcutCatalog.launchFromLauncher(context, target));
+        }
+        Intent prepared = DesktopActionQueue.dispatchIntent(context, action, target,
+                snapshot.gestureToggle(gesture));
+        if (prepared == null) return null;
+        // The recognizer runs this only after the host cancels predictive back on its own thread.
+        return () -> MAIN.post(() -> DesktopActionQueue.sendPrepared(context, prepared));
+    }
+
     private static void attach(Activity activity) {
         currentActivity = new WeakReference<>(activity);
-        Context app = activity.getApplicationContext();
+        attachRuntime(activity);
+        RuntimeConfigExchange.request(activity.getApplicationContext());
+        config = DesktopConfig.readForRuntime(activity);
+        updateShakeRegistration();
+        applyDesktopIcons(activity.getWindow() == null
+                ? null : activity.getWindow().getDecorView());
+    }
+
+    static void attachRuntime(Context source) {
+        if (source == null) return;
+        Context application = source.getApplicationContext();
+        Context app = application == null ? source : application;
         synchronized (LauncherHooks.class) {
+            if (runtimeContext.get() == app && configObserver != null) return;
+            runtimeContext = new WeakReference<>(app);
             if (configObserver == null) {
                 ContentObserver observer = new ContentObserver(MAIN) {
                     @Override public void onChange(boolean selfChange, Uri uri) {
@@ -607,19 +658,17 @@ final class LauncherHooks {
             }
         }
         RuntimeConfigExchange.request(app);
-        config = DesktopConfig.readForRuntime(activity);
-        updateShakeRegistration();
-        applyDesktopIcons(activity.getWindow() == null
-                ? null : activity.getWindow().getDecorView());
+        config = DesktopConfig.readForRuntime(app);
     }
 
     private static void refreshConfiguration() {
-        if (currentActivity.get() == null) return;
+        if (runtimeContext.get() == null) return;
         Runnable refresh = () -> {
+            Context context = runtimeContext.get();
+            if (context == null) return;
+            config = DesktopConfig.readForRuntime(context);
             Activity activity = currentActivity.get();
             if (activity == null) return;
-            Context context = activity.getApplicationContext();
-            config = DesktopConfig.readForRuntime(context);
             updateShakeRegistration();
             applyDesktopIcons(activity.getWindow() == null
                     ? null : activity.getWindow().getDecorView());

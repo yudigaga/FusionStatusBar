@@ -28,7 +28,27 @@ public final class DesktopConfig {
     public static final int GESTURE_DOUBLE_TAP = 7;
     public static final int GESTURE_PINCH = 8;
     public static final int GESTURE_EXPAND = 9;
-    public static final int GESTURE_COUNT = 10;
+    public static final int GESTURE_BACK_HOLD = 10;
+    public static final int GESTURE_COUNT = 11;
+
+    public static final int BACK_STYLE_NATIVE = 0;
+    public static final int BACK_STYLE_CLASSIC = 1;
+    public static final int BACK_STYLE_CAPSULE = 2;
+    public static final int BACK_STYLE_RIPPLE = 3;
+    public static final int BACK_STYLE_NEON = 4;
+    public static final int BACK_STYLE_RAINBOW = 5;
+    public static final int BACK_STYLE_COUNT = 6;
+    static final String KEY_BACK_STYLE = "back_gesture_style";
+    static final String KEY_BACK_BACKGROUND = "back_gesture_background_color";
+    static final String KEY_BACK_ARROW = "back_gesture_arrow_color";
+    public static final int BACK_HOLD_DISTANCE_SYSTEM = 0;
+    public static final int MIN_BACK_HOLD_DISTANCE_DP = 16;
+    public static final int MAX_BACK_HOLD_DISTANCE_DP = 240;
+    public static final int DEFAULT_BACK_HOLD_DELAY_MS = 500;
+    public static final int MIN_BACK_HOLD_DELAY_MS = 200;
+    public static final int MAX_BACK_HOLD_DELAY_MS = 3000;
+    static final String KEY_BACK_HOLD_DISTANCE = "back_hold_distance_dp";
+    static final String KEY_BACK_HOLD_DELAY = "back_hold_delay_ms";
 
     public static final int ACTION_NATIVE = 0;
     public static final int ACTION_NONE = 1;
@@ -56,6 +76,12 @@ public final class DesktopConfig {
     private static final int MAX_PACKAGE_NAME_LENGTH = 255;
 
     public final boolean hideIcons;
+    public final int backGestureStyle;
+    public final int backGestureBackgroundColor;
+    public final int backGestureArrowColor;
+    /** Zero follows the native launcher distance; positive values are density-independent pixels. */
+    public final int backHoldDistanceDp;
+    public final int backHoldDelayMs;
     private final Set<String> hiddenPackages;
     private final int[] gestureActions;
     private final String[] gestureTargets;
@@ -64,8 +90,14 @@ public final class DesktopConfig {
 
     private DesktopConfig(boolean hideIcons, Set<String> hiddenPackages,
             int[] gestureActions, String[] gestureTargets, String[] gestureTargetLabels,
-            int[] gestureToggles) {
+            int[] gestureToggles, int backGestureStyle, int backGestureBackgroundColor,
+            int backGestureArrowColor, int backHoldDistanceDp, int backHoldDelayMs) {
         this.hideIcons = hideIcons;
+        this.backGestureStyle = normalizeBackStyle(backGestureStyle);
+        this.backGestureBackgroundColor = backGestureBackgroundColor;
+        this.backGestureArrowColor = backGestureArrowColor;
+        this.backHoldDistanceDp = normalizeBackHoldDistance(backHoldDistanceDp);
+        this.backHoldDelayMs = normalizeBackHoldDelay(backHoldDelayMs);
         this.hiddenPackages = Collections.unmodifiableSet(normalizePackages(hiddenPackages));
         this.gestureActions = new int[GESTURE_COUNT];
         this.gestureTargets = new String[GESTURE_COUNT];
@@ -94,7 +126,10 @@ public final class DesktopConfig {
     }
 
     public static DesktopConfig defaults() {
-        return new DesktopConfig(false, Collections.emptySet(), null, null, null, null);
+        return new DesktopConfig(false, Collections.emptySet(), null, null, null, null,
+                BACK_STYLE_NATIVE, backGesturePresetBackground(BACK_STYLE_NATIVE),
+                backGesturePresetArrow(BACK_STYLE_NATIVE), BACK_HOLD_DISTANCE_SYSTEM,
+                DEFAULT_BACK_HOLD_DELAY_MS);
     }
 
     public static Uri contentUri() {
@@ -149,12 +184,14 @@ public final class DesktopConfig {
 
     public DesktopConfig withHideIcons(boolean value) {
         return new DesktopConfig(value, hiddenPackages, gestureActions, gestureTargets,
-                gestureTargetLabels, gestureToggles);
+                gestureTargetLabels, gestureToggles, backGestureStyle,
+                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
     }
 
     public DesktopConfig withHiddenPackages(Set<String> packages) {
         return new DesktopConfig(hideIcons, packages, gestureActions, gestureTargets,
-                gestureTargetLabels, gestureToggles);
+                gestureTargetLabels, gestureToggles, backGestureStyle,
+                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
     }
 
     public DesktopConfig withGesture(int gestureId, int action) {
@@ -168,7 +205,9 @@ public final class DesktopConfig {
         targets[gestureId] = null;
         labels[gestureId] = null;
         toggles[gestureId] = 1;
-        return new DesktopConfig(hideIcons, hiddenPackages, actions, targets, labels, toggles);
+        return new DesktopConfig(hideIcons, hiddenPackages, actions, targets, labels, toggles,
+                backGestureStyle, backGestureBackgroundColor, backGestureArrowColor,
+                backHoldDistanceDp, backHoldDelayMs);
     }
 
     public DesktopConfig withGestureTarget(int gestureId, String target, String label) {
@@ -178,7 +217,8 @@ public final class DesktopConfig {
         targets[gestureId] = normalizeTarget(target);
         labels[gestureId] = normalizeLabel(label);
         return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, targets, labels,
-                gestureToggles);
+                gestureToggles, backGestureStyle, backGestureBackgroundColor, backGestureArrowColor,
+                backHoldDistanceDp, backHoldDelayMs);
     }
 
     public DesktopConfig withGestureToggle(int gestureId, int toggle) {
@@ -186,13 +226,70 @@ public final class DesktopConfig {
         int[] toggles = gestureToggles.clone();
         toggles[gestureId] = normalizeToggle(toggle);
         return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
-                gestureTargetLabels, toggles);
+                gestureTargetLabels, toggles, backGestureStyle,
+                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
+    }
+
+    public DesktopConfig withBackGestureStyle(int style) {
+        return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
+                gestureTargetLabels, gestureToggles, style,
+                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
+    }
+
+    public DesktopConfig withBackGestureColors(int background, int arrow) {
+        return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
+                gestureTargetLabels, gestureToggles, backGestureStyle, background, arrow,
+                backHoldDistanceDp, backHoldDelayMs);
+    }
+
+    public DesktopConfig withBackHoldThresholds(int distanceDp, int delayMs) {
+        return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
+                gestureTargetLabels, gestureToggles, backGestureStyle,
+                backGestureBackgroundColor, backGestureArrowColor, distanceDp, delayMs);
+    }
+
+    public DesktopConfig withBackGesturePreset(int style) {
+        int normalized = normalizeBackStyle(style);
+        return withBackGestureStyle(normalized).withBackGestureColors(
+                backGesturePresetBackground(normalized), backGesturePresetArrow(normalized));
+    }
+
+    public static int backGesturePresetBackground(int style) {
+        return switch (normalizeBackStyle(style)) {
+            case BACK_STYLE_CAPSULE -> 0xE63267D6;
+            case BACK_STYLE_RIPPLE -> 0xB34AAFA5;
+            case BACK_STYLE_NEON -> 0xCC17112D;
+            case BACK_STYLE_RAINBOW -> 0xD94F6BEA;
+            default -> 0xCC202124;
+        };
+    }
+
+    public static int backGesturePresetArrow(int style) {
+        return normalizeBackStyle(style) == BACK_STYLE_NEON ? 0xFFBAA2FF : 0xFFFFFFFF;
+    }
+
+    private static int normalizeBackStyle(int style) {
+        return style >= BACK_STYLE_NATIVE && style < BACK_STYLE_COUNT ? style : BACK_STYLE_NATIVE;
+    }
+
+    private static int normalizeBackHoldDistance(int distanceDp) {
+        return distanceDp <= BACK_HOLD_DISTANCE_SYSTEM ? BACK_HOLD_DISTANCE_SYSTEM
+                : Math.max(MIN_BACK_HOLD_DISTANCE_DP, Math.min(MAX_BACK_HOLD_DISTANCE_DP, distanceDp));
+    }
+
+    private static int normalizeBackHoldDelay(int delayMs) {
+        return Math.max(MIN_BACK_HOLD_DELAY_MS, Math.min(MAX_BACK_HOLD_DELAY_MS, delayMs));
     }
 
     public Bundle toBundle() {
         Bundle values = new Bundle();
         values.putInt("desktop_schema_version", SCHEMA_VERSION);
         values.putBoolean(KEY_HIDE_ICONS, hideIcons);
+        values.putInt(KEY_BACK_STYLE, backGestureStyle);
+        values.putInt(KEY_BACK_BACKGROUND, backGestureBackgroundColor);
+        values.putInt(KEY_BACK_ARROW, backGestureArrowColor);
+        values.putInt(KEY_BACK_HOLD_DISTANCE, backHoldDistanceDp);
+        values.putInt(KEY_BACK_HOLD_DELAY, backHoldDelayMs);
         values.putStringArrayList(KEY_HIDDEN_PACKAGES, new ArrayList<>(hiddenPackages));
         for (int i = 0; i < GESTURE_COUNT; i++) {
             values.putInt(gestureActionKey(i), gestureActions[i]);
@@ -219,7 +316,12 @@ public final class DesktopConfig {
             toggles[i] = values.getInt(gestureToggleKey(i), 1);
         }
         return new DesktopConfig(values.getBoolean(KEY_HIDE_ICONS, false), packages,
-                actions, targets, labels, toggles);
+                actions, targets, labels, toggles,
+                values.getInt(KEY_BACK_STYLE, BACK_STYLE_NATIVE),
+                values.getInt(KEY_BACK_BACKGROUND, backGesturePresetBackground(BACK_STYLE_NATIVE)),
+                values.getInt(KEY_BACK_ARROW, backGesturePresetArrow(BACK_STYLE_NATIVE)),
+                values.getInt(KEY_BACK_HOLD_DISTANCE, BACK_HOLD_DISTANCE_SYSTEM),
+                values.getInt(KEY_BACK_HOLD_DELAY, DEFAULT_BACK_HOLD_DELAY_MS));
     }
 
     public static boolean save(Context context, DesktopConfig config) {
@@ -399,6 +501,11 @@ public final class DesktopConfig {
         if (this == other) return true;
         if (!(other instanceof DesktopConfig that)) return false;
         return hideIcons == that.hideIcons && hiddenPackages.equals(that.hiddenPackages)
+                && backGestureStyle == that.backGestureStyle
+                && backGestureBackgroundColor == that.backGestureBackgroundColor
+                && backGestureArrowColor == that.backGestureArrowColor
+                && backHoldDistanceDp == that.backHoldDistanceDp
+                && backHoldDelayMs == that.backHoldDelayMs
                 && java.util.Arrays.equals(gestureActions, that.gestureActions)
                 && java.util.Arrays.equals(gestureTargets, that.gestureTargets)
                 && java.util.Arrays.equals(gestureTargetLabels, that.gestureTargetLabels)
@@ -406,7 +513,8 @@ public final class DesktopConfig {
     }
 
     @Override public int hashCode() {
-        int result = java.util.Objects.hash(hideIcons, hiddenPackages);
+        int result = java.util.Objects.hash(hideIcons, hiddenPackages, backGestureStyle,
+                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
         result = 31 * result + java.util.Arrays.hashCode(gestureActions);
         result = 31 * result + java.util.Arrays.hashCode(gestureTargets);
         result = 31 * result + java.util.Arrays.hashCode(gestureTargetLabels);

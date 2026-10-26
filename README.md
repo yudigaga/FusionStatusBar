@@ -2,15 +2,16 @@
 
 面向 SystemUI 的 LibXposed 模块，提供融合图标、双排状态栏、时钟天气、遥测，以及控制中心布局与外观编辑。
 
-当前正式版本为 0.5.15（构建号 229）。减少控制中心玻璃路径计算与稳定磁贴的重复状态查询，并调整自定义网格竖向展开、回收及松手收尾的弹簧响应。见 [0.5.15 更新说明与验证范围](docs/release-notes-v0.5.15.md)。
+当前正式版本为 0.5.20（构建号 234）。新增桌面返回停顿、返回外观与日夜配色设置，可独立调整距离和等待时间，并修正就绪反馈及玻璃自动主题同步。见 [0.5.20 更新说明与验证范围](docs/release-notes-v0.5.20.md)。
 
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 组件：[Miuix](https://github.com/compose-miuix-ui/miuix) 0.8.8，Apache-2.0；自定义预览与画布通过 View/Compose 互操作复用。
-- 最新正式版：[FusionStatusBar 0.5.15](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.15)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/229-0.5.15)
-- [0.5.15 更新说明与验证范围](docs/release-notes-v0.5.15.md)
+- 色板计算：MaterialKolor 4.1.1；[来源与许可](third_party/materialkolor/NOTICE)随源码和 APK 保留。
+- 最新正式版：[FusionStatusBar 0.5.20](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.20)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/234-0.5.20)
+- [0.5.20 更新说明与验证范围](docs/release-notes-v0.5.20.md)
 - [0.3.193 到 0.3.197 历史更新与作用域升级步骤](docs/release-notes-v0.3.197.md)
 
 ## 构建
@@ -38,7 +39,7 @@ GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug
 
 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
 
-版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本正式版为 `229`。
+版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本正式版为 `234`。
 
 ## 模块关系
 

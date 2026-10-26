@@ -1,0 +1,1812 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index c5e4d84..e09da77 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 229
+-        versionName "0.5.15"
++        versionCode 234
++        versionName "0.5.20"
+     }
+ 
+     compileOptions {
+@@ -31,6 +31,7 @@ android {
+ 
+     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/xposed"))
+     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/miuix-license"))
++    sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/materialkolor-license"))
+ 
+     buildTypes {
+         release {
+@@ -75,7 +76,14 @@ def packageMiuixLicense = tasks.register("packageMiuixLicense", Copy) {
+     rename { "miuix-license.txt" }
+ }
+ 
+-tasks.named("preBuild").configure { dependsOn(generateXposedMetadata, packageMiuixLicense) }
++def packageMaterialKolorLicense = tasks.register("packageMaterialKolorLicense", Copy) {
++    from(rootProject.file("third_party/materialkolor"))
++    into(layout.buildDirectory.dir("generated/materialkolor-license/META-INF/licenses/materialkolor"))
++}
++
++tasks.named("preBuild").configure {
++    dependsOn(generateXposedMetadata, packageMiuixLicense, packageMaterialKolorLicense)
++}
+ tasks.withType(JavaCompile).configureEach { options.encoding = "UTF-8" }
+ 
+ tasks.withType(Test).configureEach {
+@@ -90,6 +98,7 @@ dependencyLocking {
+ 
+ dependencies {
+     implementation "top.yukonga.miuix.kmp:miuix:0.8.8"
++    implementation "com.materialkolor:material-color-utilities:4.1.1"
+     implementation "androidx.activity:activity-compose:1.12.4"
+     implementation "androidx.compose.ui:ui:1.10.5"
+     implementation "androidx.compose.foundation:foundation:1.10.5"
+diff --git a/app/gradle.lockfile b/app/gradle.lockfile
+index ba87608..6d2908e 100644
+--- a/app/gradle.lockfile
++++ b/app/gradle.lockfile
+@@ -181,8 +181,8 @@ com.google.testing.platform:core:0.0.9-alpha03=_internal-unified-test-platform-c
+ com.google.testing.platform:launcher:0.0.9-alpha03=_internal-unified-test-platform-android-test-plugin-host-additional-test-output,_internal-unified-test-platform-android-test-plugin-host-device-info,_internal-unified-test-platform-android-test-plugin-host-logcat,_internal-unified-test-platform-android-test-plugin-host-retention,_internal-unified-test-platform-launcher
+ com.google.testparameterinjector:test-parameter-injector:1.18=debugUnitTestRuntimeClasspath,releaseUnitTestRuntimeClasspath
+ com.ibm.icu:icu4j:75.1=debugUnitTestCompileClasspath,debugUnitTestRuntimeClasspath,releaseUnitTestCompileClasspath,releaseUnitTestRuntimeClasspath
+-com.materialkolor:material-color-utilities-android:4.1.1=debugRuntimeClasspath,debugUnitTestRuntimeClasspath,releaseRuntimeClasspath,releaseUnitTestRuntimeClasspath
+-com.materialkolor:material-color-utilities:4.1.1=debugRuntimeClasspath,debugUnitTestRuntimeClasspath,releaseRuntimeClasspath,releaseUnitTestRuntimeClasspath
++com.materialkolor:material-color-utilities-android:4.1.1=debugAndroidTestCompileClasspath,debugCompileClasspath,debugRuntimeClasspath,debugUnitTestCompileClasspath,debugUnitTestRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath,releaseUnitTestCompileClasspath,releaseUnitTestRuntimeClasspath
++com.materialkolor:material-color-utilities:4.1.1=debugAndroidTestCompileClasspath,debugCompileClasspath,debugRuntimeClasspath,debugUnitTestCompileClasspath,debugUnitTestRuntimeClasspath,releaseCompileClasspath,releaseRuntimeClasspath,releaseUnitTestCompileClasspath,releaseUnitTestRuntimeClasspath
+ com.squareup:javawriter:2.1.1=debugAndroidTestRuntimeClasspath,debugUnitTestRuntimeClasspath,releaseUnitTestRuntimeClasspath
+ commons-io:commons-io:2.16.1=_internal-unified-test-platform-android-test-plugin-host-emulator-control,_internal-unified-test-platform-android-test-plugin-host-retention
+ dev.drewhamilton.poko:poko-annotations-jvm:0.21.1=debugRuntimeClasspath,debugUnitTestRuntimeClasspath,releaseRuntimeClasspath,releaseUnitTestRuntimeClasspath
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+index de0493c..d1c2f12 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterMaterials.java
+@@ -1,6 +1,8 @@
+ package com.xtjm.fusionstatusbar;
+ 
+ import android.content.res.ColorStateList;
++import android.content.res.Configuration;
++import android.content.res.Resources;
+ import android.graphics.ColorFilter;
+ import android.graphics.Canvas;
+ import android.graphics.Outline;
+@@ -115,7 +117,8 @@ final class ControlCenterMaterials {
+         return Layer.NONE;
+     }
+     static void register(View owner, Drawable drawable, Layer layer, ControlCenterConfig config) {
+-        if (drawable == null || layer == Layer.NONE) return;
++        if (owner == null || drawable == null || layer == Layer.NONE) return;
++        observeTheme(owner, config);
+         ControlCenterMaterialSession session = MATERIAL_SESSIONS.get(owner);
+         if (session != null && session.componentBackground == drawable) return;
+         if (drawable instanceof ClippedBackgroundDrawable clipped) {
+@@ -568,6 +571,9 @@ final class ControlCenterMaterials {
+         }
+         for (Map.Entry<TextView, ColorStateList> entry : new ArrayList<>(TEXT.entrySet()))
+             guarded(() -> entry.getKey().setTextColor(contrast(entry.getValue(), textSurface(entry.getKey(), config))));
++        // Grid decorations own glass overlays outside GLASS_VIEWS. Update and
++        // invalidate their shaders before HWUI can reuse a recorded display list.
++        ControlCenterSoftGlass.refreshTheme();
+     }
+ 
+     static void registerRoot(View view, ControlCenterConfig config) {
+@@ -584,33 +590,61 @@ final class ControlCenterMaterials {
+         }
+     }
+ 
+-    private static void observeTheme(View view, ControlCenterConfig config) {
+-        if (!config.enabled || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return;
++    static void observeTheme(View view, ControlCenterConfig config) {
++        if (view == null || config == null || !config.enabled
++                || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return;
+         View root = view.getRootView();
+         ThemeObserver observer = THEME_ROOTS.get(root);
+         if (observer == null) {
+             observer = new ThemeObserver(root);
+             THEME_ROOTS.put(root, observer);
++            observer.track(view.getResources());
+             observer.configure(config);
+         } else {
+             observer.config = config;
++            observer.track(root.getResources());
++            observer.track(view.getResources());
+         }
+     }
+ 
+-    /** One cheap theme check per root; refresh only when its actual view configuration changes. */
++    /** Check distinct resource groups, since plugin resources can update after their window. */
+     private static final class ThemeObserver implements android.view.ViewTreeObserver.OnPreDrawListener,
+             View.OnAttachStateChangeListener {
+         private final WeakReference<View> owner;
+         private WeakReference<android.view.ViewTreeObserver> tree = new WeakReference<>(null);
++        private final ArrayList<ResourceStamp> resources = new ArrayList<>();
+         private ControlCenterConfig config;
+-        private ControlCenterSurface resolved;
+ 
+         ThemeObserver(View root) {
+             owner = new WeakReference<>(root);
++            track(root.getResources());
+             root.addOnAttachStateChangeListener(this);
+             if (root.isAttachedToWindow()) onViewAttachedToWindow(root);
+         }
+ 
++        void track(Resources value) {
++            if (value == null) return;
++            for (int index = resources.size() - 1; index >= 0; index--) {
++                Resources existing = resources.get(index).owner.get();
++                // Re-registering the same resource group must not accept a pending
++                // mode change as already applied before the material refresh.
++                if (existing == value) return;
++                if (existing == null) resources.remove(index);
++            }
++            resources.add(new ResourceStamp(value));
++        }
++
++        boolean hasPendingChanges() {
++            boolean changed = false;
++            for (int index = resources.size() - 1; index >= 0; index--) {
++                ResourceStamp stamp = resources.get(index);
++                Resources value = stamp.owner.get();
++                if (value == null) resources.remove(index);
++                else if (stamp.changed(value)) changed = true;
++            }
++            return changed;
++        }
++
+         void configure(ControlCenterConfig next) {
+             config = next;
+             View root = owner.get();
+@@ -619,19 +653,34 @@ final class ControlCenterMaterials {
+                 dispose(root);
+                 return;
+             }
+-            resolved = next.surface.resolve(root.getContext());
++            for (int index = resources.size() - 1; index >= 0; index--) {
++                ResourceStamp stamp = resources.get(index);
++                Resources value = stamp.owner.get();
++                if (value == null) resources.remove(index);
++                else stamp.capture(value);
++            }
+         }
+ 
+         @Override public boolean onPreDraw() {
+             View root = owner.get();
+-            if (root == null || config == null) return true;
++            if (root == null || config == null || !config.enabled
++                    || config.surface != ControlCenterSurface.HIGHLIGHT_GLASS) return true;
+             // A surface registered before attachment may now share a window with other surfaces.
+             if (root.getRootView() != root) {
++                boolean pending = hasPendingChanges();
+                 dispose(root);
+                 observeTheme(root, config);
++                ThemeObserver merged = THEME_ROOTS.get(root.getRootView());
++                if (merged != null) {
++                    for (int index = 0; index < resources.size(); index++)
++                        merged.track(resources.get(index).owner.get());
++                }
++                // Ordinary attachment only merges observers. A change that happened
++                // while detached still needs application after ownership has moved.
++                if (pending) refresh(config);
+                 return true;
+             }
+-            if (resolved != config.surface.resolve(root.getContext())) refresh(config);
++            if (hasPendingChanges()) refresh(config);
+             return true;
+         }
+ 
+@@ -653,6 +702,31 @@ final class ControlCenterMaterials {
+         }
+     }
+ 
++    private static final class ResourceStamp {
++        final WeakReference<Resources> owner;
++        private int nightMode, densityDpi;
++        private float density;
++
++        ResourceStamp(Resources resources) {
++            owner = new WeakReference<>(resources);
++            capture(resources);
++        }
++
++        boolean changed(Resources resources) {
++            Configuration configuration = resources.getConfiguration();
++            return nightMode != (configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK)
++                    || densityDpi != configuration.densityDpi
++                    || Float.compare(density, resources.getDisplayMetrics().density) != 0;
++        }
++
++        void capture(Resources resources) {
++            Configuration configuration = resources.getConfiguration();
++            nightMode = configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK;
++            densityDpi = configuration.densityDpi;
++            density = resources.getDisplayMetrics().density;
++        }
++    }
++
+     static void nativeTileUpdated(View iconContainer, ControlCenterConfig config) {
+         if (APPLYING.get()) return;
+         for (View current = iconContainer; current != null;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index ac214e0..c265408 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -1456,6 +1456,9 @@ final class ControlCenterRuntimeGrid {
+             boolean contentScaleChanged = materialSettings.tileScale != settings.tileScale
+                     || materialSettings.enabled != settings.enabled;
+             materialSettings = settings;
++            // Decoration overlays use the grid's resources, which may differ from
++            // a native component or the window hosting this reused grid.
++            ControlCenterMaterials.observeTheme(this, settings);
+             markAllMaterialsDirty();
+             for (Slot slot : slots) {
+                 if (slot.item.type != ControlCenterLayoutPlan.Type.TILE
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+index 329a31d..068e743 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+@@ -10,6 +10,7 @@ import android.graphics.Shader;
+ import android.graphics.drawable.Drawable;
+ import android.view.View;
+ import java.lang.ref.WeakReference;
++import java.util.ArrayList;
+ import java.util.Map;
+ import java.util.WeakHashMap;
+ 
+@@ -29,6 +30,7 @@ final class ControlCenterSoftGlass {
+         if (!enabled || strength <= 0) {
+             if (state != null) {
+                 view.removeOnLayoutChangeListener(state);
++                view.removeOnAttachStateChangeListener(state);
+                 view.getOverlay().remove(state.drawable);
+             }
+             STATES.remove(view);
+@@ -38,11 +40,21 @@ final class ControlCenterSoftGlass {
+             state = new State(view);
+             STATES.put(view, new WeakReference<>(state));
+             view.addOnLayoutChangeListener(state);
++            view.addOnAttachStateChangeListener(state);
+             view.getOverlay().add(state.drawable);
+         }
+         state.drawable.configure(view, strength, surface);
+     }
+ 
++    /** Refresh retained overlays, including grid decorations outside material registration. */
++    static void refreshTheme() {
++        for (View view : new ArrayList<>(STATES.keySet())) {
++            if (view == null) continue;
++            State state = current(view);
++            if (state != null) state.drawable.updateBounds(view);
++        }
++    }
++
+     private static State current(View view) {
+         WeakReference<State> reference = STATES.get(view);
+         return reference == null ? null : reference.get();
+@@ -56,7 +68,8 @@ final class ControlCenterSoftGlass {
+         view.getOverlay().add(state.drawable);
+     }
+ 
+-    private static final class State implements View.OnLayoutChangeListener {
++    private static final class State implements View.OnLayoutChangeListener,
++            View.OnAttachStateChangeListener {
+         final GlassDrawable drawable;
+ 
+         State(View view) { drawable = new GlassDrawable(view); }
+@@ -65,6 +78,13 @@ final class ControlCenterSoftGlass {
+                 int oldLeft, int oldTop, int oldRight, int oldBottom) {
+             drawable.updateBounds(view);
+         }
++
++        @Override public void onViewAttachedToWindow(View view) {
++            // A panel retained overnight can otherwise reuse its old hardware display list.
++            drawable.updateBounds(view);
++        }
++
++        @Override public void onViewDetachedFromWindow(View view) { }
+     }
+ 
+     static final class GlassDrawable extends Drawable {
+@@ -98,7 +118,6 @@ final class ControlCenterSoftGlass {
+         private void configure(View view, int value, ControlCenterSurface surface, boolean viewBounds) {
+             strength = Math.max(0, Math.min(100, value));
+             highlight = surface == ControlCenterSurface.HIGHLIGHT_GLASS;
+-            daylight = highlight && surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
+             if (viewBounds) updateBounds(view);
+             else updateSize(view, Math.max(0, width), Math.max(0, height));
+         }
+@@ -108,6 +127,9 @@ final class ControlCenterSoftGlass {
+         }
+ 
+         private void updateSize(View view, int nextWidth, int nextHeight) {
++            // Resolve at the consumer even when its root changed configuration earlier.
++            daylight = highlight && ControlCenterSurface.HIGHLIGHT_GLASS.resolve(view.getContext())
++                    == ControlCenterSurface.HIGHLIGHT_GLASS;
+             float nextDensity = view.getResources().getDisplayMetrics().density;
+             if (nextWidth == width && nextHeight == height && strength == shaderStrength
+                     && daylight == shaderDaylight && highlight == shaderHighlight
+@@ -163,7 +185,9 @@ final class ControlCenterSoftGlass {
+ 
+         @Override public void draw(Canvas canvas) {
+             View view = owner.get();
+-            if (view == null || width <= 0 || height <= 0) return;
++            if (view == null) return;
++            updateBounds(view);
++            if (width <= 0 || height <= 0) return;
+             if (highlight) {
+                 if (shape.resolve(view, 0f)) drawSoftEdge(canvas);
+                 return;
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java
+index f8edf26..1c6566b 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopActionQueue.java
+@@ -20,8 +20,11 @@ final class DesktopActionQueue {
+ 
+     static boolean enqueue(Context context, int action, String target, int toggle) {
+         if (context == null) return false;
+-        Intent intent = dispatchIntent(context, action, target, toggle);
+-        if (intent == null) return false;
++        return sendPrepared(context, dispatchIntent(context, action, target, toggle));
++    }
++
++    static boolean sendPrepared(Context context, Intent intent) {
++        if (context == null || intent == null) return false;
+         try {
+             if (Build.VERSION.SDK_INT >= 34) {
+                 context.sendBroadcast(intent, null, BroadcastOptions.makeBasic()
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java
+index c390b23..7b2a09b 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfig.java
+@@ -28,7 +28,27 @@ public final class DesktopConfig {
+     public static final int GESTURE_DOUBLE_TAP = 7;
+     public static final int GESTURE_PINCH = 8;
+     public static final int GESTURE_EXPAND = 9;
+-    public static final int GESTURE_COUNT = 10;
++    public static final int GESTURE_BACK_HOLD = 10;
++    public static final int GESTURE_COUNT = 11;
++
++    public static final int BACK_STYLE_NATIVE = 0;
++    public static final int BACK_STYLE_CLASSIC = 1;
++    public static final int BACK_STYLE_CAPSULE = 2;
++    public static final int BACK_STYLE_RIPPLE = 3;
++    public static final int BACK_STYLE_NEON = 4;
++    public static final int BACK_STYLE_RAINBOW = 5;
++    public static final int BACK_STYLE_COUNT = 6;
++    static final String KEY_BACK_STYLE = "back_gesture_style";
++    static final String KEY_BACK_BACKGROUND = "back_gesture_background_color";
++    static final String KEY_BACK_ARROW = "back_gesture_arrow_color";
++    public static final int BACK_HOLD_DISTANCE_SYSTEM = 0;
++    public static final int MIN_BACK_HOLD_DISTANCE_DP = 16;
++    public static final int MAX_BACK_HOLD_DISTANCE_DP = 240;
++    public static final int DEFAULT_BACK_HOLD_DELAY_MS = 500;
++    public static final int MIN_BACK_HOLD_DELAY_MS = 200;
++    public static final int MAX_BACK_HOLD_DELAY_MS = 3000;
++    static final String KEY_BACK_HOLD_DISTANCE = "back_hold_distance_dp";
++    static final String KEY_BACK_HOLD_DELAY = "back_hold_delay_ms";
+ 
+     public static final int ACTION_NATIVE = 0;
+     public static final int ACTION_NONE = 1;
+@@ -56,6 +76,12 @@ public final class DesktopConfig {
+     private static final int MAX_PACKAGE_NAME_LENGTH = 255;
+ 
+     public final boolean hideIcons;
++    public final int backGestureStyle;
++    public final int backGestureBackgroundColor;
++    public final int backGestureArrowColor;
++    /** Zero follows the native launcher distance; positive values are density-independent pixels. */
++    public final int backHoldDistanceDp;
++    public final int backHoldDelayMs;
+     private final Set<String> hiddenPackages;
+     private final int[] gestureActions;
+     private final String[] gestureTargets;
+@@ -64,8 +90,14 @@ public final class DesktopConfig {
+ 
+     private DesktopConfig(boolean hideIcons, Set<String> hiddenPackages,
+             int[] gestureActions, String[] gestureTargets, String[] gestureTargetLabels,
+-            int[] gestureToggles) {
++            int[] gestureToggles, int backGestureStyle, int backGestureBackgroundColor,
++            int backGestureArrowColor, int backHoldDistanceDp, int backHoldDelayMs) {
+         this.hideIcons = hideIcons;
++        this.backGestureStyle = normalizeBackStyle(backGestureStyle);
++        this.backGestureBackgroundColor = backGestureBackgroundColor;
++        this.backGestureArrowColor = backGestureArrowColor;
++        this.backHoldDistanceDp = normalizeBackHoldDistance(backHoldDistanceDp);
++        this.backHoldDelayMs = normalizeBackHoldDelay(backHoldDelayMs);
+         this.hiddenPackages = Collections.unmodifiableSet(normalizePackages(hiddenPackages));
+         this.gestureActions = new int[GESTURE_COUNT];
+         this.gestureTargets = new String[GESTURE_COUNT];
+@@ -94,7 +126,10 @@ public final class DesktopConfig {
+     }
+ 
+     public static DesktopConfig defaults() {
+-        return new DesktopConfig(false, Collections.emptySet(), null, null, null, null);
++        return new DesktopConfig(false, Collections.emptySet(), null, null, null, null,
++                BACK_STYLE_NATIVE, backGesturePresetBackground(BACK_STYLE_NATIVE),
++                backGesturePresetArrow(BACK_STYLE_NATIVE), BACK_HOLD_DISTANCE_SYSTEM,
++                DEFAULT_BACK_HOLD_DELAY_MS);
+     }
+ 
+     public static Uri contentUri() {
+@@ -149,12 +184,14 @@ public final class DesktopConfig {
+ 
+     public DesktopConfig withHideIcons(boolean value) {
+         return new DesktopConfig(value, hiddenPackages, gestureActions, gestureTargets,
+-                gestureTargetLabels, gestureToggles);
++                gestureTargetLabels, gestureToggles, backGestureStyle,
++                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
+     }
+ 
+     public DesktopConfig withHiddenPackages(Set<String> packages) {
+         return new DesktopConfig(hideIcons, packages, gestureActions, gestureTargets,
+-                gestureTargetLabels, gestureToggles);
++                gestureTargetLabels, gestureToggles, backGestureStyle,
++                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
+     }
+ 
+     public DesktopConfig withGesture(int gestureId, int action) {
+@@ -168,7 +205,9 @@ public final class DesktopConfig {
+         targets[gestureId] = null;
+         labels[gestureId] = null;
+         toggles[gestureId] = 1;
+-        return new DesktopConfig(hideIcons, hiddenPackages, actions, targets, labels, toggles);
++        return new DesktopConfig(hideIcons, hiddenPackages, actions, targets, labels, toggles,
++                backGestureStyle, backGestureBackgroundColor, backGestureArrowColor,
++                backHoldDistanceDp, backHoldDelayMs);
+     }
+ 
+     public DesktopConfig withGestureTarget(int gestureId, String target, String label) {
+@@ -178,7 +217,8 @@ public final class DesktopConfig {
+         targets[gestureId] = normalizeTarget(target);
+         labels[gestureId] = normalizeLabel(label);
+         return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, targets, labels,
+-                gestureToggles);
++                gestureToggles, backGestureStyle, backGestureBackgroundColor, backGestureArrowColor,
++                backHoldDistanceDp, backHoldDelayMs);
+     }
+ 
+     public DesktopConfig withGestureToggle(int gestureId, int toggle) {
+@@ -186,13 +226,70 @@ public final class DesktopConfig {
+         int[] toggles = gestureToggles.clone();
+         toggles[gestureId] = normalizeToggle(toggle);
+         return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
+-                gestureTargetLabels, toggles);
++                gestureTargetLabels, toggles, backGestureStyle,
++                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
++    }
++
++    public DesktopConfig withBackGestureStyle(int style) {
++        return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
++                gestureTargetLabels, gestureToggles, style,
++                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
++    }
++
++    public DesktopConfig withBackGestureColors(int background, int arrow) {
++        return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
++                gestureTargetLabels, gestureToggles, backGestureStyle, background, arrow,
++                backHoldDistanceDp, backHoldDelayMs);
++    }
++
++    public DesktopConfig withBackHoldThresholds(int distanceDp, int delayMs) {
++        return new DesktopConfig(hideIcons, hiddenPackages, gestureActions, gestureTargets,
++                gestureTargetLabels, gestureToggles, backGestureStyle,
++                backGestureBackgroundColor, backGestureArrowColor, distanceDp, delayMs);
++    }
++
++    public DesktopConfig withBackGesturePreset(int style) {
++        int normalized = normalizeBackStyle(style);
++        return withBackGestureStyle(normalized).withBackGestureColors(
++                backGesturePresetBackground(normalized), backGesturePresetArrow(normalized));
++    }
++
++    public static int backGesturePresetBackground(int style) {
++        return switch (normalizeBackStyle(style)) {
++            case BACK_STYLE_CAPSULE -> 0xE63267D6;
++            case BACK_STYLE_RIPPLE -> 0xB34AAFA5;
++            case BACK_STYLE_NEON -> 0xCC17112D;
++            case BACK_STYLE_RAINBOW -> 0xD94F6BEA;
++            default -> 0xCC202124;
++        };
++    }
++
++    public static int backGesturePresetArrow(int style) {
++        return normalizeBackStyle(style) == BACK_STYLE_NEON ? 0xFFBAA2FF : 0xFFFFFFFF;
++    }
++
++    private static int normalizeBackStyle(int style) {
++        return style >= BACK_STYLE_NATIVE && style < BACK_STYLE_COUNT ? style : BACK_STYLE_NATIVE;
++    }
++
++    private static int normalizeBackHoldDistance(int distanceDp) {
++        return distanceDp <= BACK_HOLD_DISTANCE_SYSTEM ? BACK_HOLD_DISTANCE_SYSTEM
++                : Math.max(MIN_BACK_HOLD_DISTANCE_DP, Math.min(MAX_BACK_HOLD_DISTANCE_DP, distanceDp));
++    }
++
++    private static int normalizeBackHoldDelay(int delayMs) {
++        return Math.max(MIN_BACK_HOLD_DELAY_MS, Math.min(MAX_BACK_HOLD_DELAY_MS, delayMs));
+     }
+ 
+     public Bundle toBundle() {
+         Bundle values = new Bundle();
+         values.putInt("desktop_schema_version", SCHEMA_VERSION);
+         values.putBoolean(KEY_HIDE_ICONS, hideIcons);
++        values.putInt(KEY_BACK_STYLE, backGestureStyle);
++        values.putInt(KEY_BACK_BACKGROUND, backGestureBackgroundColor);
++        values.putInt(KEY_BACK_ARROW, backGestureArrowColor);
++        values.putInt(KEY_BACK_HOLD_DISTANCE, backHoldDistanceDp);
++        values.putInt(KEY_BACK_HOLD_DELAY, backHoldDelayMs);
+         values.putStringArrayList(KEY_HIDDEN_PACKAGES, new ArrayList<>(hiddenPackages));
+         for (int i = 0; i < GESTURE_COUNT; i++) {
+             values.putInt(gestureActionKey(i), gestureActions[i]);
+@@ -219,7 +316,12 @@ public final class DesktopConfig {
+             toggles[i] = values.getInt(gestureToggleKey(i), 1);
+         }
+         return new DesktopConfig(values.getBoolean(KEY_HIDE_ICONS, false), packages,
+-                actions, targets, labels, toggles);
++                actions, targets, labels, toggles,
++                values.getInt(KEY_BACK_STYLE, BACK_STYLE_NATIVE),
++                values.getInt(KEY_BACK_BACKGROUND, backGesturePresetBackground(BACK_STYLE_NATIVE)),
++                values.getInt(KEY_BACK_ARROW, backGesturePresetArrow(BACK_STYLE_NATIVE)),
++                values.getInt(KEY_BACK_HOLD_DISTANCE, BACK_HOLD_DISTANCE_SYSTEM),
++                values.getInt(KEY_BACK_HOLD_DELAY, DEFAULT_BACK_HOLD_DELAY_MS));
+     }
+ 
+     public static boolean save(Context context, DesktopConfig config) {
+@@ -399,6 +501,11 @@ public final class DesktopConfig {
+         if (this == other) return true;
+         if (!(other instanceof DesktopConfig that)) return false;
+         return hideIcons == that.hideIcons && hiddenPackages.equals(that.hiddenPackages)
++                && backGestureStyle == that.backGestureStyle
++                && backGestureBackgroundColor == that.backGestureBackgroundColor
++                && backGestureArrowColor == that.backGestureArrowColor
++                && backHoldDistanceDp == that.backHoldDistanceDp
++                && backHoldDelayMs == that.backHoldDelayMs
+                 && java.util.Arrays.equals(gestureActions, that.gestureActions)
+                 && java.util.Arrays.equals(gestureTargets, that.gestureTargets)
+                 && java.util.Arrays.equals(gestureTargetLabels, that.gestureTargetLabels)
+@@ -406,7 +513,8 @@ public final class DesktopConfig {
+     }
+ 
+     @Override public int hashCode() {
+-        int result = java.util.Objects.hash(hideIcons, hiddenPackages);
++        int result = java.util.Objects.hash(hideIcons, hiddenPackages, backGestureStyle,
++                backGestureBackgroundColor, backGestureArrowColor, backHoldDistanceDp, backHoldDelayMs);
+         result = 31 * result + java.util.Arrays.hashCode(gestureActions);
+         result = 31 * result + java.util.Arrays.hashCode(gestureTargets);
+         result = 31 * result + java.util.Arrays.hashCode(gestureTargetLabels);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java
+index fcc9681..ce2bb99 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopConfigStore.java
+@@ -22,6 +22,17 @@ final class DesktopConfigStore {
+         boolean legacy = preferences.getInt("desktop_schema_version", 1) < 2;
+         values.putInt("desktop_schema_version", 2);
+         values.putBoolean(KEY_HIDE_ICONS, preferences.getBoolean(KEY_HIDE_ICONS, false));
++        DesktopConfig defaults = DesktopConfig.defaults();
++        values.putInt(DesktopConfig.KEY_BACK_STYLE, preferences.getInt(
++                DesktopConfig.KEY_BACK_STYLE, defaults.backGestureStyle));
++        values.putInt(DesktopConfig.KEY_BACK_BACKGROUND, preferences.getInt(
++                DesktopConfig.KEY_BACK_BACKGROUND, defaults.backGestureBackgroundColor));
++        values.putInt(DesktopConfig.KEY_BACK_ARROW, preferences.getInt(
++                DesktopConfig.KEY_BACK_ARROW, defaults.backGestureArrowColor));
++        values.putInt(DesktopConfig.KEY_BACK_HOLD_DISTANCE, preferences.getInt(
++                DesktopConfig.KEY_BACK_HOLD_DISTANCE, defaults.backHoldDistanceDp));
++        values.putInt(DesktopConfig.KEY_BACK_HOLD_DELAY, preferences.getInt(
++                DesktopConfig.KEY_BACK_HOLD_DELAY, defaults.backHoldDelayMs));
+         try {
+             values.putStringArrayList(KEY_HIDDEN_PACKAGES,
+                     new ArrayList<>(preferences.getStringSet(KEY_HIDDEN_PACKAGES, new HashSet<>())));
+@@ -59,6 +70,11 @@ final class DesktopConfigStore {
+         SharedPreferences.Editor editor = preferences(context).edit();
+         editor.putInt("desktop_schema_version", 2);
+         editor.putBoolean(KEY_HIDE_ICONS, config.hideIcons);
++        editor.putInt(DesktopConfig.KEY_BACK_STYLE, config.backGestureStyle);
++        editor.putInt(DesktopConfig.KEY_BACK_BACKGROUND, config.backGestureBackgroundColor);
++        editor.putInt(DesktopConfig.KEY_BACK_ARROW, config.backGestureArrowColor);
++        editor.putInt(DesktopConfig.KEY_BACK_HOLD_DISTANCE, config.backHoldDistanceDp);
++        editor.putInt(DesktopConfig.KEY_BACK_HOLD_DELAY, config.backHoldDelayMs);
+         editor.putStringSet(KEY_HIDDEN_PACKAGES, new HashSet<>(config.hiddenPackages()));
+         for (int i = 0; i < DesktopConfig.GESTURE_COUNT; i++) {
+             editor.putInt(gestureActionKey(i), config.gestureAction(i));
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt
+index 75bd127..884ff7c 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/DesktopSettingsPage.kt
+@@ -8,12 +8,16 @@ import android.widget.LinearLayout
+ import android.widget.Toast
+ import androidx.activity.ComponentActivity
+ import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.focusable
+ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.text.KeyboardActions
+ import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.foundation.verticalScroll
+@@ -31,15 +35,18 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+ import androidx.compose.ui.platform.ViewCompositionStrategy
+ import androidx.compose.ui.platform.testTag
+ import androidx.compose.ui.semantics.Role
++import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.role
+ import androidx.compose.ui.semantics.selected
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.state.ToggleableState
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.input.KeyboardType
+ import androidx.compose.ui.unit.DpSize
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
++import androidx.compose.ui.viewinterop.AndroidView
+ import androidx.core.graphics.drawable.toBitmap
+ import kotlinx.coroutines.*
+ import top.yukonga.miuix.kmp.basic.*
+@@ -58,7 +65,8 @@ import java.util.Locale
+ 
+ /** Compose desktop settings; all persisted values still use the existing launcher protocol. */
+ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseable {
+-    private enum class Panel { HIDDEN, EDITOR, ACTIONS, APPS, ACTIVITY_APPS, ACTIVITIES, SHORTCUTS, TOGGLES }
++    private enum class Panel { HIDDEN, EDITOR, ACTIONS, APPS, ACTIVITY_APPS, ACTIVITIES, SHORTCUTS, TOGGLES,
++        BACK_STYLES, BACK_BACKGROUND, BACK_ARROW, BACK_DISTANCE, BACK_DELAY }
+     private data class Shortcut(val target: String, val label: String, val packageName: String)
+ 
+     private var config by mutableStateOf(DesktopConfig.read(activity))
+@@ -67,6 +75,11 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     private var panel by mutableStateOf<Panel?>(null)
+     private val showPanel = mutableStateOf(false)
+     private var query by mutableStateOf("")
++    private var colorHex by mutableStateOf("")
++    private var colorError by mutableStateOf(false)
++    private var thresholdInput by mutableStateOf("")
++    private var thresholdSystem by mutableStateOf(false)
++    private var thresholdError by mutableStateOf(false)
+     private var hiddenDraft by mutableStateOf<Set<String>>(emptySet())
+     private var apps by mutableStateOf<List<DesktopAppCatalog.App>>(emptyList())
+     private var activities by mutableStateOf<List<DesktopAppCatalog.ActivityEntry>>(emptyList())
+@@ -173,9 +186,35 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                     }
+                 }
+             }
++            item {
++                SmallTitle(text(R.string.desktop_back_appearance), insideMargin = PaddingValues(0.dp, 18.dp))
++                Card(cornerRadius = 18.dp) {
++                    Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
++                        Text(text(R.string.desktop_back_appearance_summary), fontSize = 14.sp,
++                            color = LocalContentColor.current.copy(alpha = .7f))
++                        BackPreview(config)
++                    }
++                    SuperArrow(title = text(R.string.desktop_back_style), summary = backStyleName(config.backGestureStyle),
++                        modifier = Modifier.testTag("desktop_back_style"), onClick = { open(Panel.BACK_STYLES) })
++                    HorizontalDivider()
++                    SuperArrow(title = text(R.string.desktop_back_background), summary = colorString(config.backGestureBackgroundColor),
++                        modifier = Modifier.testTag("desktop_back_background"), onClick = { openColor(Panel.BACK_BACKGROUND) })
++                    HorizontalDivider()
++                    SuperArrow(title = text(R.string.desktop_back_arrow), summary = colorString(config.backGestureArrowColor),
++                        modifier = Modifier.testTag("desktop_back_arrow"), onClick = { openColor(Panel.BACK_ARROW) })
++                }
++            }
+         }
+     }
+ 
++    @Composable
++    private fun BackPreview(value: DesktopConfig) {
++        AndroidView(factory = { BackGesturePreviewView(it) }, update = { it.setConfig(value) },
++            modifier = Modifier.fillMaxWidth().height(156.dp).testTag("desktop_back_preview"))
++        Text(text(R.string.desktop_back_preview), fontSize = 12.sp,
++            color = LocalContentColor.current.copy(alpha = .7f))
++    }
++
+     @Composable
+     private fun PopupContent() {
+         Scaffold(containerColor = Color.Transparent, contentWindowInsets = WindowInsets(0, 0, 0, 0)) {
+@@ -188,7 +227,8 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                 onDismissFinished = { if (!showPanel.value) { panel = null; popupView?.visibility = View.GONE } }
+             ) {
+                 val active = panel ?: return@WindowBottomSheet
+-                val done = active == Panel.HIDDEN || active == Panel.EDITOR
++                val done = active == Panel.HIDDEN || active == Panel.EDITOR || active in colorPanels
++                    || active in thresholdPanels
+                 val headerFocus = remember { FocusRequester() }
+                 val keyboard = LocalSoftwareKeyboardController.current
+                 LaunchedEffect(active) { headerFocus.requestFocus(); keyboard?.hide() }
+@@ -196,6 +236,13 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                     verticalAlignment = Alignment.CenterVertically) {
+                     Text(panelTitle(active), modifier = Modifier.weight(1f),
+                         fontSize = 22.sp, fontWeight = FontWeight.Bold)
++                    if (active in thresholdPanels || active == Panel.EDITOR
++                        && gesture == DesktopConfig.GESTURE_BACK_HOLD) TextButton(
++                        text = text(R.string.backup_cancel),
++                        modifier = Modifier.widthIn(min = 64.dp).testTag("desktop_sheet_cancel"),
++                        colors = ButtonDefaults.textButtonColors(color = Color.Transparent,
++                            textColor = MiuixTheme.colorScheme.primary),
++                        onClick = { if (active == Panel.EDITOR) dismissAll() else goBack() })
+                     TextButton(
+                         text = text(if (done) R.string.editor_done else R.string.backup_cancel),
+                         modifier = Modifier.widthIn(min = 64.dp).testTag("desktop_sheet_confirm"),
+@@ -206,9 +253,13 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                 }
+                 val configuration = LocalConfiguration.current
+                 val maxHeight = (configuration.screenHeightDp * .58f).dp.coerceAtMost(440.dp)
+-                if (active == Panel.EDITOR) {
++                if (active == Panel.EDITOR || active in colorPanels || active in thresholdPanels) {
+                     Column(Modifier.heightIn(max = maxHeight).verticalScroll(rememberScrollState())) {
+-                        GestureEditor()
++                        when {
++                            active == Panel.EDITOR -> GestureEditor()
++                            active in thresholdPanels -> BackThresholdEditor(active)
++                            else -> BackColorEditor(active)
++                        }
+                     }
+                 } else {
+                     if (active in searchablePanels) SearchField()
+@@ -226,8 +277,43 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+         }
+     }
+ 
++    @Composable
++    private fun BackColorEditor(active: Panel) {
++        Text(text(R.string.desktop_back_color_help), modifier = Modifier.padding(vertical = 8.dp),
++            fontSize = 14.sp, color = LocalContentColor.current.copy(alpha = .7f))
++        TextField(value = colorHex, onValueChange = { colorHex = it.take(32); colorError = false },
++            label = text(R.string.desktop_back_color_hex), singleLine = true,
++            modifier = Modifier.fillMaxWidth().testTag("desktop_back_color_hex"),
++            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
++            keyboardActions = KeyboardActions(onDone = { confirm(active) }))
++        if (colorError) Text(text(R.string.desktop_back_color_invalid),
++            modifier = Modifier.padding(vertical = 8.dp).testTag("desktop_back_color_error"),
++            color = Color(0xFFD32F2F), fontSize = 14.sp)
++        Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
++            val palette = if (active == Panel.BACK_BACKGROUND) backgroundPalette else arrowPalette
++            palette.forEachIndexed { index, color ->
++                val selected = parseBackColor(colorHex) == color
++                Box(Modifier.size(40.dp).border(if (selected) 3.dp else 1.dp,
++                    if (selected) MiuixTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = .35f), CircleShape)
++                    .padding(4.dp).background(Color(color), CircleShape).clickable {
++                        colorHex = colorString(color); colorError = false
++                    }.testTag("desktop_back_swatch_$index").semantics {
++                        contentDescription = colorString(color)
++                        this.selected = selected; role = Role.RadioButton
++                    })
++            }
++        }
++        val selected = parseBackColor(colorHex)
++        BackPreview(if (selected == null) config else withEditedColor(config, active, selected))
++    }
++
+     @Composable
+     private fun GestureEditor() {
++        if (gesture == DesktopConfig.GESTURE_BACK_HOLD) {
++            Text(backHoldThresholdSummary(draft) + "\n" + text(R.string.desktop_gesture_back_hold_summary),
++                modifier = Modifier.padding(vertical = 8.dp).testTag("desktop_back_hold_summary"),
++                fontSize = 14.sp, color = LocalContentColor.current.copy(alpha = .7f))
++        }
+         SmallTitle(text(R.string.desktop_gesture_action_section), insideMargin = PaddingValues(0.dp, 16.dp))
+         SuperArrow(title = text(R.string.desktop_gesture_action), summary = actionName(draft.gestureAction(gesture)),
+             modifier = Modifier.testTag("desktop_editor_action"), onClick = { open(Panel.ACTIONS) })
+@@ -251,6 +337,50 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                 title = text(R.string.desktop_gesture_toggle_target), summary = toggleName(draft.gestureToggle(gesture)),
+                 modifier = Modifier.testTag("desktop_editor_toggle"), onClick = { open(Panel.TOGGLES) })
+         }
++        if (gesture == DesktopConfig.GESTURE_BACK_HOLD) {
++            SmallTitle(text(R.string.desktop_back_hold_thresholds), insideMargin = PaddingValues(0.dp, 16.dp))
++            SuperArrow(title = text(R.string.desktop_back_hold_distance),
++                summary = backHoldDistanceSummary(draft),
++                modifier = Modifier.testTag("desktop_back_hold_distance"),
++                onClick = { openThreshold(Panel.BACK_DISTANCE) })
++            SuperArrow(title = text(R.string.desktop_back_hold_delay),
++                summary = activity.getString(R.string.desktop_back_hold_delay_value, draft.backHoldDelayMs),
++                modifier = Modifier.testTag("desktop_back_hold_delay"),
++                onClick = { openThreshold(Panel.BACK_DELAY) })
++            TextButton(text = text(R.string.desktop_back_hold_reset),
++                modifier = Modifier.testTag("desktop_back_hold_reset"),
++                onClick = { draft = draft.withBackHoldThresholds(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM,
++                    DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS) })
++        }
++    }
++
++    @Composable
++    private fun BackThresholdEditor(active: Panel) {
++        val distance = active == Panel.BACK_DISTANCE
++        Text(text(if (distance) R.string.desktop_back_hold_distance_help else R.string.desktop_back_hold_delay_help),
++            modifier = Modifier.padding(vertical = 8.dp), fontSize = 14.sp,
++            color = LocalContentColor.current.copy(alpha = .7f))
++        if (distance) SuperSwitch(title = text(R.string.desktop_back_hold_distance_system),
++            checked = thresholdSystem, modifier = Modifier.testTag("desktop_back_hold_distance_system"),
++            onCheckedChange = { thresholdSystem = it; thresholdError = false })
++        if (!distance || !thresholdSystem) TextField(
++            value = thresholdInput,
++            onValueChange = { thresholdInput = it.take(16); thresholdError = false },
++            label = text(if (distance) R.string.desktop_back_hold_distance_input else R.string.desktop_back_hold_delay_input),
++            singleLine = true,
++            modifier = Modifier.fillMaxWidth().testTag("desktop_back_hold_threshold_input"),
++            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
++            keyboardActions = KeyboardActions(onDone = { confirm(active) }))
++        if (thresholdError) Text(text(if (distance) R.string.desktop_back_hold_distance_invalid
++            else R.string.desktop_back_hold_delay_invalid),
++            modifier = Modifier.padding(vertical = 8.dp).testTag("desktop_back_hold_threshold_error"),
++            color = Color(0xFFD32F2F), fontSize = 14.sp)
++        TextButton(text = text(R.string.desktop_back_hold_reset),
++            modifier = Modifier.testTag("desktop_back_hold_threshold_reset"), onClick = {
++                if (distance) thresholdSystem = true
++                else thresholdInput = DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS.toString()
++                thresholdError = false
++            })
+     }
+ 
+     @Composable
+@@ -309,9 +439,15 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                 }
+             }
+             Panel.ACTIONS -> LazyColumn(Modifier.testTag("desktop_action_list")) {
+-                items(actionIds.toList(), key = { it }) { action ->
++                val choices = if (gesture == DesktopConfig.GESTURE_BACK_HOLD)
++                    listOf(DesktopConfig.ACTION_NATIVE) + actionIds.filter { it != DesktopConfig.ACTION_NONE }
++                    else actionIds.toList()
++                items(choices, key = { it }) { action ->
+                     ChoiceRow(actionName(action), draft.gestureAction(gesture) == action
+-                        || action == DesktopConfig.ACTION_NONE && draft.gestureAction(gesture) == DesktopConfig.ACTION_NATIVE,
++                        || gesture != DesktopConfig.GESTURE_BACK_HOLD && action == DesktopConfig.ACTION_NONE
++                            && draft.gestureAction(gesture) == DesktopConfig.ACTION_NATIVE
++                        || gesture == DesktopConfig.GESTURE_BACK_HOLD && action == DesktopConfig.ACTION_NATIVE
++                            && draft.gestureAction(gesture) == DesktopConfig.ACTION_NONE,
+                         "desktop_action_$action") {
+                         draft = draft.withGesture(gesture, action)
+                         open(Panel.EDITOR)
+@@ -327,6 +463,14 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+                     }
+                 }
+             }
++            Panel.BACK_STYLES -> LazyColumn(Modifier.testTag("desktop_back_style_list")) {
++                items((DesktopConfig.BACK_STYLE_NATIVE until DesktopConfig.BACK_STYLE_COUNT).toList(), key = { it }) { style ->
++                    ChoiceRow(backStyleName(style), config.backGestureStyle == style,
++                        "desktop_back_style_$style", text(backStyleDescriptions[style])) {
++                        if (save(config.withBackGesturePreset(style))) dismissAll()
++                    }
++                }
++            }
+             Panel.ACTIVITIES -> {
+                 val visible = activities.filter { matches(query, it.label, it.className) }
+                 if (visible.isEmpty()) EmptyChoices() else LazyColumn {
+@@ -412,6 +556,22 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+         }
+     }
+ 
++    private fun openColor(next: Panel) {
++        colorHex = colorString(if (next == Panel.BACK_BACKGROUND)
++            config.backGestureBackgroundColor else config.backGestureArrowColor)
++        colorError = false
++        open(next)
++    }
++
++    private fun openThreshold(next: Panel) {
++        thresholdSystem = draft.backHoldDistanceDp == DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM
++        thresholdInput = if (next == Panel.BACK_DISTANCE)
++            (if (thresholdSystem) 60 else draft.backHoldDistanceDp).toString()
++        else draft.backHoldDelayMs.toString()
++        thresholdError = false
++        open(next)
++    }
++
+     private fun openActivities() {
+         val packageName = draft.gesturePackage(gesture) ?: return
+         open(Panel.ACTIVITIES)
+@@ -435,6 +595,25 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+ 
+     private fun confirm(active: Panel) {
+         if (loading) return
++        if (active in thresholdPanels) {
++            val distance = active == Panel.BACK_DISTANCE
++            val selected = thresholdInput.trim().takeIf { it.isNotEmpty() && it.all(Char::isDigit) }?.toIntOrNull()
++            val valid = if (distance) thresholdSystem || selected != null
++                && selected in DesktopConfig.MIN_BACK_HOLD_DISTANCE_DP..DesktopConfig.MAX_BACK_HOLD_DISTANCE_DP
++            else selected != null && selected in DesktopConfig.MIN_BACK_HOLD_DELAY_MS..DesktopConfig.MAX_BACK_HOLD_DELAY_MS
++            if (!valid) { thresholdError = true; return }
++            draft = if (distance) draft.withBackHoldThresholds(
++                if (thresholdSystem) DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM else selected!!, draft.backHoldDelayMs)
++            else draft.withBackHoldThresholds(draft.backHoldDistanceDp, selected!!)
++            open(Panel.EDITOR)
++            return
++        }
++        if (active in colorPanels) {
++            val selected = parseBackColor(colorHex)
++            if (selected == null) { colorError = true; return }
++            if (save(withEditedColor(config, active, selected))) dismissAll()
++            return
++        }
+         val next = if (active == Panel.HIDDEN) config.withHiddenPackages(hiddenDraft) else draft
+         if (active == Panel.EDITOR && !next.isGestureComplete(gesture)) {
+             Toast.makeText(activity, R.string.desktop_gesture_target_required, Toast.LENGTH_SHORT).show()
+@@ -454,7 +633,8 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     }
+ 
+     private fun goBack() {
+-        if (panel != Panel.HIDDEN && panel != Panel.EDITOR) open(Panel.EDITOR) else dismissAll()
++        if (panel != Panel.HIDDEN && panel != Panel.EDITOR && panel != Panel.BACK_STYLES
++            && panel?.let { it in colorPanels } != true) open(Panel.EDITOR) else dismissAll()
+     }
+ 
+     private fun dismissAll() {
+@@ -463,7 +643,19 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     }
+ 
+     private fun text(id: Int) = activity.getString(id)
+-    private fun actionName(action: Int) = actionLabels.getOrNull(actionIds.indexOf(action)) ?: text(R.string.desktop_action_none)
++    private fun backStyleName(style: Int) = text(backStyleTitles[style])
++    private fun colorString(color: Int) = String.format(Locale.ROOT, "#%08X", color)
++    private fun withEditedColor(source: DesktopConfig, active: Panel, color: Int): DesktopConfig {
++        val styled = if (source.backGestureStyle == DesktopConfig.BACK_STYLE_NATIVE)
++            source.withBackGestureStyle(DesktopConfig.BACK_STYLE_CLASSIC) else source
++        return styled.withBackGestureColors(
++            if (active == Panel.BACK_BACKGROUND) color else styled.backGestureBackgroundColor,
++            if (active == Panel.BACK_ARROW) color else styled.backGestureArrowColor)
++    }
++    private fun actionName(action: Int, gestureId: Int = gesture) =
++        if (gestureId == DesktopConfig.GESTURE_BACK_HOLD && action <= DesktopConfig.ACTION_NONE)
++            text(R.string.desktop_action_native)
++        else actionLabels.getOrNull(actionIds.indexOf(action)) ?: text(R.string.desktop_action_none)
+     private fun toggleName(toggle: Int) = toggleLabels.getOrElse(toggleIds.indexOf(toggle)) { toggleLabels[0] }
+     private fun selectedTarget() = draft.gestureTargetLabel(gesture) ?: draft.gestureTarget(gesture)
+         ?: text(R.string.desktop_not_selected)
+@@ -473,13 +665,21 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     }
+     private fun gestureSummary(id: Int): String {
+         val action = config.gestureAction(id)
+-        return when (action) {
++        val selected = when (action) {
+             DesktopConfig.ACTION_LAUNCH_APP, DesktopConfig.ACTION_LAUNCH_ACTIVITY, DesktopConfig.ACTION_LAUNCH_SHORTCUT ->
+-                config.gestureTargetLabel(id) ?: actionName(action)
++                config.gestureTargetLabel(id) ?: actionName(action, id)
+             DesktopConfig.ACTION_TOGGLE -> toggleName(config.gestureToggle(id))
+-            else -> actionName(action)
++            else -> actionName(action, id)
+         }
++        return if (id == DesktopConfig.GESTURE_BACK_HOLD)
++            selected + "\n" + backHoldThresholdSummary(config) else selected
+     }
++    private fun backHoldDistanceSummary(value: DesktopConfig) =
++        if (value.backHoldDistanceDp == DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM)
++            text(R.string.desktop_back_hold_distance_system)
++        else activity.getString(R.string.desktop_back_hold_distance_value, value.backHoldDistanceDp)
++    private fun backHoldThresholdSummary(value: DesktopConfig) = activity.getString(
++        R.string.desktop_back_hold_threshold_summary, backHoldDistanceSummary(value), value.backHoldDelayMs)
+     private fun panelTitle(active: Panel) = when (active) {
+         Panel.HIDDEN -> text(R.string.desktop_choose_hidden_apps)
+         Panel.EDITOR -> text(gestureDetailTitles[gesture])
+@@ -489,6 +689,11 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+         Panel.ACTIVITIES -> text(R.string.desktop_choose_gesture_activity)
+         Panel.SHORTCUTS -> text(R.string.desktop_choose_gesture_shortcut)
+         Panel.TOGGLES -> text(R.string.desktop_gesture_toggle_target)
++        Panel.BACK_STYLES -> text(R.string.desktop_back_style)
++        Panel.BACK_BACKGROUND -> text(R.string.desktop_back_background)
++        Panel.BACK_ARROW -> text(R.string.desktop_back_arrow)
++        Panel.BACK_DISTANCE -> text(R.string.desktop_back_hold_distance)
++        Panel.BACK_DELAY -> text(R.string.desktop_back_hold_delay)
+     }
+ 
+     override fun close() {
+@@ -505,15 +710,33 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
+     }
+ 
+     companion object {
++        private val colorPanels = setOf(Panel.BACK_BACKGROUND, Panel.BACK_ARROW)
++        private val thresholdPanels = setOf(Panel.BACK_DISTANCE, Panel.BACK_DELAY)
++        private val backStyleTitles = intArrayOf(R.string.desktop_action_native, R.string.desktop_back_style_classic,
++            R.string.desktop_back_style_capsule, R.string.desktop_back_style_ripple, R.string.desktop_back_style_neon,
++            R.string.desktop_back_style_rainbow)
++        private val backStyleDescriptions = intArrayOf(R.string.desktop_back_style_native_summary,
++            R.string.desktop_back_style_classic_summary, R.string.desktop_back_style_capsule_summary,
++            R.string.desktop_back_style_ripple_summary, R.string.desktop_back_style_neon_summary,
++            R.string.desktop_back_style_rainbow_summary)
++        private val backgroundPalette = intArrayOf(0xCC202124.toInt(), 0xE63267D6.toInt(), 0xB34AAFA5.toInt(),
++            0xCC17112D.toInt(), 0xCCB83D55.toInt(), 0xCCB97318.toInt())
++        private val arrowPalette = intArrayOf(0xFFFFFFFF.toInt(), 0xFF202124.toInt(), 0xFFBAA2FF.toInt(),
++            0xFF88E8DF.toInt(), 0xFFFFD178.toInt(), 0xFFFFA2B8.toInt())
++        private fun parseBackColor(value: String): Int? {
++            val hex = value.trim().removePrefix("#")
++            if (hex.length != 6 && hex.length != 8 || hex.any { it.digitToIntOrNull(16) == null }) return null
++            return hex.toLongOrNull(16)?.let { if (hex.length == 6) (it or 0xFF000000).toInt() else it.toInt() }
++        }
+         private val searchablePanels = setOf(Panel.HIDDEN, Panel.APPS, Panel.ACTIVITY_APPS, Panel.ACTIVITIES, Panel.SHORTCUTS)
+         private val gestureTitles = intArrayOf(R.string.desktop_gesture_single_down, R.string.desktop_gesture_double_down,
+             R.string.desktop_gesture_single_up, R.string.desktop_gesture_double_up, R.string.desktop_gesture_dock_right,
+             R.string.desktop_gesture_dock_left, R.string.desktop_gesture_shake, R.string.desktop_gesture_double_tap,
+-            R.string.desktop_gesture_pinch, R.string.desktop_gesture_expand)
++            R.string.desktop_gesture_pinch, R.string.desktop_gesture_expand, R.string.desktop_gesture_back_hold)
+         private val gestureDetailTitles = intArrayOf(R.string.desktop_gesture_detail_single_down, R.string.desktop_gesture_detail_double_down,
+             R.string.desktop_gesture_detail_single_up, R.string.desktop_gesture_detail_double_up, R.string.desktop_gesture_detail_dock_right,
+             R.string.desktop_gesture_detail_dock_left, R.string.desktop_gesture_detail_shake, R.string.desktop_gesture_detail_double_tap,
+-            R.string.desktop_gesture_detail_pinch, R.string.desktop_gesture_detail_expand)
++            R.string.desktop_gesture_detail_pinch, R.string.desktop_gesture_detail_expand, R.string.desktop_gesture_detail_back_hold)
+         private fun matches(query: String, label: String, packageName: String): Boolean {
+             val needle = query.trim().lowercase(Locale.ROOT)
+             return needle.isEmpty() || label.lowercase(Locale.ROOT).contains(needle) || packageName.lowercase(Locale.ROOT).contains(needle)
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java
+index e117f8b..4c2f236 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/LauncherHooks.java
+@@ -49,6 +49,7 @@ final class LauncherHooks {
+             Collections.synchronizedMap(new WeakHashMap<>());
+ 
+     private static volatile DesktopConfig config = DesktopConfig.defaults();
++    private static volatile WeakReference<Context> runtimeContext = new WeakReference<>(null);
+     private static volatile WeakReference<Activity> currentActivity = new WeakReference<>(null);
+     private static volatile ContentObserver configObserver;
+     private static final java.util.concurrent.ExecutorService SHORTCUT_WORKER =
+@@ -88,6 +89,11 @@ final class LauncherHooks {
+         });
+         count += hook(module, loader, WORKSPACE, "onVerticalGesture",
+                 new Class<?>[] {int.class, MotionEvent.class}, LauncherHooks::verticalGesture);
++        count += LauncherBackHoldGesture.install(module, loader, () -> config,
++                LauncherHooks::attachRuntime, LauncherHooks::prepareBackHoldAction);
++        count += LauncherBackReadyFeedbackGuard.install(module, loader);
++        count += LauncherBackAppearance.install(module, loader, () -> config,
++                LauncherHooks::attachRuntime);
+         count += installVerticalOverrides(module, loader);
+         count += hook(module, loader, LAUNCHER, "onDestroy", new Class<?>[0], chain -> {
+             if (chain.getThisObject() == currentActivity.get()) {
+@@ -581,10 +587,55 @@ final class LauncherHooks {
+         }
+     }
+ 
++    static Runnable prepareBackHoldAction(Context context, DesktopConfig snapshot) {
++        int gesture = DesktopConfig.GESTURE_BACK_HOLD;
++        if (context == null || snapshot == null
++                || snapshot.gestureAction(gesture) <= DesktopConfig.ACTION_NONE
++                || !snapshot.isGestureComplete(gesture)) return null;
++        android.app.KeyguardManager keyguard = context.getSystemService(android.app.KeyguardManager.class);
++        android.os.PowerManager power = context.getSystemService(android.os.PowerManager.class);
++        if (keyguard != null && keyguard.isKeyguardLocked()
++                || power != null && !power.isInteractive()) return null;
++        int action = snapshot.gestureAction(gesture);
++        String target = snapshot.gestureTarget(gesture);
++        if (action == DesktopConfig.ACTION_LAUNCH_SHORTCUT) {
++            try {
++                org.json.JSONObject shortcut = new org.json.JSONObject(target);
++                String packageName = shortcut.getString("package");
++                String shortcutId = shortcut.getString("id");
++                android.content.pm.LauncherApps launcher =
++                        context.getSystemService(android.content.pm.LauncherApps.class);
++                if (packageName.isEmpty() || shortcutId.isEmpty() || launcher == null
++                        || !launcher.hasShortcutHostPermission()) return null;
++            } catch (Exception error) {
++                return null;
++            }
++            return () -> MAIN.post(() -> DesktopShortcutCatalog.launchFromLauncher(context, target));
++        }
++        Intent prepared = DesktopActionQueue.dispatchIntent(context, action, target,
++                snapshot.gestureToggle(gesture));
++        if (prepared == null) return null;
++        // The recognizer runs this only after the host cancels predictive back on its own thread.
++        return () -> MAIN.post(() -> DesktopActionQueue.sendPrepared(context, prepared));
++    }
++
+     private static void attach(Activity activity) {
+         currentActivity = new WeakReference<>(activity);
+-        Context app = activity.getApplicationContext();
++        attachRuntime(activity);
++        RuntimeConfigExchange.request(activity.getApplicationContext());
++        config = DesktopConfig.readForRuntime(activity);
++        updateShakeRegistration();
++        applyDesktopIcons(activity.getWindow() == null
++                ? null : activity.getWindow().getDecorView());
++    }
++
++    static void attachRuntime(Context source) {
++        if (source == null) return;
++        Context application = source.getApplicationContext();
++        Context app = application == null ? source : application;
+         synchronized (LauncherHooks.class) {
++            if (runtimeContext.get() == app && configObserver != null) return;
++            runtimeContext = new WeakReference<>(app);
+             if (configObserver == null) {
+                 ContentObserver observer = new ContentObserver(MAIN) {
+                     @Override public void onChange(boolean selfChange, Uri uri) {
+@@ -607,19 +658,17 @@ final class LauncherHooks {
+             }
+         }
+         RuntimeConfigExchange.request(app);
+-        config = DesktopConfig.readForRuntime(activity);
+-        updateShakeRegistration();
+-        applyDesktopIcons(activity.getWindow() == null
+-                ? null : activity.getWindow().getDecorView());
++        config = DesktopConfig.readForRuntime(app);
+     }
+ 
+     private static void refreshConfiguration() {
+-        if (currentActivity.get() == null) return;
++        if (runtimeContext.get() == null) return;
+         Runnable refresh = () -> {
++            Context context = runtimeContext.get();
++            if (context == null) return;
++            config = DesktopConfig.readForRuntime(context);
+             Activity activity = currentActivity.get();
+             if (activity == null) return;
+-            Context context = activity.getApplicationContext();
+-            config = DesktopConfig.readForRuntime(context);
+             updateShakeRegistration();
+             applyDesktopIcons(activity.getWindow() == null
+                     ? null : activity.getWindow().getDecorView());
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
+index 1c59792..faee4a7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemSurfaceStyle.java
+@@ -428,6 +428,7 @@ final class SystemSurfaceStyle {
+             bounds.set(getBounds());
+             if (bounds.isEmpty()) return;
+             View view = owner.get();
++            if (view != null) density = view.getResources().getDisplayMetrics().density;
+             ControlCenterSurface surface = view == null ? config.surface : config.surface.resolve(view.getContext());
+             float radius = Math.min(config.cornerRadius * density, Math.min(bounds.width(), bounds.height()) / 2f);
+             float opacity = alpha / 255f * strength / 100f;
+@@ -476,6 +477,8 @@ final class SystemSurfaceStyle {
+         }
+ 
+         @Override public void getOutline(Outline outline) {
++            View view = owner.get();
++            if (view != null) density = view.getResources().getDisplayMetrics().density;
+             outline.setRoundRect(getBounds(), config.cornerRadius * density);
+             outline.setAlpha(0f);
+         }
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 6699777..0a1793d 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -17,6 +17,42 @@
+     <string name="desktop_gesture_double_tap">双击动作</string>
+     <string name="desktop_gesture_pinch">捏动作</string>
+     <string name="desktop_gesture_expand">扩展动作</string>
++    <string name="desktop_gesture_back_hold">返回停顿</string>
++    <string name="desktop_gesture_back_hold_summary">拉起时第一段震动；到达距离并停稳后，第二段震动提示已就绪，松手执行。进入等待后提前松手或明显回撤会取消；快速侧滑保留返回。系统默认动作保留原有行为。</string>
++    <string name="desktop_back_hold_thresholds">触发阈值</string>
++    <string name="desktop_back_hold_distance">侧滑距离</string>
++    <string name="desktop_back_hold_delay">停顿时间</string>
++    <string name="desktop_back_hold_distance_system">跟随系统距离</string>
++    <string name="desktop_back_hold_distance_value">%1$d dp</string>
++    <string name="desktop_back_hold_delay_value">%1$d 毫秒</string>
++    <string name="desktop_back_hold_threshold_summary">距离：%1$s · 停顿：%2$d 毫秒</string>
++    <string name="desktop_back_hold_distance_help">从屏幕边缘向内滑动的距离，达到后才开始计算停顿。关闭跟随系统后可输入 16–240 dp；dp 会按屏幕密度换算。</string>
++    <string name="desktop_back_hold_delay_help">达到侧滑距离并停稳后，等待多久发出第二段就绪震动。可输入 200–3000 毫秒，默认 500 毫秒。</string>
++    <string name="desktop_back_hold_distance_input">自定义距离（dp）</string>
++    <string name="desktop_back_hold_delay_input">停顿时间（毫秒）</string>
++    <string name="desktop_back_hold_distance_invalid">请输入 16–240 之间的整数距离</string>
++    <string name="desktop_back_hold_delay_invalid">请输入 200–3000 之间的整数毫秒</string>
++    <string name="desktop_back_hold_reset">恢复默认阈值</string>
++    <string name="desktop_back_appearance">侧滑返回外观</string>
++    <string name="desktop_back_appearance_summary">设置屏幕两侧返回提示的动画和基色，日间与夜间自动配色并随系统切换。需启用系统桌面与系统界面作用域；普通返回与返回停顿共用外观。</string>
++    <string name="desktop_back_style">动画预设</string>
++    <string name="desktop_back_background">背景基色</string>
++    <string name="desktop_back_arrow">箭头基色</string>
++    <string name="desktop_back_preview">动画示意</string>
++    <string name="desktop_back_style_classic">经典水滴</string>
++    <string name="desktop_back_style_capsule">灵动胶囊</string>
++    <string name="desktop_back_style_ripple">柔和涟漪</string>
++    <string name="desktop_back_style_neon">霓虹光环</string>
++    <string name="desktop_back_style_rainbow">渐变彩虹</string>
++    <string name="desktop_back_style_native_summary">使用系统原有动画和颜色</string>
++    <string name="desktop_back_style_classic_summary">紧凑流体叶片，柔和拉伸与收回</string>
++    <string name="desktop_back_style_capsule_summary">悬浮胶囊与不对称圆角，轻快跟手</string>
++    <string name="desktop_back_style_ripple_summary">细弧随进度展开，轻盈柔和</string>
++    <string name="desktop_back_style_neon_summary">薄边微光与紧凑轮廓，克制柔和</string>
++    <string name="desktop_back_style_rainbow_summary">色彩随侧滑渐变流动，明暗模式自动适配</string>
++    <string name="desktop_back_color_help">输入 #RRGGBB 或 #AARRGGBB，AA 为透明度。所选基色会生成同色系的日间与夜间配色，透明度保持不变；系统默认下自定义颜色会启用经典水滴。</string>
++    <string name="desktop_back_color_hex">颜色值</string>
++    <string name="desktop_back_color_invalid">请输入 6 位或 8 位十六进制颜色值</string>
+     <string name="desktop_action_native">系统默认</string>
+     <string name="desktop_action_none">无动作</string>
+     <string name="desktop_action_notifications">展开通知中心</string>
+@@ -53,6 +89,7 @@
+     <string name="desktop_gesture_detail_double_tap">双击动作</string>
+     <string name="desktop_gesture_detail_pinch">捏动作</string>
+     <string name="desktop_gesture_detail_expand">扩展动作</string>
++    <string name="desktop_gesture_detail_back_hold">返回停顿</string>
+     <string name="desktop_choose_gesture_app">选择要启动的应用</string>
+     <string name="desktop_no_launcher_apps">没有可选择的应用</string>
+     <string name="desktop_search_apps">搜索应用</string>
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/DesktopComposeUiTest.kt b/app/src/test/java/com/xtjm/fusionstatusbar/DesktopComposeUiTest.kt
+index 4ec8111..f32e0c8 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/DesktopComposeUiTest.kt
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/DesktopComposeUiTest.kt
+@@ -58,6 +58,268 @@ class DesktopComposeUiTest {
+             DesktopConfig.read(compose.activity).gestureAction(2)) }
+     }
+ 
++    @Test fun backHoldRowEditsAndRestoresNativeWithoutChangingOtherGestures() {
++        compose.runOnIdle {
++            DesktopConfig.save(compose.activity, DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_SINGLE_UP, DesktopConfig.ACTION_NOTIFICATIONS))
++            page().refresh()
++        }
++        compose.onNodeWithTag("desktop_gesture_10").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_back_hold_summary").assertIsDisplayed()
++        compose.onNodeWithTag("desktop_editor_action").performClick()
++        compose.onNodeWithTag("desktop_action_0").assertExists()
++        compose.onNodeWithTag("desktop_action_1").assertDoesNotExist()
++        compose.onNodeWithTag("desktop_action_6").performScrollTo().performClick()
++        compose.runOnIdle { assertEquals(DesktopConfig.ACTION_NATIVE,
++            DesktopConfig.read(compose.activity).gestureAction(DesktopConfig.GESTURE_BACK_HOLD)) }
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.ACTION_SCREENSHOT, saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
++            assertEquals(DesktopConfig.ACTION_NOTIFICATIONS, saved.gestureAction(DesktopConfig.GESTURE_SINGLE_UP))
++        }
++
++        compose.onNodeWithTag("desktop_gesture_10").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_editor_action").performClick()
++        compose.onNodeWithTag("desktop_action_0").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.ACTION_NATIVE, saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
++            assertEquals(DesktopConfig.ACTION_NOTIFICATIONS, saved.gestureAction(DesktopConfig.GESTURE_SINGLE_UP))
++        }
++    }
++
++    @Test fun backHoldThresholdEditsStayDraftUntilDoneAndReopenWithSavedValues() {
++        backHoldEditor()
++        editBackHoldDistance("72")
++        editBackHoldDelay("850")
++        compose.onNodeWithTag("desktop_back_hold_summary").performScrollTo()
++            .assertTextContains("72 dp", substring = true)
++            .assertTextContains("850 毫秒", substring = true)
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
++            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
++        }
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(72, saved.backHoldDistanceDp)
++            assertEquals(850, saved.backHoldDelayMs)
++        }
++        backHoldEditor()
++        openBackHoldThreshold("desktop_back_hold_distance")
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("72")
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        openBackHoldThreshold("desktop_back_hold_delay")
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("850")
++    }
++
++    @Test fun invalidBackHoldThresholdInputsCannotChangeDraftOrPersistentValues() {
++        backHoldEditor()
++        openBackHoldThreshold("desktop_back_hold_distance")
++        compose.onNodeWithTag("desktop_back_hold_distance_system").performClick()
++        for (invalid in listOf("", "abc", "15", "241", "-16", "16.5", "2147483648")) {
++            compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(invalid)
++            compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++            compose.onNodeWithTag("desktop_back_hold_threshold_error").performScrollTo().assertIsDisplayed()
++        }
++        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
++        openBackHoldThreshold("desktop_back_hold_delay")
++        for (invalid in listOf("", "abc", "199", "3001", "-200", "200.5", "2147483648")) {
++            compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(invalid)
++            compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++            compose.onNodeWithTag("desktop_back_hold_threshold_error").performScrollTo().assertIsDisplayed()
++        }
++        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
++            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
++        }
++    }
++
++    @Test fun backHoldResetRestoresBothDefaultsOnlyAfterFinalConfirmation() {
++        setBackHoldThresholds(88, 1100)
++        backHoldEditor()
++        compose.onNodeWithTag("desktop_back_hold_reset").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_back_hold_summary").performScrollTo()
++            .assertTextContains("跟随系统距离", substring = true)
++            .assertTextContains("500 毫秒", substring = true)
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(88, saved.backHoldDistanceDp)
++            assertEquals(1100, saved.backHoldDelayMs)
++        }
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
++            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
++        }
++    }
++
++    @Test fun backHoldSubEditorsCanRestoreSystemDistanceAndDefaultDelay() {
++        setBackHoldThresholds(80, 900)
++        backHoldEditor()
++        openBackHoldThreshold("desktop_back_hold_distance")
++        compose.onNodeWithTag("desktop_back_hold_threshold_reset").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertDoesNotExist()
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        openBackHoldThreshold("desktop_back_hold_delay")
++        compose.onNodeWithTag("desktop_back_hold_threshold_reset").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("500")
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
++            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
++        }
++    }
++
++    @Test fun cancellingBackHoldEditorDiscardsBothThresholdDrafts() {
++        backHoldEditor()
++        editBackHoldDistance("96")
++        editBackHoldDelay("1200")
++        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
++        backHoldEditor()
++        compose.onNodeWithTag("desktop_back_hold_summary")
++            .assertTextContains("跟随系统距离", substring = true)
++            .assertTextContains("500 毫秒", substring = true)
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, saved.backHoldDistanceDp)
++            assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, saved.backHoldDelayMs)
++        }
++    }
++
++    @Test fun cancellingANumericSubEditorPreservesTheLastAcceptedDraftValue() {
++        backHoldEditor()
++        editBackHoldDistance("64")
++        openBackHoldThreshold("desktop_back_hold_distance")
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement("100")
++        compose.onNodeWithTag("desktop_sheet_cancel").performClick()
++        openBackHoldThreshold("desktop_back_hold_distance")
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").assertTextContains("64")
++        compose.runOnIdle { assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM,
++            DesktopConfig.read(compose.activity).backHoldDistanceDp) }
++    }
++
++    @Test fun choosingActionAndApplicationPreservesBothThresholdDrafts() {
++        install("test.threshold", "阈值测试应用")
++        backHoldEditor()
++        editBackHoldDistance("76")
++        editBackHoldDelay("700")
++        compose.onNodeWithTag("desktop_editor_action").performScrollTo().performClick()
++        compose.onNodeWithTag("desktop_action_list").performScrollToNode(
++            hasTestTag("desktop_action_${DesktopConfig.ACTION_LAUNCH_APP}"))
++        compose.onNodeWithTag("desktop_action_${DesktopConfig.ACTION_LAUNCH_APP}").performClick()
++        compose.onNodeWithTag("desktop_editor_app").performScrollTo().performClick()
++        awaitApp("test.threshold")
++        compose.onNodeWithTag("desktop_app_search").performTextInput("test.threshold")
++        compose.onNodeWithTag("desktop_app_test.threshold").performClick()
++        compose.onNodeWithTag("desktop_back_hold_summary").performScrollTo()
++            .assertTextContains("76 dp", substring = true)
++            .assertTextContains("700 毫秒", substring = true)
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(76, saved.backHoldDistanceDp)
++            assertEquals(700, saved.backHoldDelayMs)
++            assertEquals("test.threshold|test.threshold.Main",
++                saved.gestureTarget(DesktopConfig.GESTURE_BACK_HOLD))
++        }
++    }
++
++    @Test fun otherGestureEditorsDoNotExposeBackHoldThresholds() {
++        gestureEditor()
++        compose.onNodeWithTag("desktop_back_hold_distance").assertDoesNotExist()
++        compose.onNodeWithTag("desktop_back_hold_delay").assertDoesNotExist()
++        compose.onNodeWithTag("desktop_back_hold_reset").assertDoesNotExist()
++    }
++
++    @Test fun backAppearancePresetAndArgbColorsSaveWithoutChangingHoldAction() {
++        compose.runOnIdle {
++            DesktopConfig.save(compose.activity, DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_SCREENSHOT))
++            page().refresh()
++        }
++        openAppearanceRow("desktop_back_style")
++        chooseBackStyle(DesktopConfig.BACK_STYLE_NEON)
++        compose.runOnIdle {
++            assertEquals(DesktopConfig.BACK_STYLE_NEON, DesktopConfig.read(compose.activity).backGestureStyle)
++        }
++        openAppearanceRow("desktop_back_background")
++        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#804488CC")
++        compose.runOnIdle { assertEquals(DesktopConfig.backGesturePresetBackground(DesktopConfig.BACK_STYLE_NEON),
++            DesktopConfig.read(compose.activity).backGestureBackgroundColor) }
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        openAppearanceRow("desktop_back_arrow")
++        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#12345")
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.onNodeWithTag("desktop_back_color_error").performScrollTo().assertIsDisplayed()
++        compose.runOnIdle { assertEquals(DesktopConfig.backGesturePresetArrow(DesktopConfig.BACK_STYLE_NEON),
++            DesktopConfig.read(compose.activity).backGestureArrowColor) }
++        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("44AACC")
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_STYLE_NEON, saved.backGestureStyle)
++            assertEquals(0x804488CC.toInt(), saved.backGestureBackgroundColor)
++            assertEquals(0xFF44AACC.toInt(), saved.backGestureArrowColor)
++            assertEquals(DesktopConfig.ACTION_SCREENSHOT, saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
++        }
++    }
++
++    @Test fun nativeAppearanceColorEditActivatesClassicAndNativePresetRestoresDefaults() {
++        openAppearanceRow("desktop_back_background")
++        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#40223344")
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_STYLE_CLASSIC, saved.backGestureStyle)
++            assertEquals(0x40223344, saved.backGestureBackgroundColor)
++        }
++        openAppearanceRow("desktop_back_style")
++        chooseBackStyle(DesktopConfig.BACK_STYLE_NATIVE)
++        compose.runOnIdle { assertEquals(DesktopConfig.defaults(), DesktopConfig.read(compose.activity)) }
++    }
++
++    @Test fun rainbowPresetIsSelectableAsTheSixthChoiceAndKeepsHoldAction() {
++        compose.runOnIdle {
++            DesktopConfig.save(compose.activity, DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_SCREENSHOT))
++            page().refresh()
++        }
++        openAppearanceRow("desktop_back_style")
++        chooseBackStyle(DesktopConfig.BACK_STYLE_RAINBOW)
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_STYLE_RAINBOW, saved.backGestureStyle)
++            assertEquals(0xD94F6BEA.toInt(), saved.backGestureBackgroundColor)
++            assertEquals(0xFFFFFFFF.toInt(), saved.backGestureArrowColor)
++            assertEquals(DesktopConfig.ACTION_SCREENSHOT,
++                saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
++        }
++        openAppearanceRow("desktop_back_background")
++        compose.onNodeWithTag("desktop_back_color_hex").performTextReplacement("#804477CC")
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++        compose.runOnIdle {
++            val saved = DesktopConfig.read(compose.activity)
++            assertEquals(DesktopConfig.BACK_STYLE_RAINBOW, saved.backGestureStyle)
++            assertEquals(0x804477CC.toInt(), saved.backGestureBackgroundColor)
++            assertEquals(DesktopConfig.ACTION_SCREENSHOT,
++                saved.gestureAction(DesktopConfig.GESTURE_BACK_HOLD))
++        }
++        openAppearanceRow("desktop_back_style")
++        compose.onNodeWithTag("desktop_back_style_list").performScrollToNode(
++            hasTestTag("desktop_back_style_5"))
++        compose.onNodeWithTag("desktop_back_style_5").assertIsSelected()
++    }
++
+     @Test fun appSearchKeepsFrozenApplicationsAndSavesTheFilteredTarget() {
+         install("test.alpha", "普通应用")
+         install("test.frozen", "冻结应用")
+@@ -167,6 +429,36 @@ class DesktopComposeUiTest {
+     private fun page(): DesktopSettingsPage = MainActivity::class.java.getDeclaredField("desktopSettingsPage")
+         .apply { isAccessible = true }.get(compose.activity) as DesktopSettingsPage
+     private fun gestureEditor() = compose.onNodeWithTag("desktop_gesture_2").performScrollTo().performClick()
++    private fun backHoldEditor() = compose.onNodeWithTag("desktop_gesture_10").performScrollTo().performClick()
++    private fun setBackHoldThresholds(distanceDp: Int, delayMs: Int) {
++        compose.runOnIdle {
++            DesktopConfig.save(compose.activity, DesktopConfig.defaults().withBackHoldThresholds(distanceDp, delayMs))
++            page().refresh()
++        }
++    }
++    private fun openBackHoldThreshold(tag: String) = compose.onNodeWithTag(tag).performScrollTo().performClick()
++    private fun editBackHoldDistance(value: String) {
++        openBackHoldThreshold("desktop_back_hold_distance")
++        if (compose.onAllNodesWithTag("desktop_back_hold_threshold_input").fetchSemanticsNodes().isEmpty()) {
++            compose.onNodeWithTag("desktop_back_hold_distance_system").performClick()
++        }
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(value)
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++    }
++    private fun editBackHoldDelay(value: String) {
++        openBackHoldThreshold("desktop_back_hold_delay")
++        compose.onNodeWithTag("desktop_back_hold_threshold_input").performTextReplacement(value)
++        compose.onNodeWithTag("desktop_sheet_confirm").performClick()
++    }
++    private fun openAppearanceRow(tag: String) {
++        compose.onNodeWithTag("desktop_page").performScrollToNode(hasTestTag(tag))
++        compose.onNodeWithTag(tag).performScrollTo().performClick()
++    }
++    private fun chooseBackStyle(style: Int) {
++        val tag = "desktop_back_style_$style"
++        compose.onNodeWithTag("desktop_back_style_list").performScrollToNode(hasTestTag(tag))
++        compose.onNodeWithTag(tag).performScrollTo().performClick()
++    }
+     private fun chooseAction(action: Int) {
+         gestureEditor()
+         compose.onNodeWithTag("desktop_editor_action").performClick()
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java
+index c47b0d5..6fe88e4 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/DesktopConfigTest.java
+@@ -82,6 +82,252 @@ public class DesktopConfigTest {
+         assertEquals(saved, DesktopConfigStore.read(context));
+     }
+ 
++    @Test public void backHoldRoundTripsTargetAndKeepsExistingGestureAssignments() {
++        DesktopConfig expected = DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_SINGLE_DOWN, DesktopConfig.ACTION_NOTIFICATIONS)
++                .withGesture(DesktopConfig.GESTURE_EXPAND, DesktopConfig.ACTION_RECENTS)
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_LAUNCH_APP)
++                .withGestureTarget(DesktopConfig.GESTURE_BACK_HOLD,
++                        "com.example.app|com.example.app.Main", "Example");
++
++        DesktopConfig fromBundle = DesktopConfig.fromBundle(expected.toBundle());
++        assertEquals(expected, fromBundle);
++        assertEquals(DesktopConfig.ACTION_LAUNCH_APP,
++                fromBundle.gestureAction(DesktopConfig.GESTURE_BACK_HOLD));
++        assertEquals("Example", fromBundle.gestureTargetLabel(DesktopConfig.GESTURE_BACK_HOLD));
++        assertTrue(fromBundle.isGestureComplete(DesktopConfig.GESTURE_BACK_HOLD));
++        assertTrue(DesktopConfigStore.write(context, expected));
++        assertEquals(expected, DesktopConfigStore.read(context));
++    }
++
++    @Test public void preBackHoldSnapshotsDefaultNewGestureToNative() {
++        Bundle oldSnapshot = new Bundle();
++        oldSnapshot.putInt("desktop_schema_version", 2);
++        oldSnapshot.putInt("gesture_0_action", DesktopConfig.ACTION_NOTIFICATIONS);
++        oldSnapshot.putInt("gesture_9_action", DesktopConfig.ACTION_SCREENSHOT);
++
++        DesktopConfig upgraded = DesktopConfig.fromBundle(oldSnapshot);
++        assertEquals(DesktopConfig.ACTION_NOTIFICATIONS, upgraded.gestureAction(0));
++        assertEquals(DesktopConfig.ACTION_SCREENSHOT, upgraded.gestureAction(9));
++        assertEquals(DesktopConfig.ACTION_NATIVE,
++                upgraded.gestureAction(DesktopConfig.GESTURE_BACK_HOLD));
++        assertEquals(DesktopConfig.ACTION_NATIVE,
++                DesktopConfig.defaults().gestureAction(DesktopConfig.GESTURE_BACK_HOLD));
++
++        context.getSharedPreferences("desktop_settings_v1", android.content.Context.MODE_PRIVATE)
++                .edit().putInt("desktop_schema_version", 2)
++                .putInt("gesture_0_action", DesktopConfig.ACTION_NOTIFICATIONS)
++                .putInt("gesture_9_action", DesktopConfig.ACTION_SCREENSHOT).commit();
++        assertEquals(upgraded, DesktopConfigStore.read(context));
++    }
++
++    @Test public void backHoldToggleCanBeSavedAndResetToNative() {
++        DesktopConfig selected = DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_TOGGLE)
++                .withGestureToggle(DesktopConfig.GESTURE_BACK_HOLD, 12);
++        assertTrue(DesktopConfigStore.write(context, selected));
++        assertEquals(12, DesktopConfigStore.read(context)
++                .gestureToggle(DesktopConfig.GESTURE_BACK_HOLD));
++        DesktopConfig reset = selected.withGesture(DesktopConfig.GESTURE_BACK_HOLD,
++                DesktopConfig.ACTION_NATIVE);
++        assertTrue(DesktopConfigStore.write(context, reset));
++        assertEquals(DesktopConfig.defaults(), DesktopConfigStore.read(context));
++    }
++
++    @Test public void oldSnapshotsAndStoreUseNativeDistanceAndFiveHundredMillisecondDelay() {
++        DesktopConfig defaults = DesktopConfig.defaults();
++        assertEquals(DesktopConfig.BACK_HOLD_DISTANCE_SYSTEM, defaults.backHoldDistanceDp);
++        assertEquals(DesktopConfig.DEFAULT_BACK_HOLD_DELAY_MS, defaults.backHoldDelayMs);
++        Bundle old = new Bundle();
++        old.putInt("desktop_schema_version", 2);
++        old.putInt("gesture_10_action", DesktopConfig.ACTION_SCREENSHOT);
++        DesktopConfig upgraded = DesktopConfig.fromBundle(old);
++        assertEquals(0, upgraded.backHoldDistanceDp);
++        assertEquals(500, upgraded.backHoldDelayMs);
++        assertEquals(DesktopConfig.ACTION_SCREENSHOT,
++                upgraded.gestureAction(DesktopConfig.GESTURE_BACK_HOLD));
++        context.getSharedPreferences("desktop_settings_v1", android.content.Context.MODE_PRIVATE)
++                .edit().putInt("desktop_schema_version", 2)
++                .putInt("gesture_10_action", DesktopConfig.ACTION_SCREENSHOT).commit();
++        assertEquals(upgraded, DesktopConfigStore.read(context));
++    }
++
++    @Test public void distanceAcceptsNativeOrClampsToTheSupportedDpRange() {
++        DesktopConfig defaults = DesktopConfig.defaults();
++        assertEquals(0, defaults.withBackHoldThresholds(-1, 500).backHoldDistanceDp);
++        assertEquals(0, defaults.withBackHoldThresholds(Integer.MIN_VALUE, 500).backHoldDistanceDp);
++        assertEquals(0, defaults.withBackHoldThresholds(0, 500).backHoldDistanceDp);
++        assertEquals(16, defaults.withBackHoldThresholds(1, 500).backHoldDistanceDp);
++        assertEquals(16, defaults.withBackHoldThresholds(16, 500).backHoldDistanceDp);
++        assertEquals(72, defaults.withBackHoldThresholds(72, 500).backHoldDistanceDp);
++        assertEquals(240, defaults.withBackHoldThresholds(240, 500).backHoldDistanceDp);
++        assertEquals(240, defaults.withBackHoldThresholds(Integer.MAX_VALUE, 500).backHoldDistanceDp);
++    }
++
++    @Test public void delayClampsToTheSupportedMillisecondRangeWithoutRounding() {
++        DesktopConfig defaults = DesktopConfig.defaults();
++        assertEquals(200, defaults.withBackHoldThresholds(0, Integer.MIN_VALUE).backHoldDelayMs);
++        assertEquals(200, defaults.withBackHoldThresholds(0, 199).backHoldDelayMs);
++        assertEquals(200, defaults.withBackHoldThresholds(0, 200).backHoldDelayMs);
++        assertEquals(735, defaults.withBackHoldThresholds(0, 735).backHoldDelayMs);
++        assertEquals(3000, defaults.withBackHoldThresholds(0, 3000).backHoldDelayMs);
++        assertEquals(3000, defaults.withBackHoldThresholds(0, Integer.MAX_VALUE).backHoldDelayMs);
++    }
++
++    @Test public void customThresholdsRoundTripInBundleStoreAndRuntimeSnapshot() {
++        DesktopConfig selected = DesktopConfig.defaults()
++                .withBackGesturePreset(DesktopConfig.BACK_STYLE_RAINBOW)
++                .withGesture(DesktopConfig.GESTURE_SINGLE_UP, DesktopConfig.ACTION_NOTIFICATIONS)
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_SCREENSHOT)
++                .withBackHoldThresholds(84, 735);
++        Bundle encoded = selected.toBundle();
++        assertEquals(84, encoded.getInt("back_hold_distance_dp"));
++        assertEquals(735, encoded.getInt("back_hold_delay_ms"));
++        assertEquals(selected, DesktopConfig.fromBundle(encoded));
++        assertTrue(DesktopConfigStore.write(context, selected));
++        assertEquals(selected, DesktopConfigStore.read(context));
++        assertEquals(selected, DesktopConfig.readForRuntime(context));
++        DesktopConfig restored = DesktopConfigStore.read(context);
++        assertEquals(DesktopConfig.BACK_STYLE_RAINBOW, restored.backGestureStyle);
++        assertEquals(DesktopConfig.ACTION_NOTIFICATIONS,
++                restored.gestureAction(DesktopConfig.GESTURE_SINGLE_UP));
++        assertEquals(DesktopConfig.ACTION_SCREENSHOT,
++                restored.gestureAction(DesktopConfig.GESTURE_BACK_HOLD));
++        assertTrue(DesktopConfigStore.write(context, selected.withBackHoldThresholds(0, 500)));
++        assertEquals(0, DesktopConfigStore.read(context).backHoldDistanceDp);
++        assertEquals(500, DesktopConfigStore.read(context).backHoldDelayMs);
++    }
++
++    @Test public void otherEditsPreserveBothCustomThresholds() {
++        DesktopConfig original = DesktopConfig.defaults().withBackHoldThresholds(64, 850);
++        for (DesktopConfig edited : new DesktopConfig[] {
++                original.withHideIcons(true),
++                original.withHiddenPackages(Set.of("com.example.hidden")),
++                original.withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_LAUNCH_APP),
++                original.withGestureTarget(DesktopConfig.GESTURE_BACK_HOLD,
++                        "com.example.app|com.example.app.Main", "Example"),
++                original.withGestureToggle(DesktopConfig.GESTURE_SINGLE_UP, 12),
++                original.withBackGestureStyle(DesktopConfig.BACK_STYLE_CAPSULE),
++                original.withBackGestureColors(0x804488CC, 0x60332211),
++                original.withBackGesturePreset(DesktopConfig.BACK_STYLE_RAINBOW),
++                original.withBackGesturePreset(DesktopConfig.BACK_STYLE_NATIVE),
++                original.withGesture(-1, DesktopConfig.ACTION_SCREENSHOT),
++                original.withGestureTarget(-1, null, null),
++                original.withGestureToggle(-1, 1)
++        }) {
++            assertEquals(64, edited.backHoldDistanceDp);
++            assertEquals(850, edited.backHoldDelayMs);
++            assertEquals(edited, DesktopConfig.fromBundle(edited.toBundle()));
++        }
++        assertEquals(64, original.backHoldDistanceDp);
++        assertEquals(850, original.backHoldDelayMs);
++        assertEquals(DesktopConfig.BACK_STYLE_NATIVE, original.backGestureStyle);
++    }
++
++    @Test public void thresholdValuesParticipateInSnapshotEqualityAndHashing() {
++        DesktopConfig selected = DesktopConfig.defaults().withBackHoldThresholds(64, 850);
++        DesktopConfig same = DesktopConfig.defaults().withBackHoldThresholds(64, 850);
++        assertEquals(selected, same);
++        assertEquals(selected.hashCode(), same.hashCode());
++        assertFalse(selected.equals(selected.withBackHoldThresholds(65, 850)));
++        assertFalse(selected.equals(selected.withBackHoldThresholds(64, 851)));
++        assertEquals(DesktopConfig.defaults(), selected.withBackHoldThresholds(0, 500));
++    }
++
++    @Test public void externalThresholdValuesAreNormalizedBeforePersistence() {
++        Bundle values = new Bundle();
++        values.putInt("back_hold_distance_dp", 999);
++        values.putInt("back_hold_delay_ms", -1);
++        DesktopConfig normalized = DesktopConfig.fromBundle(values);
++        assertEquals(240, normalized.backHoldDistanceDp);
++        assertEquals(200, normalized.backHoldDelayMs);
++        assertTrue(DesktopConfigStore.write(context, normalized));
++        assertEquals(normalized, DesktopConfigStore.read(context));
++    }
++
++    @Test public void backAppearanceKeepsArgbColorsAcrossOtherConfigChanges() {
++        DesktopConfig expected = DesktopConfig.defaults()
++                .withBackGestureStyle(DesktopConfig.BACK_STYLE_RIPPLE)
++                .withBackGestureColors(0x804488CC, 0x60332211)
++                .withHideIcons(true)
++                .withHiddenPackages(Set.of("com.example.hidden"))
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_LAUNCH_APP)
++                .withGestureTarget(DesktopConfig.GESTURE_BACK_HOLD,
++                        "com.example.app|com.example.app.Main", "Example")
++                .withGestureToggle(DesktopConfig.GESTURE_SINGLE_DOWN, 12);
++
++        DesktopConfig decoded = DesktopConfig.fromBundle(expected.toBundle());
++        assertEquals(expected, decoded);
++        assertEquals(expected.hashCode(), decoded.hashCode());
++        assertEquals(DesktopConfig.BACK_STYLE_RIPPLE, decoded.backGestureStyle);
++        assertEquals(0x804488CC, decoded.backGestureBackgroundColor);
++        assertEquals(0x60332211, decoded.backGestureArrowColor);
++        assertTrue(DesktopConfigStore.write(context, expected));
++        assertEquals(expected, DesktopConfigStore.read(context));
++    }
++
++    @Test public void oldAppearanceSnapshotsAndUnknownStylesKeepSystemDefault() {
++        DesktopConfig old = DesktopConfig.fromBundle(new Bundle());
++        assertEquals(DesktopConfig.BACK_STYLE_NATIVE, old.backGestureStyle);
++        assertEquals(0xCC202124, old.backGestureBackgroundColor);
++        assertEquals(0xFFFFFFFF, old.backGestureArrowColor);
++        Bundle unknown = new Bundle();
++        unknown.putInt("back_gesture_style", 99);
++        assertEquals(DesktopConfig.BACK_STYLE_NATIVE,
++                DesktopConfig.fromBundle(unknown).backGestureStyle);
++        assertEquals(DesktopConfig.BACK_STYLE_NATIVE,
++                old.withBackGestureStyle(-1).backGestureStyle);
++    }
++
++    @Test public void rainbowPresetRoundTripsWithCustomColorsAndBackHoldTarget() {
++        DesktopConfig selected = DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_LAUNCH_APP)
++                .withGestureTarget(DesktopConfig.GESTURE_BACK_HOLD,
++                        "com.example.app|com.example.app.Main", "Example")
++                .withBackGesturePreset(DesktopConfig.BACK_STYLE_RAINBOW);
++        assertEquals(5, DesktopConfig.BACK_STYLE_RAINBOW);
++        assertEquals(6, DesktopConfig.BACK_STYLE_COUNT);
++        assertEquals(0xD94F6BEA, selected.backGestureBackgroundColor);
++        assertEquals(0xFFFFFFFF, selected.backGestureArrowColor);
++        assertEquals(selected, DesktopConfig.fromBundle(selected.toBundle()));
++        assertTrue(DesktopConfigStore.write(context, selected));
++        assertEquals(selected, DesktopConfigStore.read(context));
++
++        DesktopConfig customized = selected.withBackGestureColors(0x804477CC, 0xCC332211)
++                .withHideIcons(true);
++        DesktopConfig restored = DesktopConfig.fromBundle(customized.toBundle());
++        assertEquals(customized, restored);
++        assertEquals(DesktopConfig.BACK_STYLE_RAINBOW, restored.backGestureStyle);
++        assertEquals(0x804477CC, restored.backGestureBackgroundColor);
++        assertEquals(0xCC332211, restored.backGestureArrowColor);
++        assertEquals(DesktopConfig.ACTION_LAUNCH_APP,
++                restored.gestureAction(DesktopConfig.GESTURE_BACK_HOLD));
++        assertEquals("com.example.app|com.example.app.Main",
++                restored.gestureTarget(DesktopConfig.GESTURE_BACK_HOLD));
++        assertTrue(DesktopConfigStore.write(context, restored));
++        assertEquals(restored, DesktopConfigStore.read(context));
++        assertEquals(DesktopConfig.defaults()
++                        .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_LAUNCH_APP)
++                        .withGestureTarget(DesktopConfig.GESTURE_BACK_HOLD,
++                                "com.example.app|com.example.app.Main", "Example")
++                        .withHideIcons(true),
++                restored.withBackGesturePreset(DesktopConfig.BACK_STYLE_NATIVE));
++    }
++
++    @Test public void nativePresetResetsAppearanceAndKeepsBackHoldAction() {
++        DesktopConfig selected = DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_SCREENSHOT)
++                .withBackGesturePreset(DesktopConfig.BACK_STYLE_NEON)
++                .withBackGestureColors(0x004488CC, 0x60332211);
++        assertEquals(0x004488CC, selected.backGestureBackgroundColor);
++        assertFalse(selected.equals(selected.withBackGestureColors(0xFF4488CC, 0x60332211)));
++        DesktopConfig reset = selected.withBackGesturePreset(DesktopConfig.BACK_STYLE_NATIVE);
++        assertEquals(DesktopConfig.defaults().withGesture(DesktopConfig.GESTURE_BACK_HOLD,
++                DesktopConfig.ACTION_SCREENSHOT), reset);
++        assertTrue(DesktopConfigStore.write(context, reset));
++        assertEquals(reset, DesktopConfigStore.read(context));
++    }
++
+     @Test public void launcherCanReadOnlyTheDesktopEndpoint() {
+         String ownPackage = BuildConfig.APPLICATION_ID;
+         FusionConfigProvider.enforceDesktopReadCaller(ownPackage, ownPackage);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigExchangeTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigExchangeTest.java
+index 5f5b7d5..f77d097 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigExchangeTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/RuntimeConfigExchangeTest.java
+@@ -90,6 +90,27 @@ public class RuntimeConfigExchangeTest {
+         assertTrue(sent.getComponent() == null);
+     }
+ 
++    @Test public void backHoldThresholdsReachTheLauncherCacheBeforeRefresh() {
++        DesktopConfig configured = DesktopConfig.defaults()
++                .withGesture(DesktopConfig.GESTURE_BACK_HOLD, DesktopConfig.ACTION_RECENTS)
++                .withBackHoldThresholds(72, 850);
++        assertTrue(DesktopConfigStore.write(module, configured));
++        RuntimeConfigExchange.publish(module);
++        RecordingContext launcher = new RecordingContext(module, "com.miui.home");
++        int[] changes = {0};
++        assertTrue(RuntimeConfigExchange.receiveHostConfig(launcher, "com.miui.home",
++                module.broadcasts.get(1), () -> {
++                    DesktopConfig received = DesktopConfig.readForRuntime(launcher);
++                    assertEquals(72, received.backHoldDistanceDp);
++                    assertEquals(850, received.backHoldDelayMs);
++                    changes[0]++;
++                }));
++        assertEquals(1, changes[0]);
++        assertTrue(DesktopConfigStore.write(module, DesktopConfig.defaults()));
++        DesktopConfig cached = DesktopConfig.readForRuntime(launcher, true);
++        assertEquals(configured, cached);
++    }
++
+     @Test public void hostReceiversRequireTheModuleSignaturePermission() {
+         RecordingContext systemUi = new RecordingContext(module, "com.android.systemui");
+         RecordingContext launcher = new RecordingContext(module, "com.miui.home");

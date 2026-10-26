@@ -20,8 +20,11 @@ final class DesktopActionQueue {
 
     static boolean enqueue(Context context, int action, String target, int toggle) {
         if (context == null) return false;
-        Intent intent = dispatchIntent(context, action, target, toggle);
-        if (intent == null) return false;
+        return sendPrepared(context, dispatchIntent(context, action, target, toggle));
+    }
+
+    static boolean sendPrepared(Context context, Intent intent) {
+        if (context == null || intent == null) return false;
         try {
             if (Build.VERSION.SDK_INT >= 34) {
                 context.sendBroadcast(intent, null, BroadcastOptions.makeBasic()

@@ -10,6 +10,7 @@ import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -29,6 +30,7 @@ final class ControlCenterSoftGlass {
         if (!enabled || strength <= 0) {
             if (state != null) {
                 view.removeOnLayoutChangeListener(state);
+                view.removeOnAttachStateChangeListener(state);
                 view.getOverlay().remove(state.drawable);
             }
             STATES.remove(view);
@@ -38,9 +40,19 @@ final class ControlCenterSoftGlass {
             state = new State(view);
             STATES.put(view, new WeakReference<>(state));
             view.addOnLayoutChangeListener(state);
+            view.addOnAttachStateChangeListener(state);
             view.getOverlay().add(state.drawable);
         }
         state.drawable.configure(view, strength, surface);
+    }
+
+    /** Refresh retained overlays, including grid decorations outside material registration. */
+    static void refreshTheme() {
+        for (View view : new ArrayList<>(STATES.keySet())) {
+            if (view == null) continue;
+            State state = current(view);
+            if (state != null) state.drawable.updateBounds(view);
+        }
     }
 
     private static State current(View view) {
@@ -56,7 +68,8 @@ final class ControlCenterSoftGlass {
         view.getOverlay().add(state.drawable);
     }
 
-    private static final class State implements View.OnLayoutChangeListener {
+    private static final class State implements View.OnLayoutChangeListener,
+            View.OnAttachStateChangeListener {
         final GlassDrawable drawable;
 
         State(View view) { drawable = new GlassDrawable(view); }
@@ -65,6 +78,13 @@ final class ControlCenterSoftGlass {
                 int oldLeft, int oldTop, int oldRight, int oldBottom) {
             drawable.updateBounds(view);
         }
+
+        @Override public void onViewAttachedToWindow(View view) {
+            // A panel retained overnight can otherwise reuse its old hardware display list.
+            drawable.updateBounds(view);
+        }
+
+        @Override public void onViewDetachedFromWindow(View view) { }
     }
 
     static final class GlassDrawable extends Drawable {
@@ -98,7 +118,6 @@ final class ControlCenterSoftGlass {
         private void configure(View view, int value, ControlCenterSurface surface, boolean viewBounds) {
             strength = Math.max(0, Math.min(100, value));
             highlight = surface == ControlCenterSurface.HIGHLIGHT_GLASS;
-            daylight = highlight && surface.resolve(view.getContext()) == ControlCenterSurface.HIGHLIGHT_GLASS;
             if (viewBounds) updateBounds(view);
             else updateSize(view, Math.max(0, width), Math.max(0, height));
         }
@@ -108,6 +127,9 @@ final class ControlCenterSoftGlass {
         }
 
         private void updateSize(View view, int nextWidth, int nextHeight) {
+            // Resolve at the consumer even when its root changed configuration earlier.
+            daylight = highlight && ControlCenterSurface.HIGHLIGHT_GLASS.resolve(view.getContext())
+                    == ControlCenterSurface.HIGHLIGHT_GLASS;
             float nextDensity = view.getResources().getDisplayMetrics().density;
             if (nextWidth == width && nextHeight == height && strength == shaderStrength
                     && daylight == shaderDaylight && highlight == shaderHighlight
@@ -163,7 +185,9 @@ final class ControlCenterSoftGlass {
 
         @Override public void draw(Canvas canvas) {
             View view = owner.get();
-            if (view == null || width <= 0 || height <= 0) return;
+            if (view == null) return;
+            updateBounds(view);
+            if (width <= 0 || height <= 0) return;
             if (highlight) {
                 if (shape.resolve(view, 0f)) drawSoftEdge(canvas);
                 return;
