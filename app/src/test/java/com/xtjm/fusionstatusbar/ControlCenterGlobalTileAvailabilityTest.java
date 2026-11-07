@@ -40,6 +40,65 @@ public class ControlCenterGlobalTileAvailabilityTest {
         assertFalse(available.contains("custom_5g"));
     }
 
+    @Test public void capturedHostStockTilesEnterTheAddListWithoutBeingInTheVisibleLayout() throws Exception {
+        launch("");
+        strings("controlCenterNativeCatalog").addAll(List.of("aitranslate", "aisubtitles", "modes_dnd"));
+
+        List<String> available = candidates();
+        assertTrue(available.contains("aitranslate"));
+        assertTrue(available.contains("aisubtitles"));
+        assertTrue(available.contains("modes_dnd"));
+        assertFalse(activity.editorSession().draft().layoutPlan.contains("aitranslate"));
+        assertFalse(activity.editorSession().draft().layoutPlan.contains("aisubtitles"));
+        assertFalse(activity.editorSession().draft().layoutPlan.contains("modes_dnd"));
+    }
+
+    @Test public void hostTranslationAndCaptionTilesHaveRecognizableLabelsWhileUnknownSpecsStayUnchanged() throws Exception {
+        launch("");
+
+        assertEquals("翻译", activity.tileLabel("aitranslate"));
+        assertEquals("实时字幕", activity.tileLabel("aisubtitles"));
+        assertEquals("模式", activity.tileLabel("dnd"));
+        assertEquals("勿扰", activity.tileLabel("modes_dnd"));
+        assertEquals("oem_new_toggle", activity.tileLabel("oem_new_toggle"));
+    }
+
+    @Test public void capturedSystemLabelOverridesTheFallbackWithoutChangingTheNativeSpec() throws Exception {
+        launch("");
+        ControlCenterCapturedStyle style = new ControlCenterCapturedStyle(
+                ControlCenterLayoutPlan.Shape.CIRCLE, 0, 1, "原生模式", "", -1, null);
+        String capture = new org.json.JSONObject().put("version", 3)
+                .put("bounds", "v1|360|800|ZG5k,0,0,80,80")
+                .put("styles", new org.json.JSONObject().put("dnd", style.toJson())).toString();
+        ((ControlCenterActualEditor) field("controlCenterActualPreview")).setPreview(null, capture);
+
+        assertEquals("原生模式", activity.tileLabel("dnd"));
+    }
+
+    @Test public void capturedConnectionStateKeepsStableTitlesWhileNativeOnlyTilesKeepTheirHostLabels() throws Exception {
+        launch("");
+        String[] specs = {"wifi", "bt", "dnd", "oem_new_toggle"};
+        String[] labels = {"Home network", "Buds device", "原生模式", "原生传感器"};
+        org.json.JSONObject styles = new org.json.JSONObject();
+        StringBuilder bounds = new StringBuilder("v1|360|800");
+        for (int i = 0; i < specs.length; i++) {
+            ControlCenterCapturedStyle style = new ControlCenterCapturedStyle(
+                    ControlCenterLayoutPlan.Shape.CIRCLE, 0, 1, labels[i], "", -1, null);
+            styles.put(specs[i], style.toJson());
+            String encoded = android.util.Base64.encodeToString(
+                    specs[i].getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+            bounds.append('|').append(encoded).append(',').append(i * 80).append(",0,80,80");
+        }
+        String capture = new org.json.JSONObject().put("version", 3)
+                .put("bounds", bounds.toString()).put("styles", styles).toString();
+        ((ControlCenterActualEditor) field("controlCenterActualPreview")).setPreview(null, capture);
+
+        assertEquals("Wi-Fi", activity.tileLabel("wifi"));
+        assertEquals("蓝牙", activity.tileLabel("bt"));
+        assertEquals("原生模式", activity.tileLabel("dnd"));
+        assertEquals("原生传感器", activity.tileLabel("oem_new_toggle"));
+    }
+
     @Test public void moduleOwnedFiveGSwitchAddsAndRemovesTheTileFromTheCatalog() throws Exception {
         launch("");
         Dialog panel = openPanel();

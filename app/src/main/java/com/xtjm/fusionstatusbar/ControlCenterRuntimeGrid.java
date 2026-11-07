@@ -309,16 +309,48 @@ final class ControlCenterRuntimeGrid {
             Object provider = readField(listOwner, "qsController");
             Object controller = callOptional(provider, "get");
             if (controller == null) controller = provider;
-            Object tile = callOptional(controller, "createTile", spec);
+            Object tile;
+            try {
+                tile = callOptional(controller, "createTile", spec);
+            } catch (ReflectiveOperationException | RuntimeException error) {
+                trace(Log.WARN, "Primary tile factory failed spec=" + spec, error);
+                tile = null;
+            }
+            if (tile == null && !spec.startsWith("custom(") && !ControlCenterComponentSpec.isSpecial(spec))
+                tile = createSystemTile(controller, spec);
             if (tile == null) return null;
-            return new ControlCenterAppTileSource.Lease(tile, () -> {
-                try { callOptional(tile, "destroy"); }
-                catch (ReflectiveOperationException | RuntimeException error) { trace(Log.WARN, "Application tile release failed", error); }
-            });
+            Object created = tile;
+            return new ControlCenterAppTileSource.Lease(created, () -> destroyApplicationTile(created));
         } catch (ReflectiveOperationException | RuntimeException error) {
             trace(Log.WARN, "Application tile creation failed spec=" + spec, error);
             return null;
         }
+    }
+
+    private static Object createSystemTile(Object controller, String spec) throws ReflectiveOperationException {
+        Object host = readField(controller, "host");
+        Object factory = readField(readField(host, "interactor"), "tileFactory");
+        Object declarations = readField(factory, "mTileMap");
+        if (!(declarations instanceof Map<?, ?> map) || !map.containsKey(spec)) return null;
+        Object tile = callOptional(factory, "createTile", spec);
+        if (tile == null) return null;
+        try {
+            // Match QSController initialization for the exact factory omitted by its MIUI factory list.
+            call(tile, "setTileSpec", spec);
+            Object user = call(host, "getUserId");
+            if (!(user instanceof Number)) throw new IllegalStateException("Native tile user unavailable");
+            call(tile, "userSwitch", ((Number) user).intValue());
+            call(tile, "refreshState");
+            return tile;
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            destroyApplicationTile(tile);
+            throw error;
+        }
+    }
+
+    private static void destroyApplicationTile(Object tile) {
+        try { callOptional(tile, "destroy"); }
+        catch (ReflectiveOperationException | RuntimeException error) { trace(Log.WARN, "Application tile release failed", error); }
     }
 
     private static boolean abort(Object adapter) {

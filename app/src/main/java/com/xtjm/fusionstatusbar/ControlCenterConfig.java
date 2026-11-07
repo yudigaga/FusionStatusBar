@@ -528,8 +528,6 @@ final class ControlCenterConfig {
         switch (value) {
             case "silent":
                 return "mute";
-            case "dnd":
-                return "quietmode";
             case "battery":
                 return "batterysaver";
             case "location":

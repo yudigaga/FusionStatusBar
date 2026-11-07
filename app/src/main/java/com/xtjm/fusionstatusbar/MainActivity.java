@@ -2127,7 +2127,18 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             return componentLabel;
         }
         int index = tileIndex(spec);
-        return index < 0 ? spec : CONTROL_TILE_LABELS[index];
+        if (index >= 0) return CONTROL_TILE_LABELS[index];
+        ControlCenterCapturedStyle captured = controlCenterActualPreview == null ? null
+                : controlCenterActualPreview.capturedStyle(spec);
+        if (captured != null && !captured.label.trim().isEmpty()) return captured.label;
+        switch (ControlCenterConfig.canonicalSpec(spec)) {
+            case "aitranslate": return "翻译";
+            case "aisubtitles": return "实时字幕";
+            case "dnd": return "模式";
+            case "modes_dnd": return "勿扰";
+            default: break;
+        }
+        return spec;
     }
 
     private void bindControlTileDrag(android.view.View tile, final java.lang.String spec) {

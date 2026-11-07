@@ -2178,6 +2178,21 @@ public final class SystemUiHooks {
                 // Accessors differ across MIUI plugin revisions; fields remain the primary path.
             }
         }
+        // The editor-only inventories remain empty until its first query; stock accessors do not start it.
+        Object queryHelper = ControlCenterHostAdapter.readField(list, "tileQueryHelper");
+        Object host = ControlCenterHostAdapter.readField(list, "host");
+        String stock = nativeTileStock(queryHelper, "getTilesStock");
+        if (stock.isEmpty()) stock = nativeTileStock(host, "getStockTiles");
+        if (stock.isEmpty()) {
+            Object fallback = ControlCenterHostAdapter.readField(queryHelper, "staticStockTiles");
+            if (fallback instanceof String value) stock = value;
+        }
+        for (String spec : stock.split(",")) appendNativeTileCatalogRecord(spec, specs);
+        Object factory = ControlCenterHostAdapter.readField(
+                ControlCenterHostAdapter.readField(host, "interactor"), "tileFactory");
+        Object declarations = ControlCenterHostAdapter.readField(factory, "mTileMap");
+        if (declarations instanceof java.util.Map<?, ?> map)
+            appendNativeTileCatalogValue(map.keySet(), specs);
         String catalog = String.join(",", specs);
         if (!catalog.equals(CONTROL_CENTER_TILE_CATALOG_LAST)) {
             CONTROL_CENTER_TILE_CATALOG_LAST = catalog;
@@ -2185,6 +2200,18 @@ public final class SystemUiHooks {
                     + " specs=" + catalog, null);
         }
         return catalog;
+    }
+
+    private static String nativeTileStock(Object source, String accessor) {
+        if (source == null) return "";
+        try {
+            Method method = findMethod(source.getClass(), accessor, new Class<?>[] {});
+            Object value = method == null ? null : method.invoke(source);
+            return value instanceof String stock ? stock.trim() : "";
+        } catch (Throwable ignored) {
+            // The plugin fallback remains usable while a newer host accessor is unavailable.
+            return "";
+        }
     }
 
     private static void appendNativeTileCatalogValue(Object value, Set<String> specs) {

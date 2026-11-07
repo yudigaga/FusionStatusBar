@@ -333,7 +333,7 @@ public class FusionConfigTest {
                 .withHidden("screenrecord");
 
         assertEquals("wifi,custom(com.miui.screenrecorder/.service.quickservice),mute,"
-                + "quietmode,batterysaver,gps", control.order);
+                + "dnd,batterysaver,gps", control.order);
         assertTrue(control.isHidden("custom(com.miui.screenrecorder/.service.QuickService)"));
     }
 

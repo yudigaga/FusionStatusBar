@@ -151,9 +151,8 @@ final class ControlCenterSoftGlass {
             float density = view.getResources().getDisplayMetrics().density;
             float factor = strength / 100f;
             if (highlight) {
-                // Several low-opacity bands create a continuous falloff, rather than a
-                // bright hairline paired with a second dark outline. The middle of the
-                // directional reflection fades out to avoid a uniformly lit closed ring.
+                // Keep every reflection band on the outer contour. An offset inner
+                // shade reads as a second border, especially on active white tiles.
                 edgeWidth = Math.min(density * 6f, Math.min(width, height) * .14f);
                 rim.setStrokeWidth(edgeWidth);
                 rim.setShader(new LinearGradient(0, 0, width * .35f, height,
@@ -161,10 +160,6 @@ final class ControlCenterSoftGlass {
                                 ? new int[] {alpha(0xb0, factor), alpha(0x28, factor), alpha(0x00, factor), alpha(0x70, factor)}
                                 : new int[] {alpha(0xb0, factor), alpha(0x38, factor), alpha(0x00, factor), alpha(0x70, factor)},
                         new float[] {0f, .28f, .62f, 1f}, Shader.TileMode.CLAMP));
-                inner.setStrokeWidth(edgeWidth * .75f);
-                inner.setShader(new LinearGradient(0, 0, width, height,
-                        new int[] {0x00131a20, (Math.round((daylight ? 0x24 : 0x18) * factor) << 24) | 0x00131a20,
-                                0x00131a20}, new float[] {0f, .58f, 1f}, Shader.TileMode.CLAMP));
                 return;
             }
             rim.setStrokeWidth(Math.max(1f, density * 1.2f));
@@ -213,8 +208,6 @@ final class ControlCenterSoftGlass {
 
         private void drawSoftEdge(Canvas canvas) {
             if (drawableAlpha <= 0 || strength <= 0) return;
-            inner.setAlpha(Math.round(drawableAlpha * .38f));
-            shape.drawInside(canvas, inner, edgeWidth * .18f);
             try {
                 for (int band = 0; band < BAND_WIDTHS.length; band++) {
                     rim.setStrokeWidth(edgeWidth * BAND_WIDTHS[band]);

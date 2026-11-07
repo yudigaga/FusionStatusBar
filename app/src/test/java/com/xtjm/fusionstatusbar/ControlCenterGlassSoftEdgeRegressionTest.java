@@ -67,6 +67,41 @@ public class ControlCenterGlassSoftEdgeRegressionTest {
         assertSoftReflection(true);
     }
 
+    @Test public void automaticGlassFadesToTheBodyWithoutASecondDarkContour() {
+        for (boolean night : new boolean[] {false, true}) {
+            for (int body : new int[] {BODY, 0xfff5f6f8}) {
+                for (float radius : new float[] {24f, HEIGHT / 2f, 1000f}) {
+                    FrameLayout surface = new FrameLayout(context(night));
+                    configure(surface);
+                    GradientDrawable background = (GradientDrawable) surface.getBackground();
+                    background.setColor(body);
+                    background.setCornerRadius(radius);
+                    if (radius == 1000f) background.setShape(GradientDrawable.OVAL);
+                    float density = surface.getResources().getDisplayMetrics().density;
+                    surface.getResources().getDisplayMetrics().density = 3f;
+                    Bitmap original = draw(surface);
+                    ControlCenterSoftGlass.apply(surface, ControlCenterSurface.HIGHLIGHT_GLASS, true, 100);
+                    Bitmap reflected = draw(surface);
+                    try {
+                        for (int depth = 1; depth <= 20; depth++) {
+                            int before = original.getPixel(depth, HEIGHT / 2);
+                            int after = reflected.getPixel(depth, HEIGHT / 2);
+                            assertTrue("An inset shade must not form a second contour; night=" + night
+                                            + " body=" + Integer.toHexString(body) + " depth=" + depth,
+                                    Color.red(after) >= Color.red(before)
+                                            && Color.green(after) >= Color.green(before)
+                                            && Color.blue(after) >= Color.blue(before));
+                        }
+                    } finally {
+                        original.recycle(); reflected.recycle();
+                        ControlCenterSoftGlass.apply(surface, false, 0);
+                        surface.getResources().getDisplayMetrics().density = density;
+                    }
+                }
+            }
+        }
+    }
+
     @Test public void zeroStrengthAndDisablingRestoreTheUnpaintedEdgeWithoutChangingContent() {
         for (boolean night : new boolean[] {false, true}) {
             FrameLayout surface = new FrameLayout(context(night));

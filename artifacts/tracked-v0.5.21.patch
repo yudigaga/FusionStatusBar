@@ -1,0 +1,417 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index e09da77..c8f2988 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId "io.github.yudigaga.fusionstatusbar"
+         minSdk 33
+         targetSdk 35
+-        versionCode 234
+-        versionName "0.5.20"
++        versionCode 235
++        versionName "0.5.21"
+     }
+ 
+     compileOptions {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java
+index dbd3be7..dcdbec4 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterConfig.java
+@@ -528,8 +528,6 @@ final class ControlCenterConfig {
+         switch (value) {
+             case "silent":
+                 return "mute";
+-            case "dnd":
+-                return "quietmode";
+             case "battery":
+                 return "batterysaver";
+             case "location":
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+index c265408..f1699da 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeGrid.java
+@@ -309,18 +309,50 @@ final class ControlCenterRuntimeGrid {
+             Object provider = readField(listOwner, "qsController");
+             Object controller = callOptional(provider, "get");
+             if (controller == null) controller = provider;
+-            Object tile = callOptional(controller, "createTile", spec);
++            Object tile;
++            try {
++                tile = callOptional(controller, "createTile", spec);
++            } catch (ReflectiveOperationException | RuntimeException error) {
++                trace(Log.WARN, "Primary tile factory failed spec=" + spec, error);
++                tile = null;
++            }
++            if (tile == null && !spec.startsWith("custom(") && !ControlCenterComponentSpec.isSpecial(spec))
++                tile = createSystemTile(controller, spec);
+             if (tile == null) return null;
+-            return new ControlCenterAppTileSource.Lease(tile, () -> {
+-                try { callOptional(tile, "destroy"); }
+-                catch (ReflectiveOperationException | RuntimeException error) { trace(Log.WARN, "Application tile release failed", error); }
+-            });
++            Object created = tile;
++            return new ControlCenterAppTileSource.Lease(created, () -> destroyApplicationTile(created));
+         } catch (ReflectiveOperationException | RuntimeException error) {
+             trace(Log.WARN, "Application tile creation failed spec=" + spec, error);
+             return null;
+         }
+     }
+ 
++    private static Object createSystemTile(Object controller, String spec) throws ReflectiveOperationException {
++        Object host = readField(controller, "host");
++        Object factory = readField(readField(host, "interactor"), "tileFactory");
++        Object declarations = readField(factory, "mTileMap");
++        if (!(declarations instanceof Map<?, ?> map) || !map.containsKey(spec)) return null;
++        Object tile = callOptional(factory, "createTile", spec);
++        if (tile == null) return null;
++        try {
++            // Match QSController initialization for the exact factory omitted by its MIUI factory list.
++            call(tile, "setTileSpec", spec);
++            Object user = call(host, "getUserId");
++            if (!(user instanceof Number)) throw new IllegalStateException("Native tile user unavailable");
++            call(tile, "userSwitch", ((Number) user).intValue());
++            call(tile, "refreshState");
++            return tile;
++        } catch (ReflectiveOperationException | RuntimeException error) {
++            destroyApplicationTile(tile);
++            throw error;
++        }
++    }
++
++    private static void destroyApplicationTile(Object tile) {
++        try { callOptional(tile, "destroy"); }
++        catch (ReflectiveOperationException | RuntimeException error) { trace(Log.WARN, "Application tile release failed", error); }
++    }
++
+     private static boolean abort(Object adapter) {
+         return abort(adapter, null);
+     }
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+index 068e743..b5dc8b7 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/ControlCenterSoftGlass.java
+@@ -151,9 +151,8 @@ final class ControlCenterSoftGlass {
+             float density = view.getResources().getDisplayMetrics().density;
+             float factor = strength / 100f;
+             if (highlight) {
+-                // Several low-opacity bands create a continuous falloff, rather than a
+-                // bright hairline paired with a second dark outline. The middle of the
+-                // directional reflection fades out to avoid a uniformly lit closed ring.
++                // Keep every reflection band on the outer contour. An offset inner
++                // shade reads as a second border, especially on active white tiles.
+                 edgeWidth = Math.min(density * 6f, Math.min(width, height) * .14f);
+                 rim.setStrokeWidth(edgeWidth);
+                 rim.setShader(new LinearGradient(0, 0, width * .35f, height,
+@@ -161,10 +160,6 @@ final class ControlCenterSoftGlass {
+                                 ? new int[] {alpha(0xb0, factor), alpha(0x28, factor), alpha(0x00, factor), alpha(0x70, factor)}
+                                 : new int[] {alpha(0xb0, factor), alpha(0x38, factor), alpha(0x00, factor), alpha(0x70, factor)},
+                         new float[] {0f, .28f, .62f, 1f}, Shader.TileMode.CLAMP));
+-                inner.setStrokeWidth(edgeWidth * .75f);
+-                inner.setShader(new LinearGradient(0, 0, width, height,
+-                        new int[] {0x00131a20, (Math.round((daylight ? 0x24 : 0x18) * factor) << 24) | 0x00131a20,
+-                                0x00131a20}, new float[] {0f, .58f, 1f}, Shader.TileMode.CLAMP));
+                 return;
+             }
+             rim.setStrokeWidth(Math.max(1f, density * 1.2f));
+@@ -213,8 +208,6 @@ final class ControlCenterSoftGlass {
+ 
+         private void drawSoftEdge(Canvas canvas) {
+             if (drawableAlpha <= 0 || strength <= 0) return;
+-            inner.setAlpha(Math.round(drawableAlpha * .38f));
+-            shape.drawInside(canvas, inner, edgeWidth * .18f);
+             try {
+                 for (int band = 0; band < BAND_WIDTHS.length; band++) {
+                     rim.setStrokeWidth(edgeWidth * BAND_WIDTHS[band]);
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+index 737b3a9..958393d 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/MainActivity.java
+@@ -2127,7 +2127,18 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
+             return componentLabel;
+         }
+         int index = tileIndex(spec);
+-        return index < 0 ? spec : CONTROL_TILE_LABELS[index];
++        if (index >= 0) return CONTROL_TILE_LABELS[index];
++        ControlCenterCapturedStyle captured = controlCenterActualPreview == null ? null
++                : controlCenterActualPreview.capturedStyle(spec);
++        if (captured != null && !captured.label.trim().isEmpty()) return captured.label;
++        switch (ControlCenterConfig.canonicalSpec(spec)) {
++            case "aitranslate": return "翻译";
++            case "aisubtitles": return "实时字幕";
++            case "dnd": return "模式";
++            case "modes_dnd": return "勿扰";
++            default: break;
++        }
++        return spec;
+     }
+ 
+     private void bindControlTileDrag(android.view.View tile, final java.lang.String spec) {
+diff --git a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+index 712f79e..d4362c2 100644
+--- a/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
++++ b/app/src/main/java/com/xtjm/fusionstatusbar/SystemUiHooks.java
+@@ -2178,6 +2178,21 @@ public final class SystemUiHooks {
+                 // Accessors differ across MIUI plugin revisions; fields remain the primary path.
+             }
+         }
++        // The editor-only inventories remain empty until its first query; stock accessors do not start it.
++        Object queryHelper = ControlCenterHostAdapter.readField(list, "tileQueryHelper");
++        Object host = ControlCenterHostAdapter.readField(list, "host");
++        String stock = nativeTileStock(queryHelper, "getTilesStock");
++        if (stock.isEmpty()) stock = nativeTileStock(host, "getStockTiles");
++        if (stock.isEmpty()) {
++            Object fallback = ControlCenterHostAdapter.readField(queryHelper, "staticStockTiles");
++            if (fallback instanceof String value) stock = value;
++        }
++        for (String spec : stock.split(",")) appendNativeTileCatalogRecord(spec, specs);
++        Object factory = ControlCenterHostAdapter.readField(
++                ControlCenterHostAdapter.readField(host, "interactor"), "tileFactory");
++        Object declarations = ControlCenterHostAdapter.readField(factory, "mTileMap");
++        if (declarations instanceof java.util.Map<?, ?> map)
++            appendNativeTileCatalogValue(map.keySet(), specs);
+         String catalog = String.join(",", specs);
+         if (!catalog.equals(CONTROL_CENTER_TILE_CATALOG_LAST)) {
+             CONTROL_CENTER_TILE_CATALOG_LAST = catalog;
+@@ -2187,6 +2202,18 @@ public final class SystemUiHooks {
+         return catalog;
+     }
+ 
++    private static String nativeTileStock(Object source, String accessor) {
++        if (source == null) return "";
++        try {
++            Method method = findMethod(source.getClass(), accessor, new Class<?>[] {});
++            Object value = method == null ? null : method.invoke(source);
++            return value instanceof String stock ? stock.trim() : "";
++        } catch (Throwable ignored) {
++            // The plugin fallback remains usable while a newer host accessor is unavailable.
++            return "";
++        }
++    }
++
+     private static void appendNativeTileCatalogValue(Object value, Set<String> specs) {
+         if (value instanceof Iterable<?> records) {
+             for (Object record : records) appendNativeTileCatalogRecord(record, specs);
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlassSoftEdgeRegressionTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlassSoftEdgeRegressionTest.java
+index 5dcb804..f997f77 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlassSoftEdgeRegressionTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlassSoftEdgeRegressionTest.java
+@@ -67,6 +67,41 @@ public class ControlCenterGlassSoftEdgeRegressionTest {
+         assertSoftReflection(true);
+     }
+ 
++    @Test public void automaticGlassFadesToTheBodyWithoutASecondDarkContour() {
++        for (boolean night : new boolean[] {false, true}) {
++            for (int body : new int[] {BODY, 0xfff5f6f8}) {
++                for (float radius : new float[] {24f, HEIGHT / 2f, 1000f}) {
++                    FrameLayout surface = new FrameLayout(context(night));
++                    configure(surface);
++                    GradientDrawable background = (GradientDrawable) surface.getBackground();
++                    background.setColor(body);
++                    background.setCornerRadius(radius);
++                    if (radius == 1000f) background.setShape(GradientDrawable.OVAL);
++                    float density = surface.getResources().getDisplayMetrics().density;
++                    surface.getResources().getDisplayMetrics().density = 3f;
++                    Bitmap original = draw(surface);
++                    ControlCenterSoftGlass.apply(surface, ControlCenterSurface.HIGHLIGHT_GLASS, true, 100);
++                    Bitmap reflected = draw(surface);
++                    try {
++                        for (int depth = 1; depth <= 20; depth++) {
++                            int before = original.getPixel(depth, HEIGHT / 2);
++                            int after = reflected.getPixel(depth, HEIGHT / 2);
++                            assertTrue("An inset shade must not form a second contour; night=" + night
++                                            + " body=" + Integer.toHexString(body) + " depth=" + depth,
++                                    Color.red(after) >= Color.red(before)
++                                            && Color.green(after) >= Color.green(before)
++                                            && Color.blue(after) >= Color.blue(before));
++                        }
++                    } finally {
++                        original.recycle(); reflected.recycle();
++                        ControlCenterSoftGlass.apply(surface, false, 0);
++                        surface.getResources().getDisplayMetrics().density = density;
++                    }
++                }
++            }
++        }
++    }
++
+     @Test public void zeroStrengthAndDisablingRestoreTheUnpaintedEdgeWithoutChangingContent() {
+         for (boolean night : new boolean[] {false, true}) {
+             FrameLayout surface = new FrameLayout(context(night));
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java
+index fad4c93..7a15354 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterGlobalTileAvailabilityTest.java
+@@ -40,6 +40,65 @@ public class ControlCenterGlobalTileAvailabilityTest {
+         assertFalse(available.contains("custom_5g"));
+     }
+ 
++    @Test public void capturedHostStockTilesEnterTheAddListWithoutBeingInTheVisibleLayout() throws Exception {
++        launch("");
++        strings("controlCenterNativeCatalog").addAll(List.of("aitranslate", "aisubtitles", "modes_dnd"));
++
++        List<String> available = candidates();
++        assertTrue(available.contains("aitranslate"));
++        assertTrue(available.contains("aisubtitles"));
++        assertTrue(available.contains("modes_dnd"));
++        assertFalse(activity.editorSession().draft().layoutPlan.contains("aitranslate"));
++        assertFalse(activity.editorSession().draft().layoutPlan.contains("aisubtitles"));
++        assertFalse(activity.editorSession().draft().layoutPlan.contains("modes_dnd"));
++    }
++
++    @Test public void hostTranslationAndCaptionTilesHaveRecognizableLabelsWhileUnknownSpecsStayUnchanged() throws Exception {
++        launch("");
++
++        assertEquals("翻译", activity.tileLabel("aitranslate"));
++        assertEquals("实时字幕", activity.tileLabel("aisubtitles"));
++        assertEquals("模式", activity.tileLabel("dnd"));
++        assertEquals("勿扰", activity.tileLabel("modes_dnd"));
++        assertEquals("oem_new_toggle", activity.tileLabel("oem_new_toggle"));
++    }
++
++    @Test public void capturedSystemLabelOverridesTheFallbackWithoutChangingTheNativeSpec() throws Exception {
++        launch("");
++        ControlCenterCapturedStyle style = new ControlCenterCapturedStyle(
++                ControlCenterLayoutPlan.Shape.CIRCLE, 0, 1, "原生模式", "", -1, null);
++        String capture = new org.json.JSONObject().put("version", 3)
++                .put("bounds", "v1|360|800|ZG5k,0,0,80,80")
++                .put("styles", new org.json.JSONObject().put("dnd", style.toJson())).toString();
++        ((ControlCenterActualEditor) field("controlCenterActualPreview")).setPreview(null, capture);
++
++        assertEquals("原生模式", activity.tileLabel("dnd"));
++    }
++
++    @Test public void capturedConnectionStateKeepsStableTitlesWhileNativeOnlyTilesKeepTheirHostLabels() throws Exception {
++        launch("");
++        String[] specs = {"wifi", "bt", "dnd", "oem_new_toggle"};
++        String[] labels = {"Home network", "Buds device", "原生模式", "原生传感器"};
++        org.json.JSONObject styles = new org.json.JSONObject();
++        StringBuilder bounds = new StringBuilder("v1|360|800");
++        for (int i = 0; i < specs.length; i++) {
++            ControlCenterCapturedStyle style = new ControlCenterCapturedStyle(
++                    ControlCenterLayoutPlan.Shape.CIRCLE, 0, 1, labels[i], "", -1, null);
++            styles.put(specs[i], style.toJson());
++            String encoded = android.util.Base64.encodeToString(
++                    specs[i].getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
++            bounds.append('|').append(encoded).append(',').append(i * 80).append(",0,80,80");
++        }
++        String capture = new org.json.JSONObject().put("version", 3)
++                .put("bounds", bounds.toString()).put("styles", styles).toString();
++        ((ControlCenterActualEditor) field("controlCenterActualPreview")).setPreview(null, capture);
++
++        assertEquals("Wi-Fi", activity.tileLabel("wifi"));
++        assertEquals("蓝牙", activity.tileLabel("bt"));
++        assertEquals("原生模式", activity.tileLabel("dnd"));
++        assertEquals("原生传感器", activity.tileLabel("oem_new_toggle"));
++    }
++
+     @Test public void moduleOwnedFiveGSwitchAddsAndRemovesTheTileFromTheCatalog() throws Exception {
+         launch("");
+         Dialog panel = openPanel();
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAvailabilityTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAvailabilityTest.java
+index 8674f96..5114340 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAvailabilityTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/ControlCenterRuntimeAvailabilityTest.java
+@@ -171,6 +171,90 @@ public class ControlCenterRuntimeAvailabilityTest {
+         assertEquals(1, adapter.qsListController.addedTiles.size());
+     }
+ 
++    @Test public void stockTileMissingFromMiuiFactoryUsesTheSystemUiFactoryReusedAndReleased() {
++        StockController controller = new StockController();
++        adapter.qsListController.qsController = controller;
++        var selected = ControlCenterLayoutPlan.Item.tile("modes_dnd", 0, 0, 1, 1);
++        var settings = config(List.of(selected));
++
++        assertTrue(apply(settings));
++        StockFactory factory = controller.host.interactor.tileFactory;
++        assertEquals(List.of("modes_dnd"), factory.created);
++        assertEquals("modes_dnd", factory.tile.spec);
++        assertEquals(10, factory.tile.user);
++        assertEquals(1, factory.tile.refreshed);
++        assertEquals("modes_dnd", installed().get(0).firstSpec);
++        adapter.redistribute(false);
++        assertTrue(apply(settings));
++        assertEquals(1, factory.created.size());
++        assertEquals(0, factory.tile.destroyed);
++        ControlCenterRuntimeGrid.clear(adapter, false);
++        assertEquals(1, factory.tile.destroyed);
++        assertEquals(1, adapter.qsListController.addedTiles.size());
++    }
++
++    @Test public void systemFactoryTileIsDestroyedWhenItsInitializationFails() {
++        StockController controller = new StockController();
++        controller.host.interactor.tileFactory.failRefresh = true;
++        adapter.qsListController.qsController = controller;
++
++        assertFalse(apply(config(List.of(ControlCenterLayoutPlan.Item.tile("modes_dnd", 0, 0, 1, 1)))));
++        assertNotNull(controller.host.interactor.tileFactory.tile);
++        assertEquals(1, controller.host.interactor.tileFactory.tile.destroyed);
++        assertFalse(ControlCenterRuntimeGrid.isActive(adapter));
++        assertEquals(1, adapter.qsListController.addedTiles.size());
++    }
++
++    @Test public void failingMiuiFactoryStillFallsBackToSupportedStockFactory() {
++        StockController controller = new StockController();
++        controller.failPrimary = true;
++        adapter.qsListController.qsController = controller;
++
++        assertTrue(apply(config(List.of(ControlCenterLayoutPlan.Item.tile("modes_dnd", 0, 0, 1, 1)))));
++        assertEquals(List.of("modes_dnd"), controller.host.interactor.tileFactory.created);
++    }
++
++    @Test public void systemFactoryFallbackDoesNotCreateUndeclaredOrCustomTiles() {
++        StockController controller = new StockController();
++        adapter.qsListController.qsController = controller;
++        assertFalse(apply(config(List.of(ControlCenterLayoutPlan.Item.tile("oem_missing", 0, 0, 1, 1)))));
++        String application = "custom(com.example.missing/.tile)";
++        controller.host.interactor.tileFactory.mTileMap.put(application, new Object());
++        assertFalse(apply(config(List.of(ControlCenterLayoutPlan.Item.tile(application, 0, 0, 1, 1)))));
++        assertTrue(controller.host.interactor.tileFactory.created.isEmpty());
++    }
++
++    public static final class StockController {
++        public final StockHost host = new StockHost();
++        boolean failPrimary;
++        public Object createTile(String spec) { if (failPrimary) throw new IllegalStateException("Miui factory failed"); return null; }
++    }
++    public static final class StockHost {
++        public final StockInteractor interactor = new StockInteractor();
++        public int getUserId() { return 10; }
++    }
++    public static final class StockInteractor {
++        public final StockFactory tileFactory = new StockFactory();
++    }
++    public static final class StockFactory {
++        final List<String> created = new ArrayList<>();
++        public final java.util.Map<String, Object> mTileMap = new LinkedHashMap<>(java.util.Map.of("modes_dnd", new Object()));
++        boolean failRefresh;
++        StockTile tile;
++        public StockTile createTile(String spec) { created.add(spec); tile = new StockTile(failRefresh); return tile; }
++    }
++    public static final class StockTile {
++        String spec;
++        int user = -1, refreshed, destroyed;
++        final boolean failRefresh;
++        StockTile(boolean failRefresh) { this.failRefresh = failRefresh; }
++        public void setTileSpec(String value) { spec = value; }
++        public void userSwitch(int value) { user = value; }
++        public void refreshState() { if (failRefresh) throw new IllegalStateException("Cannot refresh tile"); refreshed++; }
++        public void destroy() { destroyed++; }
++        @Override public String toString() { return spec; }
++    }
++
+     public static final class AppController {
+         int created; AppTile tile;
+         public AppTile createTile(String spec) { created++; tile = new AppTile(spec); return tile; }
+diff --git a/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java b/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java
+index b799f8c..ba6233f 100644
+--- a/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java
++++ b/app/src/test/java/com/xtjm/fusionstatusbar/FusionConfigTest.java
+@@ -333,7 +333,7 @@ public class FusionConfigTest {
+                 .withHidden("screenrecord");
+ 
+         assertEquals("wifi,custom(com.miui.screenrecorder/.service.quickservice),mute,"
+-                + "quietmode,batterysaver,gps", control.order);
++                + "dnd,batterysaver,gps", control.order);
+         assertTrue(control.isHidden("custom(com.miui.screenrecorder/.service.QuickService)"));
+     }
+ 

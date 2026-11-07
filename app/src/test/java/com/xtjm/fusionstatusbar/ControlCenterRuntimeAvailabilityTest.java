@@ -171,6 +171,90 @@ public class ControlCenterRuntimeAvailabilityTest {
         assertEquals(1, adapter.qsListController.addedTiles.size());
     }
 
+    @Test public void stockTileMissingFromMiuiFactoryUsesTheSystemUiFactoryReusedAndReleased() {
+        StockController controller = new StockController();
+        adapter.qsListController.qsController = controller;
+        var selected = ControlCenterLayoutPlan.Item.tile("modes_dnd", 0, 0, 1, 1);
+        var settings = config(List.of(selected));
+
+        assertTrue(apply(settings));
+        StockFactory factory = controller.host.interactor.tileFactory;
+        assertEquals(List.of("modes_dnd"), factory.created);
+        assertEquals("modes_dnd", factory.tile.spec);
+        assertEquals(10, factory.tile.user);
+        assertEquals(1, factory.tile.refreshed);
+        assertEquals("modes_dnd", installed().get(0).firstSpec);
+        adapter.redistribute(false);
+        assertTrue(apply(settings));
+        assertEquals(1, factory.created.size());
+        assertEquals(0, factory.tile.destroyed);
+        ControlCenterRuntimeGrid.clear(adapter, false);
+        assertEquals(1, factory.tile.destroyed);
+        assertEquals(1, adapter.qsListController.addedTiles.size());
+    }
+
+    @Test public void systemFactoryTileIsDestroyedWhenItsInitializationFails() {
+        StockController controller = new StockController();
+        controller.host.interactor.tileFactory.failRefresh = true;
+        adapter.qsListController.qsController = controller;
+
+        assertFalse(apply(config(List.of(ControlCenterLayoutPlan.Item.tile("modes_dnd", 0, 0, 1, 1)))));
+        assertNotNull(controller.host.interactor.tileFactory.tile);
+        assertEquals(1, controller.host.interactor.tileFactory.tile.destroyed);
+        assertFalse(ControlCenterRuntimeGrid.isActive(adapter));
+        assertEquals(1, adapter.qsListController.addedTiles.size());
+    }
+
+    @Test public void failingMiuiFactoryStillFallsBackToSupportedStockFactory() {
+        StockController controller = new StockController();
+        controller.failPrimary = true;
+        adapter.qsListController.qsController = controller;
+
+        assertTrue(apply(config(List.of(ControlCenterLayoutPlan.Item.tile("modes_dnd", 0, 0, 1, 1)))));
+        assertEquals(List.of("modes_dnd"), controller.host.interactor.tileFactory.created);
+    }
+
+    @Test public void systemFactoryFallbackDoesNotCreateUndeclaredOrCustomTiles() {
+        StockController controller = new StockController();
+        adapter.qsListController.qsController = controller;
+        assertFalse(apply(config(List.of(ControlCenterLayoutPlan.Item.tile("oem_missing", 0, 0, 1, 1)))));
+        String application = "custom(com.example.missing/.tile)";
+        controller.host.interactor.tileFactory.mTileMap.put(application, new Object());
+        assertFalse(apply(config(List.of(ControlCenterLayoutPlan.Item.tile(application, 0, 0, 1, 1)))));
+        assertTrue(controller.host.interactor.tileFactory.created.isEmpty());
+    }
+
+    public static final class StockController {
+        public final StockHost host = new StockHost();
+        boolean failPrimary;
+        public Object createTile(String spec) { if (failPrimary) throw new IllegalStateException("Miui factory failed"); return null; }
+    }
+    public static final class StockHost {
+        public final StockInteractor interactor = new StockInteractor();
+        public int getUserId() { return 10; }
+    }
+    public static final class StockInteractor {
+        public final StockFactory tileFactory = new StockFactory();
+    }
+    public static final class StockFactory {
+        final List<String> created = new ArrayList<>();
+        public final java.util.Map<String, Object> mTileMap = new LinkedHashMap<>(java.util.Map.of("modes_dnd", new Object()));
+        boolean failRefresh;
+        StockTile tile;
+        public StockTile createTile(String spec) { created.add(spec); tile = new StockTile(failRefresh); return tile; }
+    }
+    public static final class StockTile {
+        String spec;
+        int user = -1, refreshed, destroyed;
+        final boolean failRefresh;
+        StockTile(boolean failRefresh) { this.failRefresh = failRefresh; }
+        public void setTileSpec(String value) { spec = value; }
+        public void userSwitch(int value) { user = value; }
+        public void refreshState() { if (failRefresh) throw new IllegalStateException("Cannot refresh tile"); refreshed++; }
+        public void destroy() { destroyed++; }
+        @Override public String toString() { return spec; }
+    }
+
     public static final class AppController {
         int created; AppTile tile;
         public AppTile createTile(String spec) { created++; tile = new AppTile(spec); return tile; }
