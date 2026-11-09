@@ -65,7 +65,8 @@ public class ControlCenter5GTileViewTest {
         activity.finish();
     }
 
-    @Test public void moduleTileRendersNetworkStateAndOperatesWithoutNativeQuickSettingsTile() {
+    @Test @Config(qualifiers = "zh-rCN")
+    public void moduleTileRendersNetworkStateAndOperatesWithoutNativeQuickSettingsTile() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         FakeRadio radio = new FakeRadio();
         ControlCenter5GTileView tile = new ControlCenter5GTileView(activity,

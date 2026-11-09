@@ -87,7 +87,7 @@ final class ControlCenterWallpaperWorkspace {
             return insets;
         });
         workspace.setBackgroundResource(R.drawable.control_center_canvas_background);
-        workspace.setContentDescription("控制中心编辑画布");
+        workspace.setContentDescription(tr(R.string.ui_control_workspace_canvas));
         TextView heading = new TextView(activity);
         heading.setText(title);
         heading.setTextSize(20);
@@ -101,8 +101,8 @@ final class ControlCenterWallpaperWorkspace {
                 new ScrollView.LayoutParams(-1, -2));
         workspace.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout actions = new LinearLayout(activity);
-        addButton(actions, "撤销", undo);
-        addButton(actions, "返回设置", this::close);
+        addButton(actions, tr(R.string.ui_control_workspace_undo), undo);
+        addButton(actions, tr(R.string.ui_control_workspace_return_settings), this::close);
         workspace.addView(actions, new LinearLayout.LayoutParams(-1, -2));
         content.addView(workspace, new ViewGroup.LayoutParams(-1, -1));
         workspace.requestApplyInsets();
@@ -193,4 +193,8 @@ final class ControlCenterWallpaperWorkspace {
         } else row.addView(button, new LinearLayout.LayoutParams(0, dp(52), 1));
     }
     private int dp(int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
+
+    private String tr(int resource, Object... args) {
+        return ModuleStrings.get(activity, resource, args);
+    }
 }

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">設定備份與還原</string>
+    <string name="backup_export">匯出設定</string>
+    <string name="backup_import">匯入設定</string>
+    <string name="backup_undo">復原上次還原</string>
+    <string name="backup_cancel">取消</string>
+    <string name="backup_restore">還原</string>
+    <string name="backup_enabled">已開啟</string>
+    <string name="backup_disabled">已關閉</string>
+    <string name="backup_busy">處理中，請稍候</string>
+    <string name="backup_exported">設定已匯出</string>
+    <string name="backup_export_failed">設定匯出失敗，請重新選擇儲存位置</string>
+    <string name="backup_import_invalid">設定檔無效、過大或版本不相容，目前設定未變更</string>
+    <string name="backup_restore_confirmation">還原完整設定</string>
+    <string name="backup_preview">圖示比例：%1$d%%\n描邊比例：%2$d%%\n狀態列高度：%3$d dp\n控制中心欄數：%4$d\n控制中心自訂：%5$s\n\n將取代狀態列、通知欄和控制中心的全部設定。還原前會自動備份目前設定。</string>
+    <string name="backup_keep_draft">未推送的控制中心草稿將保留。</string>
+    <string name="backup_undo_confirmation">將還原至上次匯入前的完整設定，取代目前設定。未推送的控制中心草稿將保留。只能復原一次。</string>
+    <string name="backup_undo_unavailable">沒有可復原的還原記錄</string>
+    <string name="backup_wait_for_save">正在儲存目前變更，請儲存完成後再還原</string>
+    <string name="backup_restored">設定已還原，等待系統套用</string>
+    <string name="backup_restore_failed">還原失敗，目前設定已保留，請重試</string>
+    <string name="backup_picker_unavailable">無法開啟檔案選擇器</string>
+    <string name="preset_title">版面預設</string>
+    <string name="preset_save_current">將目前草稿儲存為預設</string>
+    <string name="preset_manage">管理預設</string>
+    <string name="preset_name">預設名稱</string>
+    <string name="preset_save">儲存</string>
+    <string name="preset_load">載入草稿</string>
+    <string name="preset_rename">重新命名</string>
+    <string name="preset_copy">複製</string>
+    <string name="preset_delete">刪除</string>
+    <string name="preset_delete_confirmation">要刪除預設「%1$s」嗎？</string>
+    <string name="preset_saved">預設已儲存</string>
+    <string name="preset_loaded">預設已載入草稿</string>
+    <string name="preset_deleted">預設已刪除</string>
+    <string name="preset_empty">尚無已儲存的預設</string>
+    <string name="preset_invalid_name">請輸入 1 至 40 字的有效名稱</string>
+    <string name="preset_duplicate_name">已有同名預設，請使用其他名稱</string>
+    <string name="preset_limit">最多可儲存 24 個預設</string>
+    <string name="preset_read_failed">預設讀取失敗，原有預設已保留</string>
+    <string name="preset_write_failed">預設儲存失敗，原有預設已保留</string>
+</resources>

@@ -342,7 +342,8 @@ public class ControlCenterGroupViewTest {
         view.layout(0, 0, width, height);
     }
 
-    @Test public void groupPropertiesRenderInBothThemesAndValidateManualEdits() throws Exception {
+    @Test @Config(qualifiers = "zh-rCN-w400dp-h900dp-mdpi")
+    public void groupPropertiesRenderInBothThemesAndValidateManualEdits() throws Exception {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         for (boolean dark : new boolean[] {false, true}) {
             final ControlCenterLayoutPlan.Item[] item = {ControlCenterLayoutPlan.Item.group("group:test",

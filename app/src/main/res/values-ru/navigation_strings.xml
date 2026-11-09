@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_desktop">Рабочий стол</string>
+    <string name="navigation_status">Статус</string>
+    <string name="navigation_notifications">Уведомления</string>
+    <string name="navigation_controls">Панель</string>
+    <string name="navigation_misc">Прочее</string>
+    <string name="navigation_settings">Настройки</string>
+</resources>

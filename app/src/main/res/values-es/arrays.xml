@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="desktop_gesture_actions">
+        <item>@string/desktop_action_none</item>
+        <item>@string/desktop_action_notifications</item>
+        <item>@string/desktop_action_quick_settings</item>
+        <item>@string/desktop_action_lock_device</item>
+        <item>@string/desktop_action_sleep</item>
+        <item>@string/desktop_action_screenshot</item>
+        <item>@string/desktop_action_recents</item>
+        <item>@string/desktop_action_power_menu</item>
+        <item>@string/desktop_action_sidebar</item>
+        <item>@string/desktop_action_launch_app</item>
+        <item>@string/desktop_action_launch_shortcut</item>
+        <item>@string/desktop_action_launch_activity</item>
+        <item>@string/desktop_action_toggle</item>
+        <item>@string/desktop_action_clear_memory</item>
+        <item>@string/desktop_action_one_handed</item>
+        <item>@string/desktop_action_clear_notifications</item>
+    </string-array>
+    <string-array name="desktop_toggle_actions">
+        <item>Wi-Fi</item>
+        <item>Bluetooth</item>
+        <item>Ubicación</item>
+        <item>NFC</item>
+        <item>Perfil de sonido</item>
+        <item>Brillo automático</item>
+        <item>Giro automático</item>
+        <item>Linterna</item>
+        <item>Datos móviles</item>
+        <item>Punto de acceso</item>
+        <item>No molestar</item>
+        <item>Modo nocturno</item>
+    </string-array>
+    <string-array name="telemetry_positions">
+        <item>Izquierda, primera fila</item>
+        <item>Izquierda, segunda fila</item>
+        <item>Derecha, primera fila</item>
+        <item>Derecha, segunda fila</item>
+    </string-array>
+</resources>

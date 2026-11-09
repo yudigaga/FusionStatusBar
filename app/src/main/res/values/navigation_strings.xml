@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_desktop">桌面</string>
+    <string name="navigation_status">状态栏</string>
+    <string name="navigation_notifications">通知栏</string>
+    <string name="navigation_controls">控制中心</string>
+    <string name="navigation_misc">杂项</string>
+    <string name="navigation_settings">设置</string>
+</resources>

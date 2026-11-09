@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_main_00188fe7a9" formatted="false">&quot;サイレントモード&quot;</string>
+    <string name="ui_main_00fe42e992" formatted="false">&quot; · 未確認&quot;</string>
+    <string name="ui_main_0194696b2b" formatted="false">&quot;サイレント&quot;</string>
+    <string name="ui_main_01f2c16cda" formatted="false">&quot;デバイス&quot;</string>
+    <string name="ui_main_03038853a8" formatted="false">&quot;アプリのショートカットタイル&quot;</string>
+    <string name="ui_main_03e973a353" formatted="false">&quot;システムの時刻&quot;</string>
+    <string name="ui_main_04a189e0d0" formatted="false">&quot;利用可能なタイルを読み込み中&quot;</string>
+    <string name="ui_main_05c46fa3b7" formatted="false">&quot;下に移動&quot;</string>
+    <string name="ui_main_0846bb3699" formatted="false">&quot;モジュールのメンテナンス&quot;</string>
+    <string name="ui_main_0a4e6bb96b" formatted="false">&quot; 行&quot;</string>
+    <string name="ui_main_0c1893535c" formatted="false">&quot;スクリーンショットを自動でクリップボードにコピーし、セキュリティサービスによる無効化を防ぎます。LSPosed のシステムスコープを有効にして端末を再起動してください&quot;</string>
+    <string name="ui_main_0e9fb13a08" formatted="false">&quot;カスタマイズはオフです。適用後は標準レイアウトを使用します。スイッチをオンにするとキャンバスの設定を適用できます。&quot;</string>
+    <string name="ui_main_10045df8c9" formatted="false">&quot;スクリーンショットをクリップボードに自動コピー&quot;</string>
+    <string name="ui_main_117bac1e45" formatted="false">&quot;バイブレーション&quot;</string>
+    <string name="ui_main_11a77556d9" formatted="false">&quot;グループカード · 2つのタイルを結合&quot;</string>
+    <string name="ui_main_14c6fc4c9c" formatted="false">&quot;実際のレイアウトの参考画像を閉じる&quot;</string>
+    <string name="ui_main_16ffe4d1e6" formatted="false">&quot;最近のモジュールログを出力して問題を調査します&quot;</string>
+    <string name="ui_main_1a1f6dff78" formatted="false">&quot;システム&quot;</string>
+    <string name="ui_main_1a55548023" formatted="false">&quot;2段表示、要素の配置、ステータスバー全体の高さ&quot;</string>
+    <string name="ui_main_1f251c8a07" formatted="false">&quot;その他&quot;</string>
+    <string name="ui_main_21060eb7c7" formatted="false">&quot;タップでプロパティを表示 · 長押しで編集・移動 · 状態はサンプルです&quot;</string>
+    <string name="ui_main_2132740e22" formatted="false">&quot;コンパクトレイアウト · 壁紙キャンバス&quot;</string>
+    <string name="ui_main_21559f1bdf" formatted="false">&quot;カスタム形式 · &quot;</string>
+    <string name="ui_main_21eb350372" formatted="false">&quot;オンにするとレイアウトを編集でき、適用すると端末に反映されます&quot;</string>
+    <string name="ui_main_2226343fe1" formatted="false">&quot;項目の重複、重なり、または範囲外の配置があるため適用できません&quot;</string>
+    <string name="ui_main_23141370a4" formatted="false">&quot;翻訳&quot;</string>
+    <string name="ui_main_240e63fd16" formatted="false">&quot;セキュリティアプリの拡張 · 13.8.0&quot;</string>
+    <string name="ui_main_255a39f160" formatted="false">&quot;システムの時刻を使用&quot;</string>
+    <string name="ui_main_27f2e31b49" formatted="false">&quot;夜間表示&quot;</string>
+    <string name="ui_main_28c081a127" formatted="false">&quot;利用可能なタイルが2つ以上必要です&quot;</string>
+    <string name="ui_main_2ae991695d" formatted="false">&quot;1段&quot;</string>
+    <string name="ui_main_2fae1be172" formatted="false">&quot; · システム&quot;</string>
+    <string name="ui_main_2fda065bcd" formatted="false">&quot;取得中です。端末のコントロールセンターを一度開いてから戻ってください&quot;</string>
+    <string name="ui_main_32019b6351" formatted="false">&quot;その他 ···&quot;</string>
+    <string name="ui_main_3285a90ceb" formatted="false">&quot;今回の起動後、システムUIの接続記録はまだありません&quot;</string>
+    <string name="ui_main_3351f422ba" formatted="false">&quot;% · 角丸 &quot;</string>
+    <string name="ui_main_34026cfe7c" formatted="false">&quot;モバイルデータ&quot;</string>
+    <string name="ui_main_353e6b73fd" formatted="false">&quot;大 2×2&quot;</string>
+    <string name="ui_main_3631b84ff7" formatted="false">&quot; 項目を表示&quot;</string>
+    <string name="ui_main_36b147975c" formatted="false">&quot;現在のグリッドは空です&quot;</string>
+    <string name="ui_main_3721efa12a" formatted="false">&quot;下へ 0 dp&quot;</string>
+    <string name="ui_main_3771dd6baa" formatted="false">&quot;アプリの起動&quot;</string>
+    <string name="ui_main_385948af8e" formatted="false">&quot; · 参考レイアウトにありません&quot;</string>
+    <string name="ui_main_3b3dedd8c5" formatted="false">&quot;モジュールの状態&quot;</string>
+    <string name="ui_main_3c4065adbc" formatted="false">&quot;インターフェース&quot;</string>
+    <string name="ui_main_3d28ab41be" formatted="false">&quot;キャンバスにインポート&quot;</string>
+    <string name="ui_main_3de3f46c53" formatted="false">&quot; dp · 間隔 &quot;</string>
+    <string name="ui_main_4594a416f9" formatted="false">&quot;コンポーネント · &quot;</string>
+    <string name="ui_main_4650ff1bf5" formatted="false">&quot;編集用の下書きにインポートしました。適用ボタンを押すと端末に反映されます&quot;</string>
+    <string name="ui_main_471daad874" formatted="false">&quot;カスタム形式&quot;</string>
+    <string name="ui_main_477bf50991" formatted="false">&quot;標準 1×1&quot;</string>
+    <string name="ui_main_4d18f3e7b1" formatted="false">&quot;システムのコントロールセンターの行高を使用します&quot;</string>
+    <string name="ui_main_4e6ae50756" formatted="false">&quot;復元リクエストを送信しました。システム上の実際のレイアウトを確認してください&quot;</string>
+    <string name="ui_main_4ed766e0c3" formatted="false">&quot;インターネット&quot;</string>
+    <string name="ui_main_4fb9a43221" formatted="false">&quot;ステータスバーと通知パネルのカスタム設定を削除します&quot;</string>
+    <string name="ui_main_4fcaa2ab50" formatted="false">&quot;ポータブルホットスポット&quot;</string>
+    <string name="ui_main_58c6737aa3" formatted="false">&quot;状態を未取得&quot;</string>
+    <string name="ui_main_599fbf62ae" formatted="false">&quot;機内モード&quot;</string>
+    <string name="ui_main_59e23b09ad" formatted="false">&quot;行全体 &quot;</string>
+    <string name="ui_main_5b0acd185d" formatted="false">&quot; 分&quot;</string>
+    <string name="ui_main_5d75da382f" formatted="false">&quot;検出したすべてのシステム・アプリのショートカットタイルを管理します。標準とコンパクトの両レイアウトに適用されます。オフにした項目は表示されず、追加一覧にも出ませんが、この一覧に残るため再度有効にできます。編集用の下書きのみを変更し、適用後にコントロールセンターへ反映します。Wi-Fi や Bluetooth などの機能自体は切り替えません。&quot;</string>
+    <string name="ui_main_605a85c998" formatted="false">&quot;アプリ通知&quot;</string>
+    <string name="ui_main_6164fd65d1" formatted="false">&quot;Wi-Fi、モバイルネットワーク、バッテリー残量を統合して表示します&quot;</string>
+    <string name="ui_main_65f7a7975a" formatted="false">&quot;NFC&quot;</string>
+    <string name="ui_main_65fdeb927b" formatted="false">&quot;ホーム画面&quot;</string>
+    <string name="ui_main_65fe35c45e" formatted="false">&quot;接続済み&quot;</string>
+    <string name="ui_main_676c2ba1b3" formatted="false">&quot;復元リクエストを保存しました。コントロールセンターを開いて実際のレイアウトを取得・確認してください&quot;</string>
+    <string name="ui_main_69b1b1b09f" formatted="false">&quot;標準とコンパクトの両レイアウトに適用&quot;</string>
+    <string name="ui_main_6f65927fa3" formatted="false">&quot;コンポーネントの形状 · &quot;</string>
+    <string name="ui_main_70870457f5" formatted="false">&quot;未反映の変更はありません&quot;</string>
+    <string name="ui_main_714b4caceb" formatted="false">&quot;実際のレイアウトの参考画像&quot;</string>
+    <string name="ui_main_715c9f42d2" formatted="false">&quot;レイアウトをまだ取得していません&quot;</string>
+    <string name="ui_main_72c625be82" formatted="false">&quot; 列 · &quot;</string>
+    <string name="ui_main_7390e5e477" formatted="false">&quot;画面点灯時間の表示単位&quot;</string>
+    <string name="ui_main_75c60a4d4b" formatted="false">&quot;空のグループカード&quot;</string>
+    <string name="ui_main_774975835a" formatted="false">&quot;サイズ &quot;</string>
+    <string name="ui_main_77836d3a99" formatted="false">&quot;その他の操作&quot;</string>
+    <string name="ui_main_780ff71c8f" formatted="false">&quot;Wi-Fi&quot;</string>
+    <string name="ui_main_7addf666d5" formatted="false">&quot;タイルはありません&quot;</string>
+    <string name="ui_main_7dceb1f7f9" formatted="false">&quot;システムとその他のタイル&quot;</string>
+    <string name="ui_main_7debf9cb03" formatted="false">&quot;設定&quot;</string>
+    <string name="ui_main_7eb2141d59" formatted="false">&quot; · 天気を表示&quot;</string>
+    <string name="ui_main_7f859d93c4" formatted="false">&quot;タイルの全体スイッチ&quot;</string>
+    <string name="ui_main_84c5bdd621" formatted="false">&quot;画面回転をロック&quot;</string>
+    <string name="ui_main_84fbaa22a0" formatted="false">&quot;タイルの形状&quot;</string>
+    <string name="ui_main_851cdd6091" formatted="false">&quot;右&quot;</string>
+    <string name="ui_main_8766c4e8d4" formatted="false">&quot;画面録画&quot;</string>
+    <string name="ui_main_8872ba182f" formatted="false">&quot;確認中&quot;</string>
+    <string name="ui_main_88c34452cc" formatted="false">&quot;位置情報&quot;</string>
+    <string name="ui_main_8a0c839791" formatted="false">&quot;上に移動&quot;</string>
+    <string name="ui_main_8bf6bd9db8" formatted="false">&quot;端末の現在のレイアウトを参考として取得したり、キャンバスに読み込んで編集を続けたりできます。&quot;</string>
+    <string name="ui_main_8c2366a96d" formatted="false">&quot;アプリ間起動の確認を省略&quot;</string>
+    <string name="ui_main_8d7f1e739e" formatted="false">&quot;ぼかし&quot;</string>
+    <string name="ui_main_8f1079b06e" formatted="false">&quot;自動回転&quot;</string>
+    <string name="ui_main_90630ac933" formatted="false">&quot;占有するグリッドの列数&quot;</string>
+    <string name="ui_main_91ab2e741b" formatted="false">&quot;すりガラスのフローティング下部バー&quot;</string>
+    <string name="ui_main_93ea900ab4" formatted="false">&quot;実際のプレビューを SystemUI にリクエストできませんでした&quot;</string>
+    <string name="ui_main_96f9752b2d" formatted="false">&quot;項目を追加&quot;</string>
+    <string name="ui_main_9806241d7d" formatted="false">&quot;現在のキャンバスを空にする&quot;</string>
+    <string name="ui_main_9bed17eabd" formatted="false">&quot;スクリーンショット&quot;</string>
+    <string name="ui_main_9d5e6a41e6" formatted="false">&quot;現在このサービスは見つかりません。復元用に設定を保持します&quot;</string>
+    <string name="ui_main_a0e635b985" formatted="false">&quot;モバイルネットワーク&quot;</string>
+    <string name="ui_main_a0fb38c3ab" formatted="false">&quot;レイアウトキャンバス&quot;</string>
+    <string name="ui_main_a42059d828" formatted="false">&quot;システムの時刻と日付を使用&quot;</string>
+    <string name="ui_main_a59a4239b0" formatted="false">&quot;温度、電力、電流、リアルタイム通信速度&quot;</string>
+    <string name="ui_main_a6caf2effb" formatted="false">&quot;下&quot;</string>
+    <string name="ui_main_a773c162e2" formatted="false">&quot;実際のレイアウトにインポートできる項目がありません&quot;</string>
+    <string name="ui_main_a7f814c0a4" formatted="false">&quot;編集&quot;</string>
+    <string name="ui_main_a875081e2b" formatted="false">&quot;横幅&quot;</string>
+    <string name="ui_main_a98663f918" formatted="false">&quot;設定がまだ読み込まれていません。もう一度お試しください&quot;</string>
+    <string name="ui_main_abb84a8cf5" formatted="false">&quot;標準レイアウト · 壁紙キャンバス&quot;</string>
+    <string name="ui_main_abdc9f414f" formatted="false">&quot;未反映のコントロールセンターの変更はありません&quot;</string>
+    <string name="ui_main_ac8a8db039" formatted="false">&quot;自動字幕起こし&quot;</string>
+    <string name="ui_main_afdbd1ddec" formatted="false">&quot;ミュート&quot;</string>
+    <string name="ui_main_b07eaccec9" formatted="false">&quot;モバイルネットワークのみ&quot;</string>
+    <string name="ui_main_b1eea7b855" formatted="false">&quot;有効化済み&quot;</string>
+    <string name="ui_main_b35ef53715" formatted="false">&quot;明るさの自動調整&quot;</string>
+    <string name="ui_main_b4660eb8eb" formatted="false">&quot; · 統合&quot;</string>
+    <string name="ui_main_b6161f4bd6" formatted="false">&quot;システム元来のサイズに戻す&quot;</string>
+    <string name="ui_main_b6f86d3938" formatted="false">&quot;端末情報&quot;</string>
+    <string name="ui_main_b7703abc36" formatted="false">&quot; 項目を非表示&quot;</string>
+    <string name="ui_main_b967ce841a" formatted="false">&quot;上&quot;</string>
+    <string name="ui_main_b98bfe0065" formatted="false">&quot;% · 太さ &quot;</string>
+    <string name="ui_main_bbfbe54c91" formatted="false">&quot;2つ目のタイルを選択&quot;</string>
+    <string name="ui_main_bd598c6d89" formatted="false">&quot;Wi-Fi を表示&quot;</string>
+    <string name="ui_main_bd69fb8241" formatted="false">&quot;システムUIに接続済み&quot;</string>
+    <string name="ui_main_be36c07ac8" formatted="false">&quot;レイアウトの座標が不足しています。コントロールセンターを開いて再取得してください&quot;</string>
+    <string name="ui_main_bed172efc9" formatted="false">&quot;このアプリについて&quot;</string>
+    <string name="ui_main_beff4a1cd1" formatted="false">&quot;利用不可&quot;</string>
+    <string name="ui_main_bfb8c272a5" formatted="false">&quot;ステータスバーと通知パネルのすべてのカスタム設定をリセットします。続行しますか？&quot;</string>
+    <string name="ui_main_c05426b904" formatted="false">&quot; 列&quot;</string>
+    <string name="ui_main_c0b7548660" formatted="false">&quot;先に実際のレイアウトを取得してください&quot;</string>
+    <string name="ui_main_c434901e8a" formatted="false">&quot;ウォレット&quot;</string>
+    <string name="ui_main_c4dc12d3de" formatted="false">&quot;Bluetooth&quot;</string>
+    <string name="ui_main_c513c6b4d7" formatted="false">&quot;全体で利用可能：&quot;</string>
+    <string name="ui_main_c59f42390a" formatted="false">&quot;横長 2×1&quot;</string>
+    <string name="ui_main_c99b62d26b" formatted="false">&quot;通知パネル&quot;</string>
+    <string name="ui_main_c9f82b921f" formatted="false">&quot;キャンバスの列数、内容の拡大率、既定の角丸と間隔&quot;</string>
+    <string name="ui_main_c9fd96e1da" formatted="false">&quot;表示とレイアウト&quot;</string>
+    <string name="ui_main_cb961b6c41" formatted="false">&quot;レイアウトを取得&quot;</string>
+    <string name="ui_main_cc17a0eb41" formatted="false">&quot;実際のレイアウトの参考画像を開く&quot;</string>
+    <string name="ui_main_cd832cba04" formatted="false">&quot;アプリのクイック設定を読み込み中&quot;</string>
+    <string name="ui_main_cde09a7a38" formatted="false">&quot;13.8.0-261020.0.1 対応。LSPosed のセキュリティアプリのスコープを有効にし、変更後はそのプロセスか端末を再起動してください。項目を表示してもハードウェア機能が利用できるとは限りません。&quot;</string>
+    <string name="ui_main_cee01af794" formatted="false">&quot;有効化を確認できません&quot;</string>
+    <string name="ui_main_cf5fe0fb5d" formatted="false">&quot;未反映の変更があります · 現在のレイアウトを適用：&quot;</string>
+    <string name="ui_main_cfa348a535" formatted="false">&quot;ライト&quot;</string>
+    <string name="ui_main_d22d87b4bd" formatted="false">&quot;変更を適用&quot;</string>
+    <string name="ui_main_d2e556a337" formatted="false">&quot; · 全体の高さ &quot;</string>
+    <string name="ui_main_d31d72e630" formatted="false">&quot;バッテリーセーバー&quot;</string>
+    <string name="ui_main_d3d59c09bd" formatted="false">&quot;通知センター&quot;</string>
+    <string name="ui_main_d7c3ef9a57" formatted="false">&quot;参考時間の表示単位のみを変更し、測定精度は変わりません&quot;</string>
+    <string name="ui_main_d80f5d10d8" formatted="false">&quot;横長 3×1&quot;</string>
+    <string name="ui_main_d90efbc7b3" formatted="false">&quot;2段&quot;</string>
+    <string name="ui_main_d91658def6" formatted="false">&quot;1つ目のタイルを選択&quot;</string>
+    <string name="ui_main_de3798b027" formatted="false">&quot;実際のレイアウトの参考画像です。先にレイアウトを取得してください&quot;</string>
+    <string name="ui_main_de61aa8e1c" formatted="false">&quot;プレビュー&quot;</string>
+    <string name="ui_main_df3ee66760" formatted="false">&quot;左&quot;</string>
+    <string name="ui_main_e089904118" formatted="false">&quot;衛星通信&quot;</string>
+    <string name="ui_main_e3b3386d71" formatted="false">&quot;形状はコントロールセンターのグリッドに合わせて組み合わせます。完了を押すとプレビューを再描画し、システムUIに適用します。&quot;</string>
+    <string name="ui_main_e3f14303ae" formatted="false">&quot;読み取れるレイアウトがありません。コントロールセンターを開いて再取得してください&quot;</string>
+    <string name="ui_main_e53f09ac90" formatted="false">&quot;タイルの形状 · &quot;</string>
+    <string name="ui_main_e5ace70d77" formatted="false">&quot;レイアウトを保存しました。システムの実際のレイアウトを取得して確認してください&quot;</string>
+    <string name="ui_main_e7291c3a69" formatted="false">&quot; 項目が有効 · 文字サイズ、配置、間隔を個別に調整できます&quot;</string>
+    <string name="ui_main_e7a426d04e" formatted="false">&quot;コントロールセンターをカスタマイズ&quot;</string>
+    <string name="ui_main_e821c7b180" formatted="false">&quot;下へ &quot;</string>
+    <string name="ui_main_e88ab5ba61" formatted="false">&quot;同期&quot;</string>
+    <string name="ui_main_eb377415af" formatted="false">&quot;コンポーネントが占有するグリッドの幅と高さを個別に調整します。元のサイズに戻すと、このコンポーネントの変更を取り消せます。&quot;</string>
+    <string name="ui_main_ebe00384f0" formatted="false">&quot;縦の高さ&quot;</string>
+    <string name="ui_main_ed0eea8f20" formatted="false">&quot;モード&quot;</string>
+    <string name="ui_main_f0b955a680" formatted="false">&quot;標準レイアウトに戻す&quot;</string>
+    <string name="ui_main_f1b4d5750c" formatted="false">&quot;設定変更後、システムUIを再読み込みします&quot;</string>
+    <string name="ui_main_f24b9091d8" formatted="false">&quot;設定を保存済み · 編集後に端末へ適用&quot;</string>
+    <string name="ui_main_f4bc0d1527" formatted="false">&quot;壁紙キャンバス&quot;</string>
+    <string name="ui_main_f90aa1fc7e" formatted="false">&quot;ステータスバー&quot;</string>
+    <string name="ui_main_fa89314af4" formatted="false">&quot;このモジュールによるコントロールセンターのレイアウトと外観の変更を削除し、現在のタイルの選択と順序は維持します。&quot;</string>
+    <string name="ui_main_fa9d5ccdbf" formatted="false">&quot;コントロールセンターの変更を端末に適用&quot;</string>
+    <string name="ui_main_fb17f19c53" formatted="false">&quot; 列 · 内容 &quot;</string>
+    <string name="ui_main_fbab901503" formatted="false">&quot;アプリ間の起動を直接許可します。LSPosed のシステム（system / system_server）スコープを有効にし、端末を再起動してください&quot;</string>
+    <string name="ui_main_fd69741299" formatted="false">&quot;ステータスバーの時刻、旧暦、曜日、天気&quot;</string>
+    <string name="ui_main_fed31d5ca1" formatted="false">&quot;実際のレイアウトの参考画像  &quot;</string>
+</resources>
+

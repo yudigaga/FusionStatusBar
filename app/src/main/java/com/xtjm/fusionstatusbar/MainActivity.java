@@ -7,7 +7,21 @@ import android.widget.Toast;
 
 /* JADX INFO: loaded from: classes2.dex */
 public final class MainActivity extends androidx.activity.ComponentActivity implements ControlCenterSettingsPage.Host {
+    @Override public android.content.Context pageContext() { return this; }
     private static final java.lang.String KEY_SELECTED_PAGE = "selected_page";
+    private static final String KEY_PAGE_SCROLL = "selected_page_scroll";
+    private static final String KEY_PENDING_APP_LANGUAGE = "pending_app_language";
+    private static final String KEY_PENDING_APP_LANGUAGE_CONFIG = "pending_app_language_config";
+    private static final String KEY_PENDING_APP_LANGUAGE_PUBLICATION = "pending_app_language_publication";
+    private static final String KEY_PENDING_APP_LANGUAGE_DRAFT = "pending_app_language_submitted_draft";
+    private android.os.Bundle pendingAppLanguageRestore;
+    private SettingsChoiceSelector appLanguageChoice;
+    private int pendingAppLanguage = -1;
+    private boolean languageConfigurationChange;
+    private ControlCenterConfig pendingControlCenterSubmission;
+    private ControlCenterConfig pendingControlCenterDraft;
+    private ControlCenterConfig pendingLanguagePublication;
+    private ControlCenterConfig pendingLanguageSubmittedDraft;
     private static final java.lang.String PROJECT_REPOSITORY_URL = "https://github.com/yudigaga/FusionStatusBar";
     private static final java.lang.String MIUIX_REPOSITORY_URL = "https://github.com/compose-miuix-ui/miuix";
     private static final int REQUEST_EXPORT_LOGS = 1027;
@@ -94,7 +108,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private boolean updating;
     private static final int[] TELEMETRY_TITLES = {com.xtjm.fusionstatusbar.R.string.telemetry_temperatures, com.xtjm.fusionstatusbar.R.string.telemetry_power_current, com.xtjm.fusionstatusbar.R.string.telemetry_net_speed};
     private static final java.lang.String[] CONTROL_TILE_SPECS = {"cell", "wifi", "bt", "airplane", "mute", "flashlight", "screenshot", "batterysaver", "rotation", "controls", "custom(com.miui.screenrecorder/.service.QuickService)", "hotspot", "satellite", "autobrightness", "screenlock", "night", "quietmode", "gps", "nfc", "sync", "vibrate", "edit", "settings", "wallet", "internet"};
-    private static final java.lang.String[] CONTROL_TILE_LABELS = {"移动网络", "Wi-Fi", "蓝牙", "飞行模式", "静音", "手电筒", "截屏", "省电模式", "自动旋转", "设备控制", "录屏", "个人热点", "卫星通信", "自动亮度", "旋转锁定", "夜间显示", "勿扰模式", "位置", "NFC", "同步", "振动", "编辑", "设置", "电子钱包", "互联网"};
+    private static final int[] CONTROL_TILE_LABELS = {R.string.ui_main_a0e635b985, R.string.ui_main_780ff71c8f, R.string.ui_main_c4dc12d3de, R.string.ui_main_599fbf62ae, R.string.ui_main_afdbd1ddec, R.string.ui_main_cfa348a535, R.string.ui_main_9bed17eabd, R.string.ui_main_d31d72e630, R.string.ui_main_8f1079b06e, R.string.ui_control_component_device_controls, R.string.ui_main_8766c4e8d4, R.string.ui_main_4fcaa2ab50, R.string.ui_main_e089904118, R.string.ui_main_b35ef53715, R.string.ui_main_84c5bdd621, R.string.ui_main_27f2e31b49, R.string.ui_main_00188fe7a9, R.string.ui_main_88c34452cc, R.string.ui_main_65f7a7975a, R.string.ui_main_e88ab5ba61, R.string.ui_main_117bac1e45, R.string.ui_main_a7f814c0a4, R.string.ui_main_7debf9cb03, R.string.ui_main_c434901e8a, R.string.ui_main_4ed766e0c3};
     private final android.widget.Switch[] telemetrySwitches = new android.widget.Switch[3];
     private final SettingsChoiceSelector[] telemetryPositions = new SettingsChoiceSelector[3];
     private final android.widget.LinearLayout[] pages = new android.widget.LinearLayout[6];
@@ -146,6 +160,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             configWriteInFlight = false;
             if (!result.success) {
                 pendingSettingsSave = true;
+                cancelPendingAppLanguage();
                 cancelPendingSystemUiRestart();
                 Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
             } else if (config == submitted) {
@@ -153,6 +168,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                 controlCenterSavedRevision = result.revision;
                 editorPage.published(result.revision);
                 updateSettingsSummaries();
+            }
+            if (result.success && pendingLanguagePublication != null) {
+                controlCenterSettingsPage.saved(pendingLanguageSubmittedDraft == null
+                        ? pendingLanguagePublication : pendingLanguageSubmittedDraft, result.config.controlCenter);
+                pendingLanguagePublication = null;
+                pendingLanguageSubmittedDraft = null;
+                persistEditorSession();
             }
             if (result.success && pendingSettingsSave) flushSettingsSave();
             continuePendingSystemUiRestart();
@@ -162,6 +184,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     @Override // android.app.Activity
     protected void onCreate(android.os.Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) selectedPage = savedInstanceState.getInt(KEY_SELECTED_PAGE, 0);
+        pendingAppLanguageRestore = copyPendingAppLanguage(savedInstanceState);
         runtimeConfigExchange = RuntimeConfigExchange.registerSettings(this);
         MiscSystemConfigExchange.publish(this, MiscConfig.read(this));
         setContentView(com.xtjm.fusionstatusbar.R.layout.activity_main);
@@ -185,6 +209,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                         refreshOverview();
                         ((android.view.ViewGroup) startupOverlay.getParent()).removeView(startupOverlay);
                         startupOverlay = null;
+                        resumePendingAppLanguage(state);
                     }
 
                     @Override public void onDeferredActivityResult(int requestCode, int resultCode,
@@ -347,6 +372,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         applyControls();
         if (savedInstanceState != null) {
             selectPage(savedInstanceState.getInt(KEY_SELECTED_PAGE, 0));
+            int scroll = savedInstanceState.getInt(KEY_PAGE_SCROLL, 0);
+            if (pageScroll != null) pageScroll.post(() -> pageScroll.scrollTo(0, scroll));
         }
     }
 
@@ -406,7 +433,28 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         boolean previous = suppressEditorSelection;
         suppressEditorSelection = true;
         if (controlCenterWallpaperWorkspace != null) controlCenterWallpaperWorkspace.close();
-        if (isChangingConfigurations()) outState.putInt(KEY_SELECTED_PAGE, this.selectedPage);
+        if (isChangingConfigurations() || languageConfigurationChange || pendingAppLanguage >= 0
+                || pendingAppLanguageRestore != null) {
+            outState.putInt(KEY_SELECTED_PAGE, this.selectedPage);
+            if (pageScroll != null) outState.putInt(KEY_PAGE_SCROLL, pageScroll.getScrollY());
+        }
+        if (pendingAppLanguage >= 0 && config != null) {
+            ControlCenterConfig publication = pendingControlCenterSubmission != null
+                    ? pendingControlCenterSubmission : pendingLanguagePublication;
+            outState.putInt(KEY_PENDING_APP_LANGUAGE, pendingAppLanguage);
+            outState.putBoolean(KEY_PENDING_APP_LANGUAGE_PUBLICATION, publication != null);
+            outState.putBundle(KEY_PENDING_APP_LANGUAGE_CONFIG,
+                    (publication == null ? config : config.withControlCenter(publication)).toBundle());
+            ControlCenterConfig rawDraft = pendingControlCenterDraft != null
+                    ? pendingControlCenterDraft : pendingLanguageSubmittedDraft;
+            if (rawDraft != null) {
+                android.os.Bundle draftState = new android.os.Bundle();
+                rawDraft.writeTo(draftState);
+                outState.putBundle(KEY_PENDING_APP_LANGUAGE_DRAFT, draftState);
+            }
+        } else if (pendingAppLanguageRestore != null) {
+            outState.putAll(pendingAppLanguageRestore);
+        }
         if (editorPage != null) editorPage.saveState(outState);
         super.onSaveInstanceState(outState);
         suppressEditorSelection = previous;
@@ -481,11 +529,11 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         frameLayout.setBackgroundColor(pageColor());
         viewGroup.addView(frameLayout, originalParams);
         frameLayout.addView(this.pageScroll, new android.widget.FrameLayout.LayoutParams(-1, -1));
-        android.widget.LinearLayout desktopPage = newPage(root, 0, "桌面");
+        android.widget.LinearLayout desktopPage = newPage(root, 0, getString(R.string.ui_main_65fdeb927b));
         desktopSettingsPage = new DesktopSettingsPage(this);
         desktopSettingsPage.installInto(desktopPage);
-        android.widget.LinearLayout statusPage = newPage(root, 1, "状态栏");
-        previewTitle.setText("预览");
+        android.widget.LinearLayout statusPage = newPage(root, 1, getString(R.string.ui_main_f90aa1fc7e));
+        previewTitle.setText(getString(R.string.ui_main_de61aa8e1c));
         previewTitle.setTextSize(15.0f);
         previewTitle.setTextColor(textSecondaryColor());
         android.widget.LinearLayout.LayoutParams previewHeadingParams = matchWrap();
@@ -499,10 +547,10 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         statusPage.addView(previewModeView, new LinearLayout.LayoutParams(0, 0));
         miuixPreviewMode = new MiuixPreviewMode((android.widget.RadioGroup) previewModeView);
         statusPage.addView(miuixPreviewMode.getView(), matchWrap());
-        statusPage.addView(sectionTitle("显示与布局"));
+        statusPage.addView(sectionTitle(getString(R.string.ui_main_c9fd96e1da)));
         android.widget.LinearLayout personalizationCard = card();
         statusPage.addView(personalizationCard, matchWrap());
-        android.widget.LinearLayout fusionRow = addPreference(personalizationCard, "融合图标", "无线网络、移动网络和电量融合显示", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.16
+        android.widget.LinearLayout fusionRow = addPreference(personalizationCard, getString(R.string.size_title), getString(R.string.ui_main_6164fd65d1), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.16
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$11(view);
@@ -510,7 +558,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         });
         this.fusionSettingsSummary = (android.widget.TextView) fusionRow.getTag();
         addDivider(personalizationCard);
-        android.widget.LinearLayout layoutRow = addPreference(personalizationCard, "状态栏布局", "双排、元素位置和状态栏总高度", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.17
+        android.widget.LinearLayout layoutRow = addPreference(personalizationCard, getString(R.string.layout_title), getString(R.string.ui_main_1a55548023), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.17
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$12(view);
@@ -518,7 +566,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         });
         this.layoutSettingsSummary = (android.widget.TextView) layoutRow.getTag();
         addDivider(personalizationCard);
-        android.widget.LinearLayout clockRow = addPreference(personalizationCard, "时间与天气", "状态栏时间、农历、星期和天气", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.18
+        android.widget.LinearLayout clockRow = addPreference(personalizationCard, getString(R.string.clock_settings_title), getString(R.string.ui_main_fd69741299), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.18
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$13(view);
@@ -526,15 +574,15 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         });
         this.clockSettingsSummary = (android.widget.TextView) clockRow.getTag();
         addDivider(personalizationCard);
-        android.widget.LinearLayout telemetryRow = addPreference(personalizationCard, "状态栏监测", "温度、功率、电流和实时网速", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.19
+        android.widget.LinearLayout telemetryRow = addPreference(personalizationCard, getString(R.string.telemetry_title), getString(R.string.ui_main_a59a4239b0), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.19
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$14(view);
             }
         });
         this.telemetrySettingsSummary = (android.widget.TextView) telemetryRow.getTag();
-        android.widget.LinearLayout notificationPage = newPage(root, 2, "通知栏");
-        notificationPage.addView(sectionTitle("预览"));
+        android.widget.LinearLayout notificationPage = newPage(root, 2, getString(R.string.ui_main_c99b62d26b));
+        notificationPage.addView(sectionTitle(getString(R.string.ui_main_de61aa8e1c)));
         this.notificationPreview = new android.widget.LinearLayout(this);
         this.notificationPreview.setOrientation(LinearLayout.VERTICAL);
         this.notificationPreview.setGravity(17);
@@ -546,16 +594,16 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         this.notificationTimePreview.setSingleLine(false);
         this.notificationTimePreview.setMaxLines(2);
         this.notificationPreview.addView(this.notificationTimePreview, new android.widget.LinearLayout.LayoutParams(-1, 0, 1.0f));
-        this.notificationListPreview = labelView("应用通知", 14.0f, false);
+        this.notificationListPreview = labelView(getString(R.string.ui_main_605a85c998), 14.0f, false);
         this.notificationListPreview.setTextColor(-1);
         this.notificationListPreview.setGravity(16);
         this.notificationListPreview.setPadding(dp(16), 0, dp(16), 0);
         this.notificationPreview.addView(this.notificationListPreview, new android.widget.LinearLayout.LayoutParams(-1, dp(44)));
         notificationPage.addView(this.notificationPreview, new android.widget.LinearLayout.LayoutParams(-1, dp(212)));
-        notificationPage.addView(sectionTitle("通知中心"));
+        notificationPage.addView(sectionTitle(getString(R.string.ui_main_d3d59c09bd)));
         android.widget.LinearLayout notificationCard = card();
         notificationPage.addView(notificationCard, matchWrap());
-        android.widget.LinearLayout notificationRow = addPreference(notificationCard, "通知中心时间", "使用系统时间", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.20
+        android.widget.LinearLayout notificationRow = addPreference(notificationCard, getString(R.string.ui_control_settings_notification_clock), getString(R.string.ui_main_255a39f160), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.20
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$15(view);
@@ -563,36 +611,36 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         });
         this.notificationClockSummary = (android.widget.TextView) notificationRow.getTag();
         addDivider(notificationCard);
-        android.widget.LinearLayout listRow = addPreference(notificationCard, "通知列表", "下移 0 dp", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.21
+        android.widget.LinearLayout listRow = addPreference(notificationCard, getString(R.string.ui_control_settings_notification_list), getString(R.string.ui_main_3721efa12a), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.21
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$17(view);
             }
         });
         this.notificationListSummary = (android.widget.TextView) listRow.getTag();
-        android.widget.LinearLayout controlCenterPage = newPage(root, 3, "控制中心");
+        android.widget.LinearLayout controlCenterPage = newPage(root, 3, getString(R.string.ui_control_card_control_center));
         installControlCenterPage(controlCenterPage);
-        android.widget.LinearLayout miscellaneousPage = newPage(root, 4, "杂项");
-        miscellaneousPage.addView(sectionTitle("应用启动"));
+        android.widget.LinearLayout miscellaneousPage = newPage(root, 4, getString(R.string.ui_main_1f251c8a07));
+        miscellaneousPage.addView(sectionTitle(getString(R.string.ui_main_3771dd6baa)));
         android.widget.LinearLayout miscellaneousCard = card();
         miscellaneousPage.addView(miscellaneousCard, matchWrap());
-        chainStartSwitch = addSwitch(miscellaneousCard, "移除链式启动弹窗",
-                "直接允许应用间启动；需在 LSPosed 勾选系统（system / system_server）并重启手机",
+        chainStartSwitch = addSwitch(miscellaneousCard, getString(R.string.ui_main_8c2366a96d),
+                getString(R.string.ui_main_fbab901503),
                 MiscConfig.read(this).removeChainStartDialog, this::setChainStartDialogRemoved);
-        miscellaneousPage.addView(sectionTitle("截屏"));
+        miscellaneousPage.addView(sectionTitle(getString(R.string.ui_main_9bed17eabd)));
         android.widget.LinearLayout screenshotCard = card();
         miscellaneousPage.addView(screenshotCard, matchWrap());
-        screenshotClipboardSwitch = addSwitch(screenshotCard, "截屏自动写入剪贴板",
-                "截屏后自动复制到剪贴板，并阻止安全服务自动关闭；需在 LSPosed 勾选系统并重启手机",
+        screenshotClipboardSwitch = addSwitch(screenshotCard, getString(R.string.ui_main_10045df8c9),
+                getString(R.string.ui_main_0c1893535c),
                 MiscConfig.read(this).screenshotClipboardEnabled, this::setScreenshotClipboardEnabled);
         installSecurityCenterOptions(miscellaneousPage);
-        android.widget.LinearLayout settingsPage = newPage(root, 5, "设置");
-        settingsPage.addView(sectionTitle("模块状态"));
+        android.widget.LinearLayout settingsPage = newPage(root, 5, getString(R.string.ui_main_7debf9cb03));
+        settingsPage.addView(sectionTitle(getString(R.string.ui_main_3b3dedd8c5)));
         android.widget.LinearLayout linearLayoutCard = card();
         settingsPage.addView(linearLayoutCard, matchWrap());
         this.activationIndicator = new android.view.View(this);
         this.activationTitle = new MiuixControls.Label(this);
-        this.activationTitle.setText("正在检查");
+        this.activationTitle.setText(getString(R.string.ui_main_8872ba182f));
         this.activationSummary = new MiuixControls.Label(this);
         MiuixControls.status(linearLayoutCard, (MiuixControls.Label) activationTitle,
                 (MiuixControls.Label) activationSummary, activationIndicator);
@@ -607,18 +655,22 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         android.view.View launcherLabels = ((android.view.ViewGroup) hideLauncherIconSwitch
                 .getParent()).getChildAt(0);
         launcherLabels.getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-        settingsPage.addView(sectionTitle("界面"));
+        settingsPage.addView(sectionTitle(getString(R.string.ui_main_3c4065adbc)));
         android.widget.LinearLayout appearanceCard = card();
         settingsPage.addView(appearanceCard, matchWrap());
-        floatingNavigationSwitch = addSwitch(appearanceCard, "毛玻璃悬浮底栏", "",
+        appLanguageChoice = (SettingsChoiceSelector) addPageChoice(appearanceCard,
+                getString(R.string.app_language_title), AppLanguageSettings.labels(this),
+                AppLanguageSettings.selectedIndex(this), this::requestAppLanguage);
+        addDivider(appearanceCard);
+        floatingNavigationSwitch = addSwitch(appearanceCard, getString(R.string.ui_main_91ab2e741b), "",
                 AppAppearanceSettings.floatingNavigation(this), this::setFloatingNavigation);
-        settingsPage.addView(sectionTitle("设备信息"));
+        settingsPage.addView(sectionTitle(getString(R.string.ui_main_b6f86d3938)));
         android.widget.LinearLayout deviceCard = card();
         settingsPage.addView(deviceCard, matchWrap());
-        addDetail(deviceCard, "设备", android.os.Build.MANUFACTURER + "  " + android.os.Build.MODEL);
+        addDetail(deviceCard, getString(R.string.ui_main_01f2c16cda), android.os.Build.MANUFACTURER + "  " + android.os.Build.MODEL);
         addDivider(deviceCard);
-        addDetail(deviceCard, "系统", "Android " + android.os.Build.VERSION.RELEASE + "  ·  API " + android.os.Build.VERSION.SDK_INT);
-        settingsPage.addView(sectionTitle("关于"));
+        addDetail(deviceCard, getString(R.string.ui_main_1a1f6dff78), "Android " + android.os.Build.VERSION.RELEASE + "  ·  API " + android.os.Build.VERSION.SDK_INT);
+        settingsPage.addView(sectionTitle(getString(R.string.ui_main_bed172efc9)));
         android.widget.LinearLayout aboutCard = card();
         settingsPage.addView(aboutCard, matchWrap());
         addDetail(aboutCard, "FusionStatusBar", getString(R.string.about_project_version,
@@ -629,7 +681,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         addDivider(aboutCard);
         addPreference(aboutCard, getString(R.string.about_miuix_credit),
                 getString(R.string.about_miuix_summary), view -> openRepositoryUrl(MIUIX_REPOSITORY_URL));
-        settingsPage.addView(sectionTitle("模块维护"));
+        settingsPage.addView(sectionTitle(getString(R.string.ui_main_0846bb3699)));
         android.widget.LinearLayout maintenanceCard = card();
         settingsPage.addView(maintenanceCard, matchWrap());
         addPreference(maintenanceCard, getString(R.string.editor_backup_export),
@@ -645,21 +697,21 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                 getString(R.string.restart_desktop_summary), view -> showDesktopRestartConfirmation());
         desktopRestartRow.getChildAt(0).getLayoutParams().height = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
         addDivider(maintenanceCard);
-        addPreference(maintenanceCard, "重启系统界面", "配置修改后让系统界面重新加载", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.24
+        addPreference(maintenanceCard, getString(R.string.restart_systemui), getString(R.string.ui_main_f1b4d5750c), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.24
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 restart.performClick();
             }
         });
         addDivider(maintenanceCard);
-        addPreference(maintenanceCard, "导出诊断日志", "导出最近的模块日志用于排查问题", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.25
+        addPreference(maintenanceCard, getString(R.string.export_logs), getString(R.string.ui_main_16ffe4d1e6), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.25
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 export.performClick();
             }
         });
         addDivider(maintenanceCard);
-        addPreference(maintenanceCard, "恢复默认设置", "清除状态栏和通知栏的自定义参数", new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.26
+        addPreference(maintenanceCard, getString(R.string.reset_settings), getString(R.string.ui_main_4fb9a43221), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.26
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
                 com.xtjm.fusionstatusbar.MainActivity.this.lambda$installMiuixSettingsUi$22(view);
@@ -673,7 +725,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         navigation.setBackground(navigationBackground);
         navigation.setElevation(dp(12));
         int[] icons = {android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_edit, android.R.drawable.ic_popup_reminder, android.R.drawable.ic_menu_view, android.R.drawable.ic_menu_more, android.R.drawable.ic_menu_manage};
-        java.lang.String[] labels = {"桌面", "状态栏", "通知栏", "控制中心", "杂项", "设置"};
+        java.lang.String[] labels = {getString(R.string.ui_main_65fdeb927b), getString(R.string.ui_main_f90aa1fc7e), getString(R.string.ui_main_c99b62d26b), getString(R.string.ui_control_card_control_center), getString(R.string.ui_main_1f251c8a07), getString(R.string.ui_main_7debf9cb03)};
         int i = 0;
         while (i < this.pages.length) {
             final int page = i;
@@ -746,27 +798,27 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private View securityPrecisionSlider;
 
     private void installSecurityCenterOptions(LinearLayout page) {
-        page.addView(sectionTitle("手机管家扩展 · 13.8.0"));
-        android.widget.TextView hint = labelView("适配 13.8.0-261020.0.1；需在 LSPosed 勾选手机管家，更改后请重启手机管家进程或手机。解锁入口不代表硬件能力可用。",
+        page.addView(sectionTitle(getString(R.string.ui_main_240e63fd16)));
+        android.widget.TextView hint = labelView(getString(R.string.ui_main_cde09a7a38),
                 12f, false);
         hint.setTextColor(textSecondaryColor());
         page.addView(hint, matchWrap());
-        String section = null;
+        int section = 0;
         LinearLayout group = null;
         MiscConfig initial = MiscConfig.read(this);
         for (SecurityCenterFeature feature : SecurityCenterFeature.values()) {
-            if (!feature.section.equals(section)) {
+            if (feature.section != section) {
                 section = feature.section;
-                page.addView(sectionTitle(section));
+                page.addView(sectionTitle(getString(section)));
                 group = card();
                 page.addView(group, matchWrap());
             }
-            android.widget.Switch toggle = addSwitch(group, feature.title, feature.summary,
+            android.widget.Switch toggle = addSwitch(group, getString(feature.title), getString(feature.summary),
                     initial.isEnabled(feature), enabled -> setSecurityFeature(feature, enabled));
             securityFeatureSwitches.put(feature, toggle);
             if (feature == SecurityCenterFeature.SCREEN_ON_TIME)
-                securityPrecisionSlider = addSlider(group, "亮屏时间显示粒度", "只调整参考时间的显示粒度，不提高测量准确率",
-                        1, 60, initial.screenOnTimePrecisionMinutes, " 分钟", this::setScreenOnTimePrecision);
+                securityPrecisionSlider = addSlider(group, getString(R.string.ui_main_7390e5e477), getString(R.string.ui_main_d7c3ef9a57),
+                        1, 60, initial.screenOnTimePrecisionMinutes, getString(R.string.ui_main_5b0acd185d), this::setScreenOnTimePrecision);
         }
     }
 
@@ -778,6 +830,87 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             updatingAuxiliarySwitches = false;
             Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
         }
+    }
+
+    void requestAppLanguage(int index) {
+        if (index < 0 || index >= AppLanguageSettings.supportedTags().length) return;
+        if (!settingsLoaded || configRestoring || isDestroyed() || isFinishing()
+                || pendingSystemUiRestart != null || restartingSystemUiButton != null) {
+            restoreAppLanguageChoice();
+            Toast.makeText(this, R.string.restart_busy, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pendingAppLanguage = index;
+        if (appLanguageChoice != null) appLanguageChoice.setEnabled(false);
+        continuePendingAppLanguage();
+    }
+
+    private void continuePendingAppLanguage() {
+        if (pendingAppLanguage < 0 || !settingsLoaded || controlCenterSaving || configRestoring
+                || configWriteInFlight || isDestroyed() || isFinishing()) return;
+        if (pendingSettingsSave) {
+            flushSettingsSave();
+            return;
+        }
+        int requested = pendingAppLanguage;
+        pendingAppLanguage = -1;
+        languageConfigurationChange = true;
+        if (!AppLanguageSettings.select(this, requested)) {
+            languageConfigurationChange = false;
+            Toast.makeText(this, R.string.app_language_change_failed, Toast.LENGTH_LONG).show();
+        }
+        restoreAppLanguageChoice();
+    }
+
+    private void cancelPendingAppLanguage() {
+        pendingAppLanguage = -1;
+        pendingLanguagePublication = null;
+        pendingLanguageSubmittedDraft = null;
+        pendingAppLanguageRestore = null;
+        restoreAppLanguageChoice();
+    }
+
+    private static android.os.Bundle copyPendingAppLanguage(android.os.Bundle source) {
+        if (source == null || !source.containsKey(KEY_PENDING_APP_LANGUAGE)) return null;
+        android.os.Bundle config = source.getBundle(KEY_PENDING_APP_LANGUAGE_CONFIG);
+        if (config == null) return null;
+        android.os.Bundle copy = new android.os.Bundle();
+        copy.putInt(KEY_PENDING_APP_LANGUAGE, source.getInt(KEY_PENDING_APP_LANGUAGE, -1));
+        copy.putBoolean(KEY_PENDING_APP_LANGUAGE_PUBLICATION,
+                source.getBoolean(KEY_PENDING_APP_LANGUAGE_PUBLICATION, false));
+        copy.putBundle(KEY_PENDING_APP_LANGUAGE_CONFIG, new android.os.Bundle(config));
+        android.os.Bundle draft = source.getBundle(KEY_PENDING_APP_LANGUAGE_DRAFT);
+        if (draft != null) copy.putBundle(KEY_PENDING_APP_LANGUAGE_DRAFT, new android.os.Bundle(draft));
+        return copy;
+    }
+
+    private void resumePendingAppLanguage(android.os.Bundle state) {
+        if (pendingAppLanguageRestore != null) state = pendingAppLanguageRestore;
+        pendingAppLanguageRestore = null;
+        if (state == null) return;
+        int requested = state.getInt(KEY_PENDING_APP_LANGUAGE, -1);
+        android.os.Bundle intent = state.getBundle(KEY_PENDING_APP_LANGUAGE_CONFIG);
+        if (requested < 0 || requested >= AppLanguageSettings.supportedTags().length || intent == null) return;
+        FusionConfig resumed = FusionConfig.fromBundle(intent).withRevision(config.revision);
+        if (state.getBoolean(KEY_PENDING_APP_LANGUAGE_PUBLICATION, false)) {
+            pendingLanguagePublication = resumed.controlCenter;
+            android.os.Bundle draft = state.getBundle(KEY_PENDING_APP_LANGUAGE_DRAFT);
+            pendingLanguageSubmittedDraft = draft == null ? resumed.controlCenter : ControlCenterConfig.fromBundle(draft);
+        } else resumed = resumed.withControlCenter(config.controlCenter);
+        pendingAppLanguage = requested;
+        if (appLanguageChoice != null) appLanguageChoice.setEnabled(false);
+        // Resubmit the explicit intent; the previous Activity may have lost a failed-write callback.
+        update(resumed);
+        continuePendingAppLanguage();
+    }
+
+    private void restoreAppLanguageChoice() {
+        // The choice commits its model after invoking the callback; restore on the next UI turn.
+        saveHandler.post(() -> {
+            if (isDestroyed() || appLanguageChoice == null) return;
+            appLanguageChoice.setEnabled(true);
+            appLanguageChoice.setSelection(AppLanguageSettings.selectedIndex(this));
+        });
     }
 
     private void setScreenOnTimePrecision(int precision) {
@@ -843,29 +976,29 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private void installControlCenterPage(android.widget.LinearLayout page) {
         LinearLayout settingsCard = controlCenterCard();
-        controlCenterEnabledSwitch = addSwitch(settingsCard, "自定义控制中心",
-                "开启后编辑布局，推送后应用到手机", controlCenterSettings().enabled,
+        controlCenterEnabledSwitch = addSwitch(settingsCard, getString(R.string.ui_main_e7a426d04e),
+                getString(R.string.ui_main_21eb350372), controlCenterSettings().enabled,
                 value -> updateControlCenterDraft(controlCenterSettings().withEnabled(value)));
         View switchRow = settingsCard.getChildAt(0);
         View switchTexts = ((LinearLayout) switchRow).getChildAt(0);
         switchTexts.getLayoutParams().height = -2;
         addDivider(settingsCard);
-        LinearLayout settingsRow = addPreference(settingsCard, "布局与外观",
-                "画布列数、内容缩放、默认圆角与间距", view -> showControlCenterSettingsDialog());
+        LinearLayout settingsRow = addPreference(settingsCard, getString(R.string.ui_control_page_appearance_title),
+                getString(R.string.ui_main_c9f82b921f), view -> showControlCenterSettingsDialog());
         settingsRow.setPadding(0, dp(10), 0, 0);
         settingsRow.getChildAt(0).getLayoutParams().height = -2;
         controlCenterSummary = (android.widget.TextView) settingsRow.getTag();
         page.addView(settingsCard, controlCenterSectionParams());
 
-        controlCenterPreviewTitle = sectionTitle("布局画布");
+        controlCenterPreviewTitle = sectionTitle(getString(R.string.ui_main_a0fb38c3ab));
         page.addView(controlCenterPreviewTitle);
         controlCenterGridPanel = controlCenterCard();
         LinearLayout modeBar = new LinearLayout(this);
         modeBar.setPadding(dp(4), dp(4), dp(4), dp(4));
         modeBar.setBackground(rounded(inputColor(), dp(14)));
-        controlCenterRegularModeButton = controlCenterButton("标准布局", false,
+        controlCenterRegularModeButton = controlCenterButton(getString(R.string.ui_control_page_regular_mode), false,
                 view -> selectControlCenterMode(false));
-        controlCenterCompactModeButton = controlCenterButton("紧凑布局", false,
+        controlCenterCompactModeButton = controlCenterButton(getString(R.string.ui_control_page_compact_mode), false,
                 view -> selectControlCenterMode(true));
         addControlCenterAction(modeBar, controlCenterRegularModeButton, false);
         addControlCenterAction(modeBar, controlCenterCompactModeButton, true);
@@ -876,15 +1009,15 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         controlCenterGridPanel.addView(controlCenterCanvasSummary, matchWrap());
         controlCenterGridEditor = controlCenterSettingsPage.createGridEditor(this);
         controlCenterGridPanel.addView(controlCenterGridEditor, matchWrap());
-        android.widget.TextView gestureHint = labelView("点击查看属性 · 长按编辑与移动 · 状态为示意", 12f, false);
+        android.widget.TextView gestureHint = labelView(getString(R.string.ui_main_21060eb7c7), 12f, false);
         gestureHint.setTextColor(textSecondaryColor());
         gestureHint.setPadding(0, dp(10), 0, dp(12));
         controlCenterGridPanel.addView(gestureHint, matchWrap());
-        android.widget.Button wallpaperButton = controlCenterButton("壁纸画布", false, view -> {
+        android.widget.Button wallpaperButton = controlCenterButton(getString(R.string.ui_main_f4bc0d1527), false, view -> {
             if (controlCenterWallpaperWorkspace == null) {
                 controlCenterWallpaperWorkspace = new ControlCenterWallpaperWorkspace(this, controlCenterGridEditor);
             }
-            controlCenterWallpaperWorkspace.open(isCompactControlCenter() ? "紧凑布局 · 壁纸画布" : "标准布局 · 壁纸画布",
+            controlCenterWallpaperWorkspace.open(isCompactControlCenter() ? getString(R.string.ui_main_2132740e22) : getString(R.string.ui_main_abb84a8cf5),
                     this::undoControlGridChange);
             controlCenterWallpaperWorkspace.setBackgroundStrength(controlCenterSettings().backgroundBlur);
         });
@@ -901,14 +1034,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         controlCenterRedoButton = controlCenterButton(getString(R.string.editor_redo), false,
                 view -> redoControlGridChange());
         addControlCenterAction(tools, controlCenterRedoButton, true);
-        addControlCenterAction(tools, controlCenterButton("更多 ···", false,
+        addControlCenterAction(tools, controlCenterButton(getString(R.string.ui_main_32019b6351), false,
                 this::showControlCenterMoreMenu), true);
         controlCenterGridPanel.addView(tools, matchWrap());
         page.addView(controlCenterGridPanel, controlCenterSectionParams());
 
         LinearLayout reference = controlCenterCard();
         controlCenterActualPanel = reference;
-        controlCenterReferenceToggle = labelView("真实布局参考", 16f, true);
+        controlCenterReferenceToggle = labelView(getString(R.string.ui_main_714b4caceb), 16f, true);
         controlCenterReferenceToggle.setMinimumHeight(dp(48));
         controlCenterReferenceToggle.setGravity(android.view.Gravity.CENTER_VERTICAL);
         controlCenterReferenceToggle.setEnabled(false);
@@ -917,7 +1050,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             updateControlCenterReferenceVisibility();
         });
         reference.addView(controlCenterReferenceToggle, matchWrap());
-        android.widget.TextView referenceHint = labelView("拉取手机当前布局作为参考，也可导入画布继续编辑。", 12f, false);
+        android.widget.TextView referenceHint = labelView(getString(R.string.ui_main_8bf6bd9db8), 12f, false);
         referenceHint.setTextColor(textSecondaryColor());
         referenceHint.setPadding(0, dp(6), 0, dp(12));
         reference.addView(referenceHint, matchWrap());
@@ -931,14 +1064,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         controlCenterActualPreview.setEditingEnabled(false);
         controlCenterActualPreview.setVisibility(View.GONE);
         reference.addView(controlCenterActualPreview, matchWrap());
-        controlCenterActualSummary = labelView("尚未拉取布局", 12f, false);
+        controlCenterActualSummary = labelView(getString(R.string.ui_main_715c9f42d2), 12f, false);
         controlCenterActualSummary.setTextColor(textSecondaryColor());
         controlCenterActualSummary.setPadding(0, dp(8), 0, dp(12));
         reference.addView(controlCenterActualSummary, matchWrap());
         LinearLayout referenceActions = new LinearLayout(this);
-        addControlCenterAction(referenceActions, controlCenterButton("拉取布局", false,
+        addControlCenterAction(referenceActions, controlCenterButton(getString(R.string.ui_main_cb961b6c41), false,
                 view -> requestControlCenterPreview()), false);
-        addControlCenterAction(referenceActions, controlCenterButton("导入画布", false,
+        addControlCenterAction(referenceActions, controlCenterButton(getString(R.string.ui_main_3d28ab41be), false,
                 view -> importActualControlCenterDraft()), true);
         reference.addView(referenceActions, matchWrap());
         page.addView(reference, controlCenterSectionParams());
@@ -956,9 +1089,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         controlCenterDraftRetryButton = controlCenterButton(getString(R.string.editor_draft_retry), false,
                 view -> editorPage.retryDraft());
         MiuixControls.attachButton(page, controlCenterDraftRetryButton, false, controlCenterSectionParams());
-        controlCenterPushButton = controlCenterButton("推送修改", true,
+        controlCenterPushButton = controlCenterButton(getString(R.string.ui_main_d22d87b4bd), true,
                 view -> pushControlCenterDraft());
-        controlCenterPushButton.setContentDescription("推送控制中心修改到手机");
+        controlCenterPushButton.setContentDescription(getString(R.string.ui_main_fa9d5ccdbf));
         MiuixControls.attachButton(page, controlCenterPushButton, true, controlCenterSectionParams());
         loadLatestControlCenterPreview();
     }
@@ -1019,10 +1152,10 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     private void showControlCenterMoreMenu(View anchor) {
-        String[] labels = {"全局磁贴开关", "清空当前画布", "恢复原生布局", getString(R.string.editor_layout_presets)};
+        String[] labels = {getString(R.string.ui_main_7f859d93c4), getString(R.string.ui_main_9806241d7d), getString(R.string.ui_main_f0b955a680), getString(R.string.editor_layout_presets)};
         int[] icons = {R.drawable.cc_preview_settings, android.R.drawable.ic_menu_delete,
                 android.R.drawable.ic_menu_revert, android.R.drawable.ic_menu_save};
-        showControlChoiceSheet("更多操作", labels, index ->
+        showControlChoiceSheet(getString(R.string.ui_main_77836d3a99), labels, index ->
                 ControlCenterIcons.load(this, icons[index], textPrimaryColor()), index -> {
             switch (index) {
                 case 0: showControlCenterTilesDialog(); break;
@@ -1066,13 +1199,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                 commitControlCenterDraft(config.controlCenter, "");
                 return;
             }
-            android.widget.Toast.makeText(this, "没有待推送的控制中心修改", Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(this, getString(R.string.ui_main_abdc9f414f), Toast.LENGTH_SHORT).show();
             return;
         }
         com.xtjm.fusionstatusbar.ControlCenterConfig draft = controlCenterSettings();
         com.xtjm.fusionstatusbar.ControlCenterLayoutPlan plan = com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.decode(draft.layoutPlan);
         if (plan != null && (!plan.regular.validate().isEmpty() || !plan.compact.validate().isEmpty())) {
-            android.widget.Toast.makeText(this, "布局存在重叠、越界或重复项目，无法推送", Toast.LENGTH_LONG).show();
+            android.widget.Toast.makeText(this, getString(R.string.ui_main_2226343fe1), Toast.LENGTH_LONG).show();
         } else {
             if (plan != null) {
                 plan = plan.forPublication(this.isCompactControlCenter());
@@ -1082,7 +1215,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                         + plan.runtimeMode(false).columns + " items="
                         + plan.runtimeMode(false).items.size());
             }
-            commitControlCenterDraft(draft, "布局已保存，请拉取系统实际布局核对");
+            commitControlCenterDraft(draft, getString(R.string.ui_main_e5ace70d77));
         }
     }
 
@@ -1093,8 +1226,12 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         controlCenterSaving = true;
         controlCenterSaveFailed = false;
         FusionConfig submitted = config.withControlCenter(next);
+        pendingControlCenterSubmission = submitted.controlCenter;
+        pendingControlCenterDraft = submittedDraft;
         updateSettingsSummaries();
         configSession.write(submitted, result -> {
+            pendingControlCenterSubmission = null;
+            pendingControlCenterDraft = null;
             controlCenterSaving = false;
             configWriteInFlight = false;
             controlCenterSaveFailed = !result.success;
@@ -1105,6 +1242,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                 controlCenterSettingsPage.saved(submittedDraft, result.config.controlCenter);
                 Toast.makeText(this, R.string.editor_saved_waiting, Toast.LENGTH_SHORT).show();
             } else {
+                cancelPendingAppLanguage();
                 cancelPendingSystemUiRestart();
                 Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
             }
@@ -1163,6 +1301,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                             preview.setPreviewConfig(config);
                             applyControls();
                         } else {
+                            cancelPendingAppLanguage();
                             cancelPendingSystemUiRestart();
                             updateSettingsSummaries();
                         }
@@ -1194,7 +1333,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private void requestControlCenterPreview() {
         if (this.config == null) {
-            android.widget.Toast.makeText(this, "配置尚未加载，请重试", Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(this, getString(R.string.ui_main_a98663f918), Toast.LENGTH_SHORT).show();
             return;
         }
         saveHandler.removeCallbacks(controlCenterPreviewPoll);
@@ -1205,7 +1344,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private void onControlCenterPreviewRequested(long request) {
         if (request <= 0) {
-            android.widget.Toast.makeText(this, "无法向 SystemUI 请求实际预览", Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(this, getString(R.string.ui_main_93ea900ab4), Toast.LENGTH_SHORT).show();
             return;
         }
         this.controlCenterPreviewRequest = request;
@@ -1218,7 +1357,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             updateControlCenterReferenceVisibility();
         }
         if (this.controlCenterActualSummary != null) {
-            this.controlCenterActualSummary.setText("正在拉取，请展开手机控制中心一次后返回");
+            this.controlCenterActualSummary.setText(getString(R.string.ui_main_2fda065bcd));
         }
         this.saveHandler.removeCallbacks(this.controlCenterPreviewPoll);
         this.saveHandler.post(this.controlCenterPreviewPoll);
@@ -1231,7 +1370,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         this.controlCenterPreviewPolls = i + 1;
         if (i >= 120) {
             if (this.controlCenterActualSummary != null) {
-                this.controlCenterActualSummary.setText("未检测到可读取的布局，请展开控制中心后重新拉取");
+                this.controlCenterActualSummary.setText(getString(R.string.ui_main_e3f14303ae));
                 return;
             }
             return;
@@ -1284,11 +1423,11 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         if (controlCenterReferenceToggle != null) {
             controlCenterReferenceToggle.setEnabled(available);
             controlCenterReferenceToggle.setText(available
-                    ? "真实布局参考  " + (controlCenterReferenceExpanded ? "∧" : "∨")
-                    : "真实布局参考");
+                    ? getString(R.string.ui_main_fed31d5ca1) + (controlCenterReferenceExpanded ? "∧" : "∨")
+                    : getString(R.string.ui_main_714b4caceb));
             controlCenterReferenceToggle.setContentDescription(available
-                    ? (controlCenterReferenceExpanded ? "收起真实布局参考图" : "展开真实布局参考图")
-                    : "真实布局参考，请先拉取布局");
+                    ? (controlCenterReferenceExpanded ? getString(R.string.ui_main_14c6fc4c9c) : getString(R.string.ui_main_cc17a0eb41))
+                    : getString(R.string.ui_main_de3798b027));
         }
         if (controlCenterActualPreview != null) {
             controlCenterActualPreview.setVisibility(available && controlCenterReferenceExpanded
@@ -1339,7 +1478,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                             ControlCenterGridEditor.EditAction.UNPAIR, this);
                     if (findControlGridItem(id) == null) content.removeAllViews();
                 }, textPrimaryColor(), (specs, selectedIndex) ->
-                        showControlTileChoiceSheet("添加成员", specs, selectedIndex));
+                        showControlTileChoiceSheet(getString(R.string.ui_control_group_add_member), specs, selectedIndex));
         content.addView(editor, matchWrap());
         return editor;
     }
@@ -1414,8 +1553,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     private void confirmResetControlCenter() {
-        utilitySheets().confirm("恢复原生布局", "清除本模块的控制中心布局和外观修改，保留当前磁贴选择与顺序。",
-                "恢复", () -> { restoreControlCenter(false); return true; });
+        utilitySheets().confirm(getString(R.string.ui_main_f0b955a680), getString(R.string.ui_main_fa89314af4),
+                getString(R.string.backup_restore), () -> { restoreControlCenter(false); return true; });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1433,9 +1572,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         previewLoader.clearRemote();
         com.xtjm.fusionstatusbar.ControlCenterConfig cleared = controlCenterSettings().clearCustomization();
         updateControlCenterDraft(cleared);
-        commitControlCenterDraft(cleared, "已提交恢复请求，请核对系统实际布局");
+        commitControlCenterDraft(cleared, getString(R.string.ui_main_4e6ae50756));
         if (this.controlCenterActualSummary != null) {
-            this.controlCenterActualSummary.setText("恢复请求已保存；展开控制中心后拉取实际布局核对");
+            this.controlCenterActualSummary.setText(getString(R.string.ui_main_676c2ba1b3));
         }
     }
 
@@ -1443,24 +1582,24 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     public void showControlCenterTilesDialog() {
         if (controlCenterAppTilesLoading) {
             controlCenterAppTilesReady = this::showControlCenterTilesDialog;
-            Toast.makeText(this, "正在读取可用磁贴", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_04a189e0d0), Toast.LENGTH_SHORT).show();
             return;
         }
         java.util.ArrayList<String> specs = knownControlGridSpecs();
         specs.sort(java.util.Comparator.comparingInt(spec -> spec.startsWith("custom(") ? 1 : 0));
-        showSettingsDialog("全局磁贴开关", content -> {
-            addHint(content, "管理所有已发现的系统与应用快捷磁贴，同时影响标准、紧凑两种布局。关闭后不再显示，也不会出现在添加列表；已关闭的项目仍保留在此，可随时重新启用。仅修改编辑草稿，推送后才应用到控制中心；不会直接切换 Wi-Fi、蓝牙等功能。");
+        showSettingsDialog(getString(R.string.ui_main_7f859d93c4), content -> {
+            addHint(content, getString(R.string.ui_main_5d75da382f));
             String section = "";
             for (String spec : specs) {
-                String nextSection = spec.startsWith("custom(") ? "应用快捷磁贴" : "系统与其他磁贴";
+                String nextSection = spec.startsWith("custom(") ? getString(R.string.ui_main_03038853a8) : getString(R.string.ui_main_7dceb1f7f9);
                 if (!section.equals(nextSection)) { addSectionLabel(content, nextSection); section = nextSection; }
                 String title = tileLabel(spec);
                 String hint = spec.startsWith("custom(") && ControlCenterAppTiles.find(controlCenterAppTiles, spec) == null
-                        ? "当前未发现此服务，保留设置供恢复" : "适用于标准与紧凑布局";
+                        ? getString(R.string.ui_main_9d5e6a41e6) : getString(R.string.ui_main_69b1b1b09f);
                 android.widget.Switch toggle = addSwitch(content, title, hint,
                         !controlCenterSettings().isHidden(spec), enabled ->
                                 updateControlCenterDraft(updateHiddenTile(controlCenterSettings(), spec, !enabled)));
-                toggle.setContentDescription("全局可用：" + title);
+                toggle.setContentDescription(getString(R.string.ui_main_c513c6b4d7) + title);
                 LinearLayout row = (LinearLayout) toggle.getParent();
                 row.setPadding(0, dp(8), 0, dp(8));
                 LinearLayout texts = (LinearLayout) row.getChildAt(0);
@@ -1517,8 +1656,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         LinearLayout row = (LinearLayout) addSlider(content, title, "", 0, 100, value, "%", update);
         row.getChildAt(1).setVisibility(View.GONE);
         LinearLayout endpoints = new LinearLayout(this);
-        android.widget.TextView transparent = labelView("透明", 12f, false);
-        android.widget.TextView blurred = labelView("模糊", 12f, false);
+        android.widget.TextView transparent = labelView(getString(R.string.ui_control_surface_clear), 12f, false);
+        android.widget.TextView blurred = labelView(getString(R.string.ui_main_8d7f1e739e), 12f, false);
         transparent.setTextColor(textSecondaryColor()); blurred.setTextColor(textSecondaryColor());
         blurred.setGravity(android.view.Gravity.END);
         endpoints.addView(transparent, new LinearLayout.LayoutParams(0, -2, 1));
@@ -1537,7 +1676,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         ControlCenterAppTiles.Entry entry = ControlCenterAppTiles.find(controlCenterAppTiles, spec);
         if (captured != null) return entry == null ? captured : captured.withFallbackIcon(entry.icon);
         return entry == null ? null : new ControlCenterCapturedStyle(ControlCenterLayoutPlan.Shape.CIRCLE, 0,
-                -1, entry.label, "未读取状态", -1, entry.icon);
+                -1, entry.label, getString(R.string.ui_main_58c6737aa3), -1, entry.icon);
     }
 
     private java.util.ArrayList<java.lang.String> knownControlGridSpecs() {
@@ -1647,13 +1786,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                 labels.put(spec, tileLabel(spec));
                 styles.put(spec, controlTileStyle(spec));
             }
-            cells.add(new ControlCenterGridEditor.Cell(item.id, "", "", "组合卡片", null, item.x, item.y,
+            cells.add(new ControlCenterGridEditor.Cell(item.id, "", "", getString(R.string.ui_control_page_group_card), null, item.x, item.y,
                     item.width, item.height, false, null, null, item.shape, item.cornerRadius,
                     item.locked, item.hidden, item.zIndex, settings.tileScale).withGroup(item, styles, labels));
             continue;
         }
         java.lang.String first = com.xtjm.fusionstatusbar.ControlCenterComponentSpec.isSpecial(item.firstSpec)
-                ? com.xtjm.fusionstatusbar.ControlCenterComponentSpec.label(item.firstSpec)
+                ? com.xtjm.fusionstatusbar.ControlCenterComponentSpec.label(this, item.firstSpec)
                 : tileLabel(item.firstSpec);
         java.lang.String second = item.type == com.xtjm.fusionstatusbar.ControlCenterLayoutPlan.Type.PAIR ? tileLabel(item.secondSpec) : null;
         // Captures remain in the reference panel; editable cards must re-render their shape.
@@ -1689,14 +1828,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private void importActualControlCenterDraft() {
         if (this.controlCenterActualPreview == null
                 || !this.controlCenterActualPreview.hasTileLayout()) {
-            Toast.makeText(this, "请先拉取真实布局", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_c0b7548660), Toast.LENGTH_SHORT).show();
             return;
         }
         java.util.ArrayList<String> captured = new java.util.ArrayList<>(
                 this.controlCenterActualPreview.capturedSpecs());
         captured.addAll(this.controlCenterActualPreview.capturedComponents());
         if (captured.isEmpty() && this.controlCenterActualPreview.capturedLayout().editableMode == null) {
-            Toast.makeText(this, "真实布局中没有可导入项目", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_a773c162e2), Toast.LENGTH_SHORT).show();
             return;
         }
         try {
@@ -1708,10 +1847,10 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                     + " spacingDp=" + imported.spacingDp + " items=" + imported.mode.items.size());
         } catch (IllegalArgumentException error) {
             android.util.Log.w("FusionStatusBar", "Native layout import rejected", error);
-            Toast.makeText(this, "布局坐标不完整，请展开控制中心后重新拉取", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_be36c07ac8), Toast.LENGTH_SHORT).show();
             return;
         }
-        Toast.makeText(this, "已导入编辑草稿，点击推送后才会应用", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.ui_main_4650ff1bf5), Toast.LENGTH_SHORT).show();
     }
 
     private void applyControlGridPlan(com.xtjm.fusionstatusbar.ControlCenterLayoutPlan next) {
@@ -1746,7 +1885,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private void clearControlGridMode() {
         if (!controlCenterSettingsPage.clearCanvas(this)) {
-            Toast.makeText(this, "当前网格已经为空", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_36b147975c), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -1796,7 +1935,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private void applyValidatedControlGridEdit(ControlCenterLayoutPlan next) {
         if (!next.mode(isCompactControlCenter()).validate().isEmpty()) {
-            Toast.makeText(this, "当前位置空间不足，布局未修改", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_control_page_space_error), Toast.LENGTH_SHORT).show();
             return;
         }
         applyControlGridPlan(next);
@@ -1842,14 +1981,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         java.util.ArrayList<String> specs = availableControlGridSpecs();
         specs.removeIf(ControlCenterComponentSpec::isSpecial);
         if (specs.size() < 2) {
-            Toast.makeText(this, "至少需要两个可用磁贴", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_28c081a127), Toast.LENGTH_SHORT).show();
             return;
         }
-        showControlTileChoiceSheet("选择第一个磁贴", specs, firstIndex -> {
+        showControlTileChoiceSheet(getString(R.string.ui_main_d91658def6), specs, firstIndex -> {
             String first = specs.get(firstIndex);
             java.util.ArrayList<String> others = new java.util.ArrayList<>(specs);
             others.remove(first);
-            showControlTileChoiceSheet("选择第二个磁贴", others, secondIndex ->
+            showControlTileChoiceSheet(getString(R.string.ui_main_bbfbe54c91), others, secondIndex ->
                     applyControlGridPlan(currentControlGridPlan().withPair(isCompactControlCenter(),
                             first, others.get(secondIndex), ControlCenterLayoutPlan.Direction.HORIZONTAL,
                             -1, -1, 2, 1)));
@@ -1859,7 +1998,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private void showAddControlItemDialog() {
         if (controlCenterAppTilesLoading) {
             controlCenterAppTilesReady = this::showAddControlItemDialog;
-            Toast.makeText(this, "正在读取应用快捷开关", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_main_cd832cba04), Toast.LENGTH_SHORT).show();
             return;
         }
         java.util.ArrayList<String> specs = availableControlGridSpecs();
@@ -1871,12 +2010,12 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         boolean hasCapture = controlCenterActualPreview != null && controlCenterActualPreview.hasTileLayout();
         java.util.List<String> capturedComponents = hasCapture ? controlCenterActualPreview.capturedComponents()
                 : java.util.Collections.emptyList();
-        labels[0] = "组合卡片 · 将两个磁贴合并";
-        labels[1] = "空白组合卡";
+        labels[0] = getString(R.string.ui_main_11a77556d9);
+        labels[1] = getString(R.string.ui_main_75c60a4d4b);
         for (int index = 0; index < specs.size(); index++) {
             labels[index + 2] = addControlItemLabel(specs.get(index), capturedComponents, hasCapture);
         }
-        showControlChoiceSheet("添加项目", labels,
+        showControlChoiceSheet(getString(R.string.ui_main_96f9752b2d), labels,
                 index -> addControlItemIcon(index < 2 ? "" : specs.get(index - 2)), index -> {
             if (index == 0) showAddControlPairDialog();
             else if (index == 1) {
@@ -1904,9 +2043,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private String addControlItemLabel(String spec, java.util.List<String> capturedComponents, boolean hasCapture) {
         if (!ControlCenterComponentSpec.isSpecial(spec)) return tileLabel(spec);
-        String label = ControlCenterComponentSpec.label(spec);
-        if (ControlCenterComponentSpec.FIVE_G.equals(spec)) return "组件 · " + label;
-        return "组件 · " + label + (capturedComponents.contains(spec) ? "" : hasCapture ? " · 参考布局未包含" : " · 未验证");
+        String label = ControlCenterComponentSpec.label(this, spec);
+        if (ControlCenterComponentSpec.FIVE_G.equals(spec)) return getString(R.string.ui_main_4594a416f9) + label;
+        return getString(R.string.ui_main_4594a416f9) + label + (capturedComponents.contains(spec) ? "" : hasCapture ? getString(R.string.ui_main_385948af8e) : getString(R.string.ui_main_00fe42e992));
     }
 
     private android.graphics.drawable.Drawable addControlItemIcon(String spec) {
@@ -1973,13 +2112,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             }
             int networkHeight = dp(networkRows * 78);
             if (wifi != null) {
-                com.xtjm.fusionstatusbar.ControlCenterPreviewTile wifiTile = actualTile(wifi, "ble-5-1-503", "已连接", true);
+                com.xtjm.fusionstatusbar.ControlCenterPreviewTile wifiTile = actualTile(wifi, "ble-5-1-503", getString(R.string.ui_main_65fe35c45e), true);
                 android.widget.LinearLayout.LayoutParams params = new android.widget.LinearLayout.LayoutParams(0, networkHeight, settings.tileWidth(wifi));
                 params.setMargins(0, 0, dp(4), dp(5));
                 network.addView(wifiTile, params);
             }
             if (mobile != null) {
-                com.xtjm.fusionstatusbar.ControlCenterPreviewTile mobileTile = actualTile(mobile, "移动数据", "不可用", false);
+                com.xtjm.fusionstatusbar.ControlCenterPreviewTile mobileTile = actualTile(mobile, getString(R.string.ui_main_34026cfe7c), getString(R.string.ui_main_beff4a1cd1), false);
                 android.widget.LinearLayout.LayoutParams params2 = new android.widget.LinearLayout.LayoutParams(0, networkHeight, settings.tileWidth(mobile));
                 params2.setMargins(dp(4), 0, 0, dp(5));
                 network.addView(mobileTile, params2);
@@ -2014,7 +2153,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             controls = controls;
         }
         linearLayout2.addView(deviceDots, new android.widget.LinearLayout.LayoutParams(-2, dp(48)));
-        android.widget.TextView deviceTitle = labelView("融合设备中心", 16.0f, true);
+        android.widget.TextView deviceTitle = labelView(getString(R.string.ui_control_component_device_center), 16.0f, true);
         deviceTitle.setTextColor(android.graphics.Color.rgb(225, 226, 228));
         android.widget.LinearLayout.LayoutParams deviceTitleParams = new android.widget.LinearLayout.LayoutParams(-2, dp(48));
         deviceTitleParams.leftMargin = dp(10);
@@ -2031,7 +2170,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             grid.remove(mobile);
         }
         addCircularTileGrid(linearLayout, grid, settings);
-        android.widget.TextView edit = labelView("编辑", 13.0f, false);
+        android.widget.TextView edit = labelView(getString(R.string.ui_main_a7f814c0a4), 13.0f, false);
         edit.setTextColor(-1);
         edit.setGravity(17);
         edit.setBackground(rounded(android.graphics.Color.rgb(145, 146, 148), dp(22)));
@@ -2111,7 +2250,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         cast.setTextColor(-3355444);
         cast.setGravity(8388613);
         media.addView(cast, new android.widget.LinearLayout.LayoutParams(-1, dp(28)));
-        android.widget.TextView empty = labelView("暂无播放", 16.0f, true);
+        android.widget.TextView empty = labelView(getString(R.string.ui_control_card_no_media), 16.0f, true);
         empty.setTextColor(android.graphics.Color.rgb(170, 171, 173));
         empty.setGravity(17);
         media.addView(empty, new android.widget.LinearLayout.LayoutParams(-1, 0, 1.0f));
@@ -2147,7 +2286,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         com.xtjm.fusionstatusbar.ControlCenterConfig settings = controlCenterSettings();
         int i = 0;
         if (specs.isEmpty()) {
-            android.widget.TextView empty = labelView(active ? "暂无磁贴" : "没有可添加的磁贴", 13.0f, false);
+            android.widget.TextView empty = labelView(active ? getString(R.string.ui_main_7addf666d5) : getString(R.string.ui_control_group_no_candidates), 13.0f, false);
             empty.setTextColor(textSecondaryColor());
             empty.setGravity(17);
             linearLayout.addView(empty, new android.widget.LinearLayout.LayoutParams(-1, dp(48)));
@@ -2189,20 +2328,20 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         ControlCenterAppTiles.Entry applicationTile = ControlCenterAppTiles.find(controlCenterAppTiles, spec);
         if (applicationTile != null) return applicationTile.label + (applicationTile.application.equals(applicationTile.label)
                 ? "" : " · " + applicationTile.application);
-        java.lang.String componentLabel = com.xtjm.fusionstatusbar.ControlCenterComponentSpec.label(spec);
+        java.lang.String componentLabel = com.xtjm.fusionstatusbar.ControlCenterComponentSpec.label(this, spec);
         if (!componentLabel.isEmpty()) {
             return componentLabel;
         }
         int index = tileIndex(spec);
-        if (index >= 0) return CONTROL_TILE_LABELS[index];
+        if (index >= 0) return getString(CONTROL_TILE_LABELS[index]);
         ControlCenterCapturedStyle captured = controlCenterActualPreview == null ? null
                 : controlCenterActualPreview.capturedStyle(spec);
         if (captured != null && !captured.label.trim().isEmpty()) return captured.label;
         switch (ControlCenterConfig.canonicalSpec(spec)) {
-            case "aitranslate": return "翻译";
-            case "aisubtitles": return "实时字幕";
-            case "dnd": return "模式";
-            case "modes_dnd": return "勿扰";
+            case "aitranslate": return getString(R.string.ui_main_23141370a4);
+            case "aisubtitles": return getString(R.string.ui_main_ac8a8db039);
+            case "dnd": return getString(R.string.ui_main_ed0eea8f20);
+            case "modes_dnd": return getString(R.string.ui_main_0194696b2b);
             default: break;
         }
         return spec;
@@ -2248,15 +2387,15 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         if (com.xtjm.fusionstatusbar.ControlCenterComponentSpec.isSpecial(spec)) {
             showControlComponentShapeDialog(spec);
         } else {
-            showSettingsDialog("磁贴形状 · " + tileLabel(spec), new com.xtjm.fusionstatusbar.MainActivity.DialogBuilder() { // from class: com.xtjm.fusionstatusbar.MainActivity.36
+            showSettingsDialog(getString(R.string.ui_main_e53f09ac90) + tileLabel(spec), new com.xtjm.fusionstatusbar.MainActivity.DialogBuilder() { // from class: com.xtjm.fusionstatusbar.MainActivity.36
                 @Override // com.xtjm.fusionstatusbar.MainActivity.DialogBuilder
                 public void build(android.widget.LinearLayout linearLayout) {
                     final com.xtjm.fusionstatusbar.ControlCenterConfig settings = com.xtjm.fusionstatusbar.MainActivity.this.controlCenterSettings();
-                    com.xtjm.fusionstatusbar.MainActivity.this.addHint(linearLayout, "形状会按控制中心网格组合，点击完成后重绘预览并应用到系统界面。");
-                    java.lang.String[] options = {"标准 1×1", "横向 2×1", "横向 3×1", "整行 " + settings.columns + "×1", "大块 2×2"};
+                    com.xtjm.fusionstatusbar.MainActivity.this.addHint(linearLayout, getString(R.string.ui_main_e3b3386d71));
+                    java.lang.String[] options = {getString(R.string.ui_main_477bf50991), getString(R.string.ui_main_c59f42390a), getString(R.string.ui_main_d80f5d10d8), getString(R.string.ui_main_59e23b09ad) + settings.columns + "×1", getString(R.string.ui_main_353e6b73fd)};
                     int selected = com.xtjm.fusionstatusbar.MainActivity.this.shapeIndex(settings, spec);
                     com.xtjm.fusionstatusbar.SettingsChoiceSelector shape = new com.xtjm.fusionstatusbar.SettingsChoiceSelector(
-                            com.xtjm.fusionstatusbar.MainActivity.this, "磁贴形状", options, selected,
+                            com.xtjm.fusionstatusbar.MainActivity.this, getString(R.string.ui_main_84fbaa22a0), options, selected,
                             com.xtjm.fusionstatusbar.MainActivity.this.inputColor(),
                             com.xtjm.fusionstatusbar.MainActivity.this.textPrimaryColor(),
                             com.xtjm.fusionstatusbar.MainActivity.this.textSecondaryColor(),
@@ -2282,7 +2421,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     private void showControlComponentShapeDialog(final java.lang.String spec) {
-        showSettingsDialog("组件形状 · " + tileLabel(spec), new com.xtjm.fusionstatusbar.MainActivity.DialogBuilder() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda4
+        showSettingsDialog(getString(R.string.ui_main_6f65927fa3) + tileLabel(spec), new com.xtjm.fusionstatusbar.MainActivity.DialogBuilder() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda4
             @Override // com.xtjm.fusionstatusbar.MainActivity.DialogBuilder
             public final void build(android.widget.LinearLayout linearLayout) {
                 MainActivity.this.lambda$showControlComponentShapeDialog$39(spec, linearLayout);
@@ -2298,12 +2437,12 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         android.widget.LinearLayout placement = new android.widget.LinearLayout(this);
         placement.setOrientation(LinearLayout.HORIZONTAL);
         final android.widget.Button left = new MiuixControls.Command(this);
-        left.setText("左侧");
+        left.setText(getString(R.string.side_left));
         left.setAllCaps(false);
         left.setAlpha("left".equals(settings.componentSide(spec)) ? 1.0f : 0.56f);
         MiuixControls.attachButton(placement, left, false, new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f));
         final android.widget.Button right = new MiuixControls.Command(this);
-        right.setText("右侧");
+        right.setText(getString(R.string.side_right));
         right.setAllCaps(false);
         right.setAlpha("right".equals(settings.componentSide(spec)) ? 1.0f : 0.56f);
         left.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda38
@@ -2323,7 +2462,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         android.widget.LinearLayout ordering = new android.widget.LinearLayout(this);
         ordering.setOrientation(LinearLayout.HORIZONTAL);
         android.widget.Button earlier = new MiuixControls.Command(this);
-        earlier.setText("上移");
+        earlier.setText(getString(R.string.ui_main_8a0c839791));
         earlier.setAllCaps(false);
         earlier.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda40
             @Override // android.view.View.OnClickListener
@@ -2333,7 +2472,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         });
         MiuixControls.attachButton(ordering, earlier, false, new android.widget.LinearLayout.LayoutParams(0, -2, 1.0f));
         android.widget.Button later = new MiuixControls.Command(this);
-        later.setText("下移");
+        later.setText(getString(R.string.ui_main_05c46fa3b7));
         later.setAllCaps(false);
         later.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda41
             @Override // android.view.View.OnClickListener
@@ -2359,21 +2498,21 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         int nativeRows = iCapturedComponentRows;
         int width = customized ? settings.tileWidth(spec) : nativeWidth;
         int height = customized ? settings.tileHeight(spec) : nativeRows;
-        addHint(linearLayout, "横向和纵向分别调整组件占用的网格；恢复原始尺寸可撤销本组件修改。");
-        addSlider(linearLayout, "横向宽度", "占用的网格列数", 1, settings.columns, width, " 列", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda42
+        addHint(linearLayout, getString(R.string.ui_main_eb377415af));
+        addSlider(linearLayout, getString(R.string.ui_main_a875081e2b), getString(R.string.ui_main_90630ac933), 1, settings.columns, width, getString(R.string.ui_main_c05426b904), new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda42
             @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
             public final void apply(int i2) {
                 MainActivity.this.lambda$showControlComponentShapeDialog$36(spec, i2);
             }
         });
-        addSlider(linearLayout, "纵向高度", "使用系统控制中心的行高档位", 1, 4, height, " 行", new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda1
+        addSlider(linearLayout, getString(R.string.ui_main_ebe00384f0), getString(R.string.ui_main_4d18f3e7b1), 1, 4, height, getString(R.string.ui_main_0a4e6bb96b), new com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda1
             @Override // com.xtjm.fusionstatusbar.MainActivity.IntegerUpdate
             public final void apply(int i2) {
                 MainActivity.this.lambda$showControlComponentShapeDialog$37(spec, nativeWidth, i2);
             }
         });
         android.widget.Button reset = new MiuixControls.Command(this);
-        reset.setText("恢复系统原始尺寸");
+        reset.setText(getString(R.string.ui_main_b6161f4bd6));
         reset.setAllCaps(false);
         reset.setOnClickListener(new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity$$ExternalSyntheticLambda2
             @Override // android.view.View.OnClickListener
@@ -2766,13 +2905,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         java.lang.String str;
         if (this.activationSummary != null) {
             boolean loaded = com.xtjm.fusionstatusbar.FusionActivationStatus.isLoadedThisBoot(this);
-            this.activationTitle.setText(loaded ? "已激活" : "未检测到激活");
+            this.activationTitle.setText(loaded ? getString(R.string.ui_main_b1eea7b855) : getString(R.string.ui_main_cee01af794));
             long reportedAt = com.xtjm.fusionstatusbar.FusionActivationStatus.lastReportTime(this);
             android.widget.TextView textView = this.activationSummary;
             if (loaded) {
-                str = "系统界面已连接" + (reportedAt > 0 ? " · " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(reportedAt)) : "");
+                str = getString(R.string.ui_main_bd69fb8241) + (reportedAt > 0 ? " · " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(new java.util.Date(reportedAt)) : "");
             } else {
-                str = "本次开机尚未收到系统界面连接记录";
+                str = getString(R.string.ui_main_3285a90ceb);
             }
             textView.setText(str);
             this.activationIndicator.setBackground(rounded(android.graphics.Color.parseColor(loaded ? "#FF228663" : "#FFC48733"), dp(6)));
@@ -3074,20 +3213,20 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         if (this.fusionSettingsSummary == null || this.config == null) {
             return;
         }
-        this.fusionSettingsSummary.setText("大小 " + this.config.iconScale + "% · 粗细 " + this.config.strokeScale + "% · " + (this.config.wifiIcon ? "显示 Wi-Fi" : "仅移动网络"));
-        this.layoutSettingsSummary.setText((this.config.doubleRow ? "双排" : "单排") + " · 融合" + shortPosition(this.config.fusionSide, this.config.fusionRow) + " · 系统" + shortPosition(this.config.systemSide, this.config.systemRow) + " · 总高 " + this.config.statusBarHeight + " dp");
-        this.clockSettingsSummary.setText((this.config.customClock ? "自定义格式" : "系统时间") + (this.config.showWeather ? " · 显示天气" : ""));
+        this.fusionSettingsSummary.setText(getString(R.string.language_fusion_summary, config.iconScale, config.strokeScale, config.wifiIcon ? getString(R.string.ui_main_bd598c6d89) : getString(R.string.ui_main_b07eaccec9)));
+        this.layoutSettingsSummary.setText(getString(R.string.language_layout_summary, config.doubleRow ? getString(R.string.ui_main_d90efbc7b3) : getString(R.string.ui_main_2ae991695d), shortPosition(config.fusionSide, config.fusionRow), shortPosition(config.systemSide, config.systemRow), config.statusBarHeight));
+        this.clockSettingsSummary.setText((this.config.customClock ? getString(R.string.ui_main_471daad874) : getString(R.string.ui_main_03e973a353)) + (this.config.showWeather ? getString(R.string.ui_main_7eb2141d59) : ""));
         int enabled = 0;
         for (int metric = 0; metric < 3; metric++) {
             if (this.config.telemetry.enabled(metric)) {
                 enabled++;
             }
         }
-        this.telemetrySettingsSummary.setText(enabled + " 项启用 · 可分别调整字号、对齐和间距");
+        this.telemetrySettingsSummary.setText(getString(R.string.language_telemetry_summary, enabled));
         if (this.controlCenterSummary != null) {
             ControlCenterConfig control = controlCenterSettings();
             ControlCenterLayoutPlan.Mode mode = currentControlGridPlan().mode(isCompactControlCenter());
-            String modeName = isCompactControlCenter() ? "紧凑布局" : "标准布局";
+            String modeName = isCompactControlCenter() ? getString(R.string.ui_control_page_compact_mode) : getString(R.string.ui_control_page_regular_mode);
             int hidden = 0;
             for (ControlCenterLayoutPlan.Item item : mode.items) {
                 if (item.hidden || control.isHidden(item.firstSpec)) hidden++;
@@ -3095,18 +3234,17 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             boolean pending = hasPendingControlCenterDraft();
             String applicationSummary = controlCenterApplicationSummary();
             boolean retryApplication = !pending && editorPage.canRetryApplication();
-            controlCenterSummary.setText(mode.columns + " 列 · 内容 " + control.tileScale
-                    + "% · 圆角 " + control.cornerRadius + " dp · 间距 " + control.spacing + " dp");
-            controlCenterCanvasSummary.setText(modeName + " · " + mode.columns + " 列 · "
-                    + (mode.items.size() - hidden) + " 项显示"
-                    + (hidden > 0 ? " · " + hidden + " 项隐藏" : ""));
+            controlCenterSummary.setText(getString(R.string.language_control_summary, mode.columns, control.tileScale, control.cornerRadius, control.spacing));
+            controlCenterCanvasSummary.setText(hidden > 0
+                    ? getString(R.string.language_canvas_summary_hidden, modeName, mode.columns, mode.items.size() - hidden, hidden)
+                    : getString(R.string.language_canvas_summary, modeName, mode.columns, mode.items.size()));
             controlCenterPublishHint.setText(controlCenterSaving ? getString(R.string.editor_saving)
                     : controlCenterSaveFailed ? getString(R.string.editor_save_failed)
                     : pending && !control.enabled
-                    ? "自定义已关闭；推送后使用原生布局。开启开关可应用画布设置。"
-                    : pending ? "有待推送的修改 · 将应用当前的" + modeName
+                    ? getString(R.string.ui_main_0e9fb13a08)
+                    : pending ? getString(R.string.language_pending_mode, modeName)
                             : controlCenterSavedRevision > 0 ? applicationSummary
-                            : "设置已保存 · 编辑后推送到手机");
+                            : getString(R.string.ui_main_f24b9091d8));
             controlCenterDraftHint.setVisibility(editorPage.draftFailed() ? View.VISIBLE : View.GONE);
             controlCenterDraftHint.setText(editorPage.draftRetrying()
                     ? R.string.editor_draft_retrying : R.string.editor_draft_failed);
@@ -3122,17 +3260,17 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             controlCenterRedoButton.setAlpha(controlCenterRedoButton.isEnabled() ? 1f : 0.45f);
             if (this.controlCenterPushButton != null) {
                 this.controlCenterPushButton.setText(controlCenterSaving ? getString(R.string.editor_saving)
-                        : pending ? "推送修改" : retryApplication ? getString(R.string.editor_apply_retry) : "暂无待推送修改");
+                        : pending ? getString(R.string.ui_main_d22d87b4bd) : retryApplication ? getString(R.string.editor_apply_retry) : getString(R.string.ui_main_70870457f5));
                 this.controlCenterPushButton.setEnabled((pending || retryApplication) && !controlCenterSaving);
                 this.controlCenterPushButton.setAlpha((pending || retryApplication) && !controlCenterSaving ? 1f : 0.5f);
             }
         }
         refreshControlCenterPreview();
         if (this.notificationClockSummary != null) {
-            this.notificationClockSummary.setText(this.config.notificationClock.enabled ? "自定义格式 · " + this.config.notificationClock.combinedPattern().replace('\n', ' ') : "使用系统时间与日期");
+            this.notificationClockSummary.setText(this.config.notificationClock.enabled ? getString(R.string.language_notification_pattern, config.notificationClock.combinedPattern().replace('\n', ' ')) : getString(R.string.ui_main_a42059d828));
         }
         if (this.notificationListSummary != null) {
-            this.notificationListSummary.setText("下移 " + this.config.notificationClock.listOffsetYDp + " dp");
+            this.notificationListSummary.setText(getString(R.string.language_notification_offset, config.notificationClock.listOffsetYDp));
         }
         if (this.notificationTimePreview != null) {
             com.xtjm.fusionstatusbar.NotificationClockConfig setting = this.config.notificationClock;
@@ -3171,7 +3309,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     private java.lang.String shortPosition(int side, int row) {
-        return (side == 0 ? "左" : "右") + (row == 0 ? "上" : "下");
+        return getString(side == 0
+                ? row == 0 ? R.string.language_position_left_top : R.string.language_position_left_bottom
+                : row == 0 ? R.string.language_position_right_top : R.string.language_position_right_bottom);
     }
 
     private java.lang.CharSequence styleNotificationPreview(java.lang.String text, int dateSizeSp, boolean timeCentered, boolean dateCentered) {
@@ -3555,8 +3695,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     private void confirmResetSettings() {
-        utilitySheets().confirm("恢复默认设置", "将恢复状态栏和通知栏的全部自定义参数，是否继续？",
-                "恢复", () -> { lambda$confirmResetSettings$89(null, 0); return true; });
+        utilitySheets().confirm(getString(R.string.reset_settings), getString(R.string.ui_main_bfb8c272a5),
+                getString(R.string.backup_restore), () -> { lambda$confirmResetSettings$89(null, 0); return true; });
     }
 
     MiuixSheetHost utilitySheets() {
@@ -4177,6 +4317,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     }
 
     private void continuePendingSystemUiRestart() {
+        continuePendingAppLanguage();
         if (pendingSystemUiRestart == null || controlCenterSaving || configRestoring
                 || configWriteInFlight || isDestroyed() || isFinishing()) return;
         if (pendingSettingsSave) {

@@ -25,7 +25,7 @@ import org.robolectric.shadows.ShadowDialog
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w360dp-h800dp-mdpi")
+@Config(sdk = [34], qualifiers = "zh-rCN-w360dp-h800dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class DesktopComposeUiTest {
     @get:Rule(order = 0) val configuration = FusionTestConfigRule()

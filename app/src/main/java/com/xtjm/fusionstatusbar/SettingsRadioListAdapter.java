@@ -94,7 +94,7 @@ final class SettingsRadioListAdapter extends BaseAdapter {
         holder.label.setText(label);
         row.setSelected(checked);
         row.setContentDescription(label);
-        row.setStateDescription(checked ? "已选择" : "未选择");
+        row.setStateDescription(checked ? context.getString(R.string.ui_shared_743aaf951e) : context.getString(R.string.desktop_not_selected));
         return row;
     }
 

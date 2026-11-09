@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hide_launcher_icon">隱藏應用程式圖示</string>
+    <string name="hide_launcher_icon_summary">隱藏桌面圖示，仍可從 LSPosed 開啟設定</string>
+    <string name="hide_launcher_icon_failed">應用程式圖示設定失敗，請重試</string>
+</resources>

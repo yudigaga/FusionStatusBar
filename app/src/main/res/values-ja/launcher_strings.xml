@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hide_launcher_icon">アプリアイコンを隠す</string>
+    <string name="hide_launcher_icon_summary">ホーム画面のアイコンを隠します。設定は引き続き LSPosed から開けます</string>
+    <string name="hide_launcher_icon_failed">アプリアイコンの設定を変更できませんでした。もう一度お試しください</string>
+</resources>
+

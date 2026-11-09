@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">Copia de seguridad y restauración</string>
+    <string name="backup_export">Exportar configuración</string>
+    <string name="backup_import">Importar configuración</string>
+    <string name="backup_undo">Deshacer la última restauración</string>
+    <string name="backup_cancel">Cancelar</string>
+    <string name="backup_restore">Restaurar</string>
+    <string name="backup_enabled">Activado</string>
+    <string name="backup_disabled">Desactivado</string>
+    <string name="backup_busy">Procesando, espera</string>
+    <string name="backup_exported">Configuración exportada</string>
+    <string name="backup_export_failed">No se ha podido exportar la configuración; elige otra ubicación</string>
+    <string name="backup_import_invalid">El archivo no es válido, es demasiado grande o no es compatible. La configuración actual no ha cambiado.</string>
+    <string name="backup_restore_confirmation">Restaurar toda la configuración</string>
+    <string name="backup_preview">Escala de iconos: %1$d%%\nEscala del trazo: %2$d%%\nAltura de la barra de estado: %3$d dp\nColumnas del centro de control: %4$d\nCentro de control personalizado: %5$s\n\nSe sustituirán todos los ajustes de la barra de estado, el panel de notificaciones y el centro de control. Antes de restaurar se creará una copia de la configuración actual.</string>
+    <string name="backup_keep_draft">Se conservarán los borradores del centro de control sin aplicar.</string>
+    <string name="backup_undo_confirmation">Restaura toda la configuración anterior a la última importación y sustituye los ajustes actuales. Se conservarán los borradores del centro de control sin aplicar. Solo se puede deshacer una vez.</string>
+    <string name="backup_undo_unavailable">No hay ninguna restauración que deshacer</string>
+    <string name="backup_wait_for_save">Se están guardando los cambios. Espera antes de restaurar.</string>
+    <string name="backup_restored">Configuración restaurada; esperando a que el sistema la aplique</string>
+    <string name="backup_restore_failed">Error al restaurar; se conserva la configuración actual. Inténtalo de nuevo.</string>
+    <string name="backup_picker_unavailable">No se ha podido abrir el selector de archivos</string>
+    <string name="preset_title">Diseños predefinidos</string>
+    <string name="preset_save_current">Guardar el borrador como diseño predefinido</string>
+    <string name="preset_manage">Gestionar diseños predefinidos</string>
+    <string name="preset_name">Nombre del diseño predefinido</string>
+    <string name="preset_save">Guardar</string>
+    <string name="preset_load">Cargar en el borrador</string>
+    <string name="preset_rename">Cambiar nombre</string>
+    <string name="preset_copy">Duplicar</string>
+    <string name="preset_delete">Eliminar</string>
+    <string name="preset_delete_confirmation">¿Eliminar el diseño predefinido «%1$s»?</string>
+    <string name="preset_saved">Diseño predefinido guardado</string>
+    <string name="preset_loaded">Diseño predefinido cargado en el borrador</string>
+    <string name="preset_deleted">Diseño predefinido eliminado</string>
+    <string name="preset_empty">No hay diseños predefinidos guardados</string>
+    <string name="preset_invalid_name">Introduce un nombre válido de entre 1 y 40 caracteres</string>
+    <string name="preset_duplicate_name">Ya existe un diseño predefinido con ese nombre; elige otro</string>
+    <string name="preset_limit">Puedes guardar hasta 24 diseños predefinidos</string>
+    <string name="preset_read_failed">No se han podido leer los diseños predefinidos; se conservan los existentes</string>
+    <string name="preset_write_failed">No se han podido guardar los diseños predefinidos; se conservan los existentes</string>
+</resources>

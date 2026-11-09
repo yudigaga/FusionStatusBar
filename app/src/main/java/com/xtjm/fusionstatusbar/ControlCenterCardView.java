@@ -259,7 +259,7 @@ final class ControlCenterCardView extends FrameLayout {
         if (ControlCenterComponentSpec.isSpecial(spec)) return new ComponentCardPreview(getContext(), label);
         return new ControlCenterPreviewTile(getContext(), spec,
                 captured != null && !captured.label.isEmpty() ? captured.label : label,
-                captured != null && !captured.subtitle.isEmpty() ? captured.subtitle : active ? "已开启" : "已关闭",
+                captured != null && !captured.subtitle.isEmpty() ? captured.subtitle : active ? tr(R.string.ui_control_card_enabled) : tr(R.string.ui_control_card_disabled),
                 large ? ControlCenterPreviewTile.MODE_LARGE : ControlCenterPreviewTile.MODE_CIRCLE,
                 active, 0, model.scale, false, captured == null ? null : captured.icon);
     }
@@ -363,7 +363,7 @@ final class ControlCenterCardView extends FrameLayout {
 
     void bindGroup(ControlCenterLayoutPlan.Item item, java.util.Map<String, ControlCenterCapturedStyle> styles,
             java.util.Map<String, String> labels, int defaultRadius) {
-        model = new Model(item.id, "", "组合卡片", null, false, false, false, true,
+        model = new Model(item.id, "", tr(R.string.ui_control_card_group), null, false, false, false, true,
                 item.shape, dp(item.cornerRadius > 0 ? item.cornerRadius : defaultRadius), 100);
         nativeColors.clear();
         surface.removeAllViews();
@@ -377,7 +377,7 @@ final class ControlCenterCardView extends FrameLayout {
                     ControlCenterPreviewTile.MODE_CIRCLE, active, 32, 100, true, style == null ? null : style.icon);
             return new ControlCenterGroupEntry(getContext(), icon, member.showLabel, false, member.iconScale, () -> new String[] {
                     style != null && !style.label.isEmpty() ? style.label : labels.getOrDefault(member.spec, member.spec),
-                    style != null && !style.subtitle.isEmpty() ? style.subtitle : active ? "已开启" : "已关闭"});
+                    style != null && !style.subtitle.isEmpty() ? style.subtitle : active ? tr(R.string.ui_control_card_enabled) : tr(R.string.ui_control_card_disabled)});
         }), new FrameLayout.LayoutParams(-1, -1));
         applyGlobalBorder();
         requestLayout();
@@ -411,8 +411,8 @@ final class ControlCenterCardView extends FrameLayout {
         @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
             paint.setTextSize(dp(14) * model.scale / 100f);
             float available = Math.max(1, width - dp(24));
-            if (paint.measureText("暂无播放") > available) {
-                paint.setTextSize(paint.getTextSize() * available / paint.measureText("暂无播放"));
+            if (paint.measureText(tr(R.string.ui_control_card_no_media)) > available) {
+                paint.setTextSize(paint.getTextSize() * available / paint.measureText(tr(R.string.ui_control_card_no_media)));
             }
         }
 
@@ -422,7 +422,7 @@ final class ControlCenterCardView extends FrameLayout {
             float edge = Math.min(width, height);
             float castSize = Math.min(dp(24), edge * 0.15f);
             ControlCenterIcons.draw(canvas, cast, width - edge * 0.14f, edge * 0.15f, castSize);
-            canvas.drawText("暂无播放", width / 2f,
+            canvas.drawText(tr(R.string.ui_control_card_no_media), width / 2f,
                     height * 0.46f - (paint.ascent() + paint.descent()) / 2f, paint);
             float size = Math.min(dp(28), edge * 0.16f) * model.scale / 100f;
             float cy = height * 0.80f;
@@ -440,7 +440,7 @@ final class ControlCenterCardView extends FrameLayout {
 
         ComponentCardPreview(Context context, String title) {
             super(context);
-            this.title = title == null ? "控制中心" : title;
+            this.title = title == null ? tr(R.string.ui_control_card_control_center) : title;
             paint.setTypeface(MEDIUM_TYPEFACE);
         }
 
@@ -472,5 +472,9 @@ final class ControlCenterCardView extends FrameLayout {
             paint.setColor(Color.rgb(255, 157, 137));
             canvas.drawCircle(start + mark * 0.50f, cy + mark * 0.28f, mark * 0.14f, paint);
         }
+    }
+
+    private String tr(int resource, Object... args) {
+        return ModuleStrings.get(getContext(), resource, args);
     }
 }

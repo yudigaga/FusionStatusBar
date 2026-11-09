@@ -22,7 +22,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34, manifest = Config.NONE)
+@Config(sdk = 34, manifest = Config.NONE, qualifiers = "zh-rCN")
 public class ControlCenterSettingsPageTest {
     @Test public void editSelectionAndHistoryStayOnTheOwnedSession() {
         ControlCenterConfig baseline = baseline();
@@ -315,6 +315,7 @@ public class ControlCenterSettingsPageTest {
     }
 
     private static final class FakeHost implements ControlCenterSettingsPage.Host {
+        @Override public Context pageContext() { return context; }
         private final ControlCenterSettingsPage page;
         private final Context context = RuntimeEnvironment.getApplication();
         private final Map<String, Consumer<Boolean>> toggles = new HashMap<>();

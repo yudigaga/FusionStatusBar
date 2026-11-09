@@ -81,7 +81,7 @@ final class SettingsChoiceSelector extends LinearLayout {
         valueRow.setMinimumHeight(dp(52));
         valueRow.setPadding(dp(14), dp(4), dp(14), dp(4));
         valueRow.setBackground(surface(background, dp(8)));
-        valueRow.setContentDescription("当前选择");
+        valueRow.setContentDescription(getContext().getString(R.string.ui_shared_7f06ec27ae));
         valueRow.setFocusable(true);
         valueRow.setClickable(true);
 
@@ -191,7 +191,7 @@ final class SettingsChoiceSelector extends LinearLayout {
         mark.setText("✓");
         mark.setTextSize(18);
         mark.setGravity(Gravity.CENTER);
-        mark.setContentDescription("已选择");
+        mark.setContentDescription(getContext().getString(R.string.ui_shared_743aaf951e));
         row.addView(mark, new LinearLayout.LayoutParams(dp(28), -2));
 
         optionList.addView(row, wrap());
@@ -225,12 +225,12 @@ final class SettingsChoiceSelector extends LinearLayout {
     private void renderSelection() {
         selectedValue.setText(labels[selected]);
         selectedValue.setContentDescription(labels[selected]);
-        valueRow.setStateDescription("当前值：" + labels[selected]);
-        setStateDescription("当前值：" + labels[selected]);
+        valueRow.setStateDescription(getContext().getString(R.string.ui_shared_a08975d02a) + labels[selected]);
+        setStateDescription(getContext().getString(R.string.ui_shared_a08975d02a) + labels[selected]);
         for (int index = 0; index < options.size(); index++) {
             boolean checked = index == selected;
             options.get(index).setSelected(checked);
-            options.get(index).setStateDescription(checked ? "已选择" : null);
+            options.get(index).setStateDescription(checked ? getContext().getString(R.string.ui_shared_743aaf951e) : null);
             selectionMarks.get(index).setVisibility(checked ? View.VISIBLE : View.INVISIBLE);
             selectionMarks.get(index).setTextColor(accent);
         }
@@ -242,7 +242,7 @@ final class SettingsChoiceSelector extends LinearLayout {
         this.expanded = expanded;
         optionList.setVisibility(miuix == null && expanded ? View.VISIBLE : View.GONE);
         disclosure.setText(expanded ? "⌃" : "⌄");
-        String state = "当前值：" + labels[selected] + (expanded ? "，已展开" : "，已收起");
+        String state = getContext().getString(R.string.ui_shared_a08975d02a) + labels[selected] + (expanded ? getContext().getString(R.string.ui_shared_6d1b7fa684) : getContext().getString(R.string.ui_shared_f62b976896));
         valueRow.setStateDescription(state);
         setStateDescription(state);
         if (expanded && isLaidOut()) {

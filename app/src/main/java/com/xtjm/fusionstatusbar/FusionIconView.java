@@ -479,9 +479,9 @@ public class FusionIconView extends View {
             builder.append("\u7535\u91cf ").append(batteryPercent);
         }
         if (charging) {
-            appendPart(builder, fastCharging ? "快充" : "充电");
+            appendPart(builder, fastCharging ? ModuleStrings.get(getContext(), R.string.ui_shared_0fc492ed91) : ModuleStrings.get(getContext(), R.string.ui_shared_34c3d13664));
         } else if (powerSave) {
-            appendPart(builder, "省电");
+            appendPart(builder, ModuleStrings.get(getContext(), R.string.ui_shared_238c876296));
         }
         if (showWifi) {
             appendPart(builder, "Wi-Fi " + clamp(wifiLevel) + "/4");

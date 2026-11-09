@@ -158,7 +158,8 @@ public class ControlCenterGridEditorShapeTest {
         assertEquals(2 * (ControlCenterGridGeometry.columnUnitPx(400, 4, 4) + 4), host.getLeft());
         assertEquals(0, edits);
     }
-    @Test public void reboundHostUsesCurrentLockAndHiddenStateAndStillOpensProperties() {
+    @Test @Config(qualifiers = "zh-rCN")
+    public void reboundHostUsesCurrentLockAndHiddenStateAndStillOpensProperties() {
         ControlCenterGridEditor editor = editor();
         editor.setCells(4, Collections.singletonList(simple("a", "wifi", ControlCenterLayoutPlan.Shape.RECTANGLE, 0)));
         View host = editor.getChildAt(0);

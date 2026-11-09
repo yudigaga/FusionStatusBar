@@ -1,9 +1,10 @@
-"""Validate both Android build variants before local or CI archiving."""
+"""Validate the R8 Release APK before local or CI archiving."""
 
 import argparse
 import hashlib
 import json
 import re
+import struct
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import zipfile
@@ -11,6 +12,169 @@ import zipfile
 
 class ValidationError(ValueError):
     pass
+
+
+def dex_metadata(data):
+    """Read only bounded DEX tables; a descriptor in string_data is not a class definition."""
+    if len(data) < 112 or not re.fullmatch(rb"dex\n(?:035|037|038|039|040)\x00", data[:8]):
+        raise ValidationError("Unsupported or truncated DEX header")
+
+    def uint(offset):
+        return struct.unpack_from("<I", data, offset)[0]
+
+    if uint(32) != len(data) or uint(36) != 112 or uint(40) != 0x12345678:
+        raise ValidationError("DEX size, header size or endian tag mismatch")
+
+    def bounded(offset, count, width, alignment=1):
+        if (offset < 112 or offset % alignment or offset > len(data)
+                or count > (len(data) - offset) // width):
+            raise ValidationError("DEX table or data offset is out of bounds")
+
+    for size_field, offset_field, width in ((56, 60, 4), (64, 68, 4), (72, 76, 12),
+                                           (80, 84, 8), (88, 92, 8), (96, 100, 32)):
+        count, offset = uint(size_field), uint(offset_field)
+        if count:
+            bounded(offset, count, width, 4)
+        elif offset:
+            raise ValidationError("Empty DEX table has a nonzero offset")
+    data_size, data_off = uint(104), uint(108)
+    if data_size:
+        bounded(data_off, data_size, 1)
+    elif data_off:
+        raise ValidationError("Empty DEX data has a nonzero offset")
+    data_end = data_off + data_size
+    map_off = uint(52)
+    if map_off:
+        bounded(map_off, 1, 4, 4)
+        bounded(map_off + 4, uint(map_off), 12, 4)
+
+    def dex_string(offset):
+        if not data_size or offset < data_off or offset >= data_end:
+            raise ValidationError("DEX string is outside the data section")
+        size = 0
+        for index in range(5):
+            if offset >= data_end:
+                raise ValidationError("Truncated DEX string length")
+            byte = data[offset]
+            offset += 1
+            if index == 4 and byte > 15:
+                raise ValidationError("Overflowing DEX string length")
+            size |= (byte & 127) << (index * 7)
+            if not byte & 128:
+                break
+        else:
+            raise ValidationError("Unterminated DEX string length")
+        end = data.find(b"\0", offset, data_end)
+        if end < 0:
+            raise ValidationError("Unterminated DEX string")
+        try:
+            value = data[offset:end].replace(b"\xc0\x80", b"\0").decode("utf-8", errors="surrogatepass")
+        except UnicodeDecodeError as error:
+            raise ValidationError("Malformed DEX modified UTF-8 string") from error
+        if len(value.encode("utf-16-le", errors="surrogatepass")) // 2 != size:
+            raise ValidationError("DEX string UTF-16 length mismatch")
+        return value
+
+    strings = [dex_string(uint(uint(60) + index * 4)) for index in range(uint(56))]
+    types = []
+    for index in range(uint(64)):
+        string_index = uint(uint(68) + index * 4)
+        if string_index >= len(strings):
+            raise ValidationError("DEX type descriptor index is out of bounds")
+        types.append(strings[string_index])
+    classes = set()
+    for index in range(uint(96)):
+        type_index = uint(uint(100) + index * 32)
+        if type_index >= len(types):
+            raise ValidationError("DEX class type index is out of bounds")
+        descriptor = types[type_index]
+        if not descriptor.startswith("L") or not descriptor.endswith(";") or descriptor in classes:
+            raise ValidationError("Invalid or duplicate DEX class definition")
+        classes.add(descriptor)
+    markers = []
+    for value in strings:
+        if not value.startswith("~~R8{"):
+            continue
+        try:
+            marker = json.loads(value[4:])
+        except json.JSONDecodeError as error:
+            raise ValidationError("Malformed R8 DEX marker") from error
+        if (not isinstance(marker, dict) or marker.get("backend") != "dex"
+                or not isinstance(marker.get("version"), str) or not marker["version"].strip()
+                or not isinstance(marker.get("pg-map-id"), str) or not marker["pg-map-id"].strip()):
+            raise ValidationError("R8 DEX marker lacks its backend, version or mapping ID")
+        markers.append(marker)
+    return dict(classes=classes, markers=markers)
+
+
+def java_initializers(text):
+    entries = [line.strip() for line in text.splitlines()
+               if line.strip() and not line.lstrip().startswith("#")]
+    if (not entries or len(entries) != len(set(entries))
+            or any(not re.fullmatch(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+", entry)
+                   for entry in entries)):
+        raise ValidationError("Invalid Xposed Java entry list")
+    return entries
+
+
+def r8_artifacts(apk, mapping_directory, expected_entries):
+    expected_entries = java_initializers("\n".join(expected_entries))
+    classes, markers = set(), []
+    try:
+        with zipfile.ZipFile(apk) as archive:
+            entries = java_initializers(archive.read("META-INF/xposed/java_init.list").decode("utf-8"))
+            if entries != expected_entries:
+                raise ValidationError("Packaged Xposed Java entries differ from source")
+            dex_files = [item for item in archive.infolist()
+                         if re.fullmatch(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex", item.filename)]
+            if (not any(item.filename == "classes.dex" for item in dex_files)
+                    or len(dex_files) != len({item.filename for item in dex_files})):
+                raise ValidationError("APK has missing or duplicate primary DEX files")
+            for item in dex_files:
+                parsed = dex_metadata(archive.read(item))
+                if classes.intersection(parsed["classes"]):
+                    raise ValidationError("APK contains duplicate class definitions across DEX files")
+                classes.update(parsed["classes"])
+                markers.extend(parsed["markers"])
+    except (KeyError, UnicodeDecodeError, zipfile.BadZipFile, OSError) as error:
+        raise ValidationError("APK R8 metadata or DEX cannot be read") from error
+    for entry in expected_entries:
+        if "L" + entry.replace(".", "/") + ";" not in classes:
+            raise ValidationError(f"Xposed entry class is absent from DEX class_defs: {entry}")
+    identities = {(marker["version"], marker["pg-map-id"]) for marker in markers}
+    if len(identities) != 1:
+        raise ValidationError("APK lacks an unambiguous R8 DEX marker")
+    version, mapping_id = next(iter(identities))
+    mapping_file = mapping_directory / "mapping.txt"
+    try:
+        mapping = mapping_file.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as error:
+        raise ValidationError("R8 mapping.txt is missing or unreadable") from error
+
+    def mapping_header(name, required=True):
+        values = re.findall(rf"^#\s*{re.escape(name)}\s*:\s*(.*?)\s*$", mapping, re.MULTILINE)
+        if len(values) > 1 or (required and (len(values) != 1 or not values[0])):
+            raise ValidationError(f"R8 mapping header is missing or duplicated: {name}")
+        return values[0] if values else None
+
+    if mapping_header("compiler") != "R8" or mapping_header("pg_map_id") != mapping_id:
+        raise ValidationError("R8 mapping compiler or pg_map_id differs from the APK marker")
+    mapping_version = mapping_header("compiler_version")
+    if mapping_version != version:
+        raise ValidationError("R8 mapping compiler version differs from the APK marker")
+    artifacts = {}
+    for name in ("mapping", "configuration", "seeds", "usage"):
+        path = mapping_directory / f"{name}.txt"
+        if name != "mapping" and not path.exists():
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError as error:
+            raise ValidationError(f"R8 artifact is unreadable: {path}") from error
+        artifacts[name] = dict(path=str(path.resolve()), sha256=hashlib.sha256(data).hexdigest(), size=len(data))
+    return dict(minified=True, engine="R8", r8Version=version, mappingId=mapping_id,
+                mappingPath=artifacts["mapping"]["path"], mappingSha256=artifacts["mapping"]["sha256"],
+                r8Artifacts=artifacts, xposedEntryPoints=expected_entries)
 
 
 def source_identity(project):
@@ -123,12 +287,15 @@ def validate_variant(project, variant, identity, policy):
                          ("versionCode", str(identity["versionCode"]))):
         if properties.get(field) != value:
             raise ValidationError(f"Xposed {field} mismatch: {variant}")
+    entry_list = project / "app/src/main/resources/META-INF/xposed/java_init.list"
+    r8 = r8_artifacts(apk, project / "app/build/outputs/mapping" / variant,
+                      java_initializers(entry_list.read_text(encoding="utf-8")))
     name = variant.capitalize()
     tests = test_totals(project / f"app/build/test-results/test{name}UnitTest")
     lint = lint_totals(project, project / f"app/build/reports/lint-results-{variant}.xml", policy)
     return dict(apk=str(apk), apkSha256=hashlib.sha256(apk.read_bytes()).hexdigest(),
                 apkSize=apk.stat().st_size, tests=tests, lint=lint, debuggable=variant == "debug",
-                xposedScopes=sorted(scopes))
+                xposedScopes=sorted(scopes), **r8)
 
 
 def validate_build(project, expected_package, expected_namespace):
@@ -137,7 +304,7 @@ def validate_build(project, expected_package, expected_namespace):
         raise ValidationError("Source package or namespace differs from the selected release identity")
     policy = json.loads((project / "tools/lint-policy.json").read_text(encoding="utf-8"))
     return dict(identity=identity, variants={variant: validate_variant(project, variant, identity, policy)
-                                             for variant in ("debug", "release")})
+                                             for variant in ("release",)})
 
 
 def main():

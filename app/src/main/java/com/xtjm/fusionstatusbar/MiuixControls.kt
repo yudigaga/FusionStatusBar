@@ -315,7 +315,7 @@ object MiuixControls {
         val model = Input(content.context).apply {
             setText(initial)
             isEnabled = enabled
-            contentDescription = "时间格式"
+            contentDescription = context.getString(R.string.ui_control_settings_time_format)
             visibility = View.GONE
         }
         content.addView(model, LinearLayout.LayoutParams(0, 0))

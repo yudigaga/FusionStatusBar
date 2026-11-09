@@ -64,7 +64,9 @@ class MiuixNavigation(activity: ComponentActivity, callback: IntConsumer) {
                     SideEffect { host.setNightMode(night) }
                     val icons = listOf(Icons.Default.Home, Icons.Default.Edit, Icons.Default.Notifications,
                         Icons.Default.Menu, Icons.Default.MoreVert, Icons.Default.Settings)
-                    val labels = listOf("桌面", "状态栏", "通知栏", "控制中心", "杂项", "设置")
+                    val labels = listOf(R.string.navigation_desktop, R.string.navigation_status,
+                        R.string.navigation_notifications, R.string.navigation_controls,
+                        R.string.navigation_misc, R.string.navigation_settings).map(activity::getString)
                     val largeText = LocalConfiguration.current.fontScale > 1.3f
                     BoxWithConstraints {
                         val density = LocalDensity.current
@@ -77,18 +79,20 @@ class MiuixNavigation(activity: ComponentActivity, callback: IntConsumer) {
                             letterSpacing = 0.sp)
                         val controlWidth = measurer.measure(labels[3], style = baseStyle).size.width
                         val displayLabels = labels.mapIndexed { index, label ->
-                            if (index == 3 && (largeText || controlWidth > labelWidth)) "控制\n中心" else label
+                            if (index == 3 && activity.resources.configuration.locales[0].language == "zh"
+                                && (largeText || controlWidth > labelWidth))
+                                activity.getString(R.string.ui_shared_8d51ca9047) else label
                         }
                         var fontSize = NavigationBarDefaults.LabelFontSize.value
                         while (fontSize > 8f && displayLabels.any { label ->
-                                label.lineSequence().any {
-                                    measurer.measure(it, style = baseStyle.copy(fontSize = fontSize.sp))
-                                        .size.width > labelWidth
-                                }
+                                measurer.measure(label, style = baseStyle.copy(fontSize = fontSize.sp),
+                                    constraints = Constraints(maxWidth = labelWidth), maxLines = 2,
+                                    softWrap = true).hasVisualOverflow
                             }) fontSize -= 0.5f
                         val textHeight = displayLabels.maxOf { label ->
                             measurer.measure(label, style = baseStyle.copy(fontSize = fontSize.sp),
-                                constraints = Constraints(maxWidth = labelWidth)).size.height
+                                constraints = Constraints(maxWidth = labelWidth), maxLines = 2,
+                                softWrap = true).size.height
                         }
                         val itemHeight = maxOf(NavigationBarDefaults.ItemHeight,
                             with(density) { textHeight.toDp() } + NavigationBarDefaults.IconSize + 20.dp)
@@ -118,7 +122,7 @@ class MiuixNavigation(activity: ComponentActivity, callback: IntConsumer) {
                                         Text(displayLabels[index], modifier = Modifier.fillMaxWidth(), color = tint, textAlign = TextAlign.Center,
                                             fontSize = fontSize.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                             style = baseStyle.copy(fontSize = fontSize.sp),
-                                            letterSpacing = 0.sp, maxLines = 2, softWrap = false)
+                                            letterSpacing = 0.sp, maxLines = 2, softWrap = true)
                                     }
                                 }
                             }

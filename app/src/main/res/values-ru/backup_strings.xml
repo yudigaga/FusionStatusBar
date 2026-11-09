@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">Резервное копирование и восстановление</string>
+    <string name="backup_export">Экспорт настроек</string>
+    <string name="backup_import">Импорт настроек</string>
+    <string name="backup_undo">Отменить последнее восстановление</string>
+    <string name="backup_cancel">Отмена</string>
+    <string name="backup_restore">Восстановить</string>
+    <string name="backup_enabled">Включено</string>
+    <string name="backup_disabled">Выключено</string>
+    <string name="backup_busy">Обработка, подождите</string>
+    <string name="backup_exported">Настройки экспортированы</string>
+    <string name="backup_export_failed">Не удалось экспортировать настройки. Выберите другое место сохранения</string>
+    <string name="backup_import_invalid">Файл настроек повреждён, слишком велик или несовместим с этой версией. Текущие настройки не изменены</string>
+    <string name="backup_restore_confirmation">Восстановить все настройки</string>
+    <string name="backup_preview">Масштаб значка: %1$d%%\nТолщина контура: %2$d%%\nВысота строки состояния: %3$d dp\nСтолбцы центра управления: %4$d\nНастройка центра управления: %5$s\n\nВсе настройки строки состояния, панели уведомлений и центра управления будут заменены. Перед восстановлением текущие настройки будут автоматически сохранены в резервную копию.</string>
+    <string name="backup_keep_draft">Неотправленный черновик центра управления будет сохранён.</string>
+    <string name="backup_undo_confirmation">Текущие настройки будут заменены полным набором настроек до последнего импорта. Неотправленный черновик центра управления будет сохранён. Отменить восстановление можно только один раз.</string>
+    <string name="backup_undo_unavailable">Нет восстановления, которое можно отменить</string>
+    <string name="backup_wait_for_save">Дождитесь сохранения текущих изменений перед восстановлением</string>
+    <string name="backup_restored">Настройки восстановлены, ожидается применение системой</string>
+    <string name="backup_restore_failed">Не удалось восстановить настройки. Текущие настройки сохранены, повторите попытку</string>
+    <string name="backup_picker_unavailable">Не удалось открыть выбор файла</string>
+    <string name="preset_title">Шаблоны расположения</string>
+    <string name="preset_save_current">Сохранить текущий черновик как шаблон</string>
+    <string name="preset_manage">Управление шаблонами</string>
+    <string name="preset_name">Название шаблона</string>
+    <string name="preset_save">Сохранить</string>
+    <string name="preset_load">Загрузить в черновик</string>
+    <string name="preset_rename">Переименовать</string>
+    <string name="preset_copy">Копировать</string>
+    <string name="preset_delete">Удалить</string>
+    <string name="preset_delete_confirmation">Удалить шаблон «%1$s»?</string>
+    <string name="preset_saved">Шаблон сохранён</string>
+    <string name="preset_loaded">Шаблон загружен в черновик</string>
+    <string name="preset_deleted">Шаблон удалён</string>
+    <string name="preset_empty">Нет сохранённых шаблонов</string>
+    <string name="preset_invalid_name">Введите допустимое название длиной от 1 до 40 символов</string>
+    <string name="preset_duplicate_name">Шаблон с таким названием уже есть. Выберите другое название</string>
+    <string name="preset_limit">Можно сохранить не более 24 шаблонов</string>
+    <string name="preset_read_failed">Не удалось прочитать шаблоны. Существующие шаблоны сохранены</string>
+    <string name="preset_write_failed">Не удалось сохранить шаблоны. Существующие шаблоны сохранены</string>
+</resources>

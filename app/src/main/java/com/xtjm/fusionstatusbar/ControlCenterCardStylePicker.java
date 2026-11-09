@@ -29,7 +29,7 @@ final class ControlCenterCardStylePicker extends LinearLayout {
         setOrientation(VERTICAL);
         setPadding(0, dp(8), 0, dp(8));
         TextView heading = new TextView(context);
-        heading.setText("卡片样式");
+        heading.setText(tr(R.string.ui_control_picker_card_style));
         heading.setTextSize(16);
         heading.setTextColor(textColor);
         addView(heading, new LayoutParams(-1, -2));
@@ -37,10 +37,10 @@ final class ControlCenterCardStylePicker extends LinearLayout {
         String[] labels = new String[styles.length];
         boolean[] disabled = new boolean[styles.length];
         for (int index = 0; index < styles.length; index++) {
-            labels[index] = styles[index].label;
+            labels[index] = styles[index].label(context);
             disabled[index] = styles[index] == ControlCenterCardStyle.CUSTOM;
         }
-        presets = new SettingsChoiceSelector(context, "卡片样式", labels, 0, surfaceColor,
+        presets = new SettingsChoiceSelector(context, tr(R.string.ui_control_picker_card_style), labels, 0, surfaceColor,
                 textColor, Color.GRAY, Color.rgb(52, 130, 255), disabled,
                 index -> styleSwatch(styles[index]), position -> {
             ControlCenterCardStyle style = styles[position];
@@ -51,7 +51,7 @@ final class ControlCenterCardStylePicker extends LinearLayout {
         addView(presets, new LayoutParams(-1, -2));
         if (context instanceof androidx.activity.ComponentActivity) {
             heading.setVisibility(View.GONE);
-            LinearLayout range = MiuixControls.slider(this, "独立圆角", "", 0, 64,
+            LinearLayout range = MiuixControls.slider(this, tr(R.string.ui_control_picker_corner_radius), "", 0, 64,
                     item.cornerRadius, " dp", next -> bind(update.apply(current.withShape(current.shape, next))));
             radius = (SeekBar) range.getTag();
             value = (TextView) ((LinearLayout) range.getChildAt(0)).getChildAt(1);
@@ -61,7 +61,7 @@ final class ControlCenterCardStylePicker extends LinearLayout {
         LinearLayout radiusRow = new LinearLayout(context);
         radiusRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView label = new TextView(context);
-        label.setText("独立圆角");
+        label.setText(tr(R.string.ui_control_picker_corner_radius));
         label.setTextSize(14);
         label.setTextColor(textColor);
         radiusRow.addView(label, new LayoutParams(0, -2, 1));
@@ -71,7 +71,7 @@ final class ControlCenterCardStylePicker extends LinearLayout {
         radiusRow.addView(value, new LayoutParams(-2, -2));
         addView(radiusRow, new LayoutParams(-1, dp(32)));
         radius = new SeekBar(context);
-        radius.setContentDescription("独立圆角");
+        radius.setContentDescription(tr(R.string.ui_control_picker_corner_radius));
         radius.setMax(64);
         radius.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(52, 130, 255)));
         radius.setThumbTintList(android.content.res.ColorStateList.valueOf(Color.rgb(52, 130, 255)));
@@ -107,9 +107,14 @@ final class ControlCenterCardStylePicker extends LinearLayout {
         presets.setEnabled(!item.locked);
         radius.setProgress(item.cornerRadius);
         radius.setEnabled(!item.locked && item.shape == ControlCenterLayoutPlan.Shape.RECTANGLE);
-        value.setText(item.shape != ControlCenterLayoutPlan.Shape.RECTANGLE ? "自动"
-                : item.cornerRadius == 0 ? "默认" : item.cornerRadius + " dp");
+        value.setText(item.shape != ControlCenterLayoutPlan.Shape.RECTANGLE ? tr(R.string.ui_control_picker_automatic)
+                : item.cornerRadius == 0 ? tr(R.string.ui_control_picker_default)
+                        : tr(R.string.ui_control_picker_radius_value, item.cornerRadius));
     }
 
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+
+    private String tr(int resource, Object... args) {
+        return ModuleStrings.get(getContext(), resource, args);
+    }
 }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_language_title">アプリの言語</string>
+    <string name="app_language_summary">モジュールの設定画面に使用する言語を選択します</string>
+    <string name="app_language_follow_system">システムに従う</string>
+    <string name="app_language_change_failed">アプリの言語を切り替えられませんでした。もう一度お試しください</string>
+</resources>
+

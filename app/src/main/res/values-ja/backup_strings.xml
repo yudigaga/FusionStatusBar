@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">設定のバックアップと復元</string>
+    <string name="backup_export">設定をエクスポート</string>
+    <string name="backup_import">設定をインポート</string>
+    <string name="backup_undo">前回の復元を取り消す</string>
+    <string name="backup_cancel">キャンセル</string>
+    <string name="backup_restore">復元</string>
+    <string name="backup_enabled">オン</string>
+    <string name="backup_disabled">オフ</string>
+    <string name="backup_busy">処理中です。しばらくお待ちください</string>
+    <string name="backup_exported">設定をエクスポートしました</string>
+    <string name="backup_export_failed">設定をエクスポートできませんでした。保存先を選び直してください</string>
+    <string name="backup_import_invalid">設定ファイルが無効、サイズ超過、または非対応のバージョンです。現在の設定は変更していません</string>
+    <string name="backup_restore_confirmation">すべての設定を復元</string>
+    <string name="backup_preview">アイコンの拡大率：%1$d%%\n線の太さ：%2$d%%\nステータスバーの高さ：%3$d dp\nコントロールセンターの列数：%4$d\nコントロールセンターのカスタマイズ：%5$s\n\nステータスバー、通知パネル、コントロールセンターのすべての設定を置き換えます。復元前に現在の設定を自動でバックアップします。</string>
+    <string name="backup_keep_draft">未反映のコントロールセンターの下書きは維持します。</string>
+    <string name="backup_undo_confirmation">前回のインポート前のすべての設定に戻し、現在の設定を置き換えます。未反映のコントロールセンターの下書きは維持します。取り消しは1回のみ実行できます。</string>
+    <string name="backup_undo_unavailable">取り消せる復元履歴がありません</string>
+    <string name="backup_wait_for_save">変更を保存中です。保存が完了してから復元してください</string>
+    <string name="backup_restored">設定を復元しました。システムへの反映を待っています</string>
+    <string name="backup_restore_failed">復元できませんでした。現在の設定は維持しています。もう一度お試しください</string>
+    <string name="backup_picker_unavailable">ファイル選択画面を開けませんでした</string>
+    <string name="preset_title">レイアウトのプリセット</string>
+    <string name="preset_save_current">現在の下書きをプリセットとして保存</string>
+    <string name="preset_manage">プリセットを管理</string>
+    <string name="preset_name">プリセット名</string>
+    <string name="preset_save">保存</string>
+    <string name="preset_load">下書きに読み込む</string>
+    <string name="preset_rename">名前を変更</string>
+    <string name="preset_copy">コピー</string>
+    <string name="preset_delete">削除</string>
+    <string name="preset_delete_confirmation">プリセット「%1$s」を削除しますか？</string>
+    <string name="preset_saved">プリセットを保存しました</string>
+    <string name="preset_loaded">プリセットを下書きに読み込みました</string>
+    <string name="preset_deleted">プリセットを削除しました</string>
+    <string name="preset_empty">保存済みのプリセットはありません</string>
+    <string name="preset_invalid_name">1～40文字の有効な名前を入力してください</string>
+    <string name="preset_duplicate_name">同じ名前のプリセットがあります。別の名前を指定してください</string>
+    <string name="preset_limit">保存できるプリセットは24個までです</string>
+    <string name="preset_read_failed">プリセットを読み込めませんでした。既存のプリセットは維持しています</string>
+    <string name="preset_write_failed">プリセットを保存できませんでした。既存のプリセットは維持しています</string>
+</resources>
+

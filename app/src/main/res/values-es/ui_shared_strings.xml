@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_shared_00188fe7a9" formatted="false">&quot;No molestar&quot;</string>
+    <string name="ui_shared_045a2087e9" formatted="false">&quot;Derecha, segunda fila&quot;</string>
+    <string name="ui_shared_06d23d6323" formatted="false">&quot;Desbloquear la protección inteligente de privacidad&quot;</string>
+    <string name="ui_shared_0d4eb90dda" formatted="false">&quot;Caja de herramientas de juegos&quot;</string>
+    <string name="ui_shared_0dad51dfeb" formatted="false">&quot;Solo la interfaz; la compatibilidad real depende del hardware&quot;</string>
+    <string name="ui_shared_0e4521bebe" formatted="false">&quot;Desbloquear la asistencia de mira&quot;</string>
+    <string name="ui_shared_0fc492ed91" formatted="false">&quot;Carga rápida&quot;</string>
+    <string name="ui_shared_19d7acdcd6" formatted="false">&quot;Desbloquear el ventilador de refrigeración (interfaz)&quot;</string>
+    <string name="ui_shared_1aabcab8a6" formatted="false">&quot;Desbloquear funciones de carga&quot;</string>
+    <string name="ui_shared_1ed667a339" formatted="false">&quot;Omitir la espera de diez segundos&quot;</string>
+    <string name="ui_shared_1f251c8a07" formatted="false">&quot;Varios&quot;</string>
+    <string name="ui_shared_1ff083ea9c" formatted="false">&quot;Muestra la opción de mira en la caja de herramientas; el efecto depende del juego y el dispositivo&quot;</string>
+    <string name="ui_shared_21fccda712" formatted="false">&quot;Sigue requiriendo los sensores de detección nativos; no activa la detección ni acepta las condiciones de privacidad automáticamente&quot;</string>
+    <string name="ui_shared_238c876296" formatted="false">&quot;Ahorro de batería&quot;</string>
+    <string name="ui_shared_2611edc14d" formatted="false">&quot;Omite la espera de confirmación de permisos sensibles; aún se requiere confirmación manual&quot;</string>
+    <string name="ui_shared_276df9c7d4" formatted="false">&quot;Activa la opción en las funciones de carga de Seguridad; el efecto depende del dispositivo&quot;</string>
+    <string name="ui_shared_34026cfe7c" formatted="false">&quot;Datos móviles&quot;</string>
+    <string name="ui_shared_34a2e834da" formatted="false">&quot;Instalación desde recovery&quot;</string>
+    <string name="ui_shared_34c3d13664" formatted="false">&quot;Carga&quot;</string>
+    <string name="ui_shared_3afac8982a" formatted="false">&quot;Muestra el modo de relleno; algunos juegos pueden tener un campo de visión horizontal más estrecho&quot;</string>
+    <string name="ui_shared_3b248194b7" formatted="false">&quot;Solo cambia la puntuación mostrada, no los resultados reales del análisis&quot;</string>
+    <string name="ui_shared_3b7f03a9cb" formatted="false">&quot;Muestra las opciones de superresolución; comprueba su efecto real&quot;</string>
+    <string name="ui_shared_3dbd1a4c8c" formatted="false">&quot;Desbloquear la mejora de imagen&quot;</string>
+    <string name="ui_shared_3e5f0f83ba" formatted="false">&quot;Desbloquear el alivio del mareo&quot;</string>
+    <string name="ui_shared_3e789f84de" formatted="false">&quot;Desbloquear los efectos de sonido de juegos (interfaz)&quot;</string>
+    <string name="ui_shared_3f264ea66e" formatted="false">&quot;Modo silencio&quot;</string>
+    <string name="ui_shared_446a8a8694" formatted="false">&quot;Muestra las opciones de interpolación de fotogramas y conserva la incompatibilidad nativa con superresolución; comprueba su efecto real&quot;</string>
+    <string name="ui_shared_44bcbe9312" formatted="false">&quot;Perfil de sonido&quot;</string>
+    <string name="ui_shared_477d642a49" formatted="false">&quot;Derecha, primera fila&quot;</string>
+    <string name="ui_shared_488a5835a1" formatted="false">&quot;El efecto real en la frecuencia de actualización depende del dispositivo&quot;</string>
+    <string name="ui_shared_4971bad28a" formatted="false">&quot;Privacidad y seguridad&quot;</string>
+    <string name="ui_shared_4bb0bcd111" formatted="false">&quot;Muestra estadísticas de referencia desde la última carga completa en la información de batería, con intervalo de visualización ajustable&quot;</string>
+    <string name="ui_shared_4c17aca43f" formatted="false">&quot;Muestra la opción de privacidad inteligente en los ajustes de Seguridad; el efecto depende de la pantalla y los servicios del sistema&quot;</string>
+    <string name="ui_shared_4d557baa9b" formatted="false">&quot;Muestra datos reales que puede leer la aplicación; los valores desconocidos aparecen como --&quot;</string>
+    <string name="ui_shared_4fcaa2ab50" formatted="false">&quot;Punto de acceso&quot;</string>
+    <string name="ui_shared_599fbf62ae" formatted="false">&quot;Modo avión&quot;</string>
+    <string name="ui_shared_5acf8ee13d" formatted="false">&quot;Desbloquear la mejora de pantalla dedicada (interfaz)&quot;</string>
+    <string name="ui_shared_5ada2a3451" formatted="false">&quot;Muestra más opciones; comprueba su efecto real&quot;</string>
+    <string name="ui_shared_5b1f357c2f" formatted="false">&quot;Recupera la opción de carga por derivación; comprueba su efecto real&quot;</string>
+    <string name="ui_shared_5ceae040b5" formatted="false">&quot;Desbloquear HDR en juegos&quot;</string>
+    <string name="ui_shared_5d35694ed0" formatted="false">&quot;Izquierda, primera fila&quot;</string>
+    <string name="ui_shared_5fc775d098" formatted="false">&quot;Quitar los diálogos de carga inteligente y turbo&quot;</string>
+    <string name="ui_shared_62048f24bc" formatted="false">&quot;Desbloquear más funciones de la caja de herramientas de vídeo&quot;</string>
+    <string name="ui_shared_620e48697b" formatted="false">&quot;Fijar la puntuación en 666&quot;</string>
+    <string name="ui_shared_65fdeb927b" formatted="false">&quot;Escritorio&quot;</string>
+    <string name="ui_shared_68f060613b" formatted="false">&quot;Información detallada de la batería&quot;</string>
+    <string name="ui_shared_6b3ab7cdc5" formatted="false">&quot;Asistencia en desplazamientos&quot;</string>
+    <string name="ui_shared_6d1b7fa684" formatted="false">&quot;, expandido&quot;</string>
+    <string name="ui_shared_6ded4ea71c" formatted="false">&quot;Desbloquear la visualización de relleno&quot;</string>
+    <string name="ui_shared_6e8e5179da" formatted="false">&quot;Desbloquear la carga inteligente&quot;</string>
+    <string name="ui_shared_72979fd337" formatted="false">&quot;Batería y carga&quot;</string>
+    <string name="ui_shared_743aaf951e" formatted="false">&quot;Seleccionado&quot;</string>
+    <string name="ui_shared_74e2750b90" formatted="false">&quot;Activa la aceleración de inicio nativa; el tiempo real de entrada depende del dispositivo y del juego&quot;</string>
+    <string name="ui_shared_76e92ed58d" formatted="false">&quot;Desbloquear carga por derivación Plus&quot;</string>
+    <string name="ui_shared_7764d15031" formatted="false">&quot;Solo la interfaz; los efectos de sonido reales dependen del dispositivo&quot;</string>
+    <string name="ui_shared_7debf9cb03" formatted="false">&quot;Ajustes&quot;</string>
+    <string name="ui_shared_7e4ce1087c" formatted="false">&quot;Caja de herramientas de vídeo&quot;</string>
+    <string name="ui_shared_7f06ec27ae" formatted="false">&quot;Selección actual&quot;</string>
+    <string name="ui_shared_8007bed79c" formatted="false">&quot;Desbloquear el modo cine&quot;</string>
+    <string name="ui_shared_80b8df95ad" formatted="false">&quot;La operación no se ha completado; inténtalo de nuevo&quot;</string>
+    <string name="ui_shared_88c34452cc" formatted="false">&quot;Ubicación&quot;</string>
+    <string name="ui_shared_8d51ca9047" formatted="false">&quot;Centro de\ncontrol&quot;</string>
+    <string name="ui_shared_8e40f6458b" formatted="false">&quot;Quitar el límite de temperatura de la caja de herramientas de vídeo&quot;</string>
+    <string name="ui_shared_8f1079b06e" formatted="false">&quot;Giro automático&quot;</string>
+    <string name="ui_shared_8f21b5c949" formatted="false">&quot;Omite la confirmación correspondiente y conserva la acción de activación original&quot;</string>
+    <string name="ui_shared_9cbd7e000c" formatted="false">&quot;Desbloquear la interpolación inteligente de fotogramas&quot;</string>
+    <string name="ui_shared_9e7826b729" formatted="false">&quot;El giroscopio también debe activarse en los ajustes del juego&quot;</string>
+    <string name="ui_shared_a08975d02a" formatted="false">&quot;Valor actual: &quot;</string>
+    <string name="ui_shared_a311282778" formatted="false">&quot;Desbloquear la aceleración del giroscopio&quot;</string>
+    <string name="ui_shared_a4841cadcb" formatted="false">&quot;Requiere Dolby Atmos; en dispositivos no compatibles puede provocar fallos de Seguridad&quot;</string>
+    <string name="ui_shared_abac55f77e" formatted="false">&quot;Análisis y confirmación&quot;</string>
+    <string name="ui_shared_afe8b9922d" formatted="false">&quot;Elimina solo la restricción de efectos por temperatura de la caja de herramientas; conserva la protección térmica del hardware. Idea de @东边的何某&quot;</string>
+    <string name="ui_shared_b35ef53715" formatted="false">&quot;Brillo automático&quot;</string>
+    <string name="ui_shared_b52c815f90" formatted="false">&quot;Restaurar el tiempo de pantalla de referencia&quot;</string>
+    <string name="ui_shared_b759b63956" formatted="false">&quot;Desbloquear la frecuencia de actualización inteligente&quot;</string>
+    <string name="ui_shared_bec88ec9dd" formatted="false">&quot;5G no disponible&quot;</string>
+    <string name="ui_shared_beff4a1cd1" formatted="false">&quot;No disponible&quot;</string>
+    <string name="ui_shared_bf481fe8e3" formatted="false">&quot;Desbloquear la superresolución&quot;</string>
+    <string name="ui_shared_c4dc12d3de" formatted="false">&quot;Bluetooth&quot;</string>
+    <string name="ui_shared_c8cd2e3008" formatted="false">&quot;Izquierda, segunda fila&quot;</string>
+    <string name="ui_shared_c99b62d26b" formatted="false">&quot;Notificaciones&quot;</string>
+    <string name="ui_shared_cb42d4c338" formatted="false">&quot;El efecto visual real depende del panel y del juego&quot;</string>
+    <string name="ui_shared_cdf423572b" formatted="false">&quot;Muestra los ajustes de carga nativos; las funciones de carga reales dependen del hardware&quot;</string>
+    <string name="ui_shared_cfa348a535" formatted="false">&quot;Linterna&quot;</string>
+    <string name="ui_shared_d2d3e3ce2e" formatted="false">&quot;Desbloquea los momentos de aviso de los puntos de movimiento; siguen siendo necesarios sensores reales y algunos dispositivos no son compatibles&quot;</string>
+    <string name="ui_shared_d42438d005" formatted="false">&quot;Solo la interfaz; no añade hardware de refrigeración&quot;</string>
+    <string name="ui_shared_d5a40d4953" formatted="false">&quot;Vista previa de la animación de Atrás&quot;</string>
+    <string name="ui_shared_e32be03ef4" formatted="false">&quot;Modo nocturno&quot;</string>
+    <string name="ui_shared_e39b364ed5" formatted="false">&quot;Instalación por fastboot&quot;</string>
+    <string name="ui_shared_ebcf9eab4c" formatted="false">&quot;El efecto real de la mejora depende del dispositivo&quot;</string>
+    <string name="ui_shared_ee63545459" formatted="false">&quot;Desbloquear la entrada al juego en tres segundos (Honor of Kings)&quot;</string>
+    <string name="ui_shared_f20e26a53c" formatted="false">&quot;Desbloquear la detección de accidentes de tráfico&quot;</string>
+    <string name="ui_shared_f62b976896" formatted="false">&quot;, contraído&quot;</string>
+    <string name="ui_shared_f90aa1fc7e" formatted="false">&quot;Barra de estado&quot;</string>
+</resources>

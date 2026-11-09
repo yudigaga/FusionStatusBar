@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language_fusion_summary">サイズ %1$d%% · 太さ %2$d%% · %3$s</string>
+    <string name="language_layout_summary">%1$s · 統合%2$s · システム%3$s · 高さ %4$d dp</string>
+    <string name="language_telemetry_summary">%1$d 項目が有効 · 文字サイズ、配置、間隔を個別に調整できます</string>
+    <string name="language_control_summary">%1$d 列 · 内容 %2$d%% · 角丸 %3$d dp · 間隔 %4$d dp</string>
+    <string name="language_canvas_summary">%1$s · %2$d 列 · %3$d 項目を表示</string>
+    <string name="language_canvas_summary_hidden">%1$s · %2$d 列 · %3$d 項目を表示 · %4$d 項目を非表示</string>
+    <string name="language_pending_mode">未反映の変更があります · 現在の%1$sを適用します</string>
+    <string name="language_notification_pattern">カスタム形式 · %1$s</string>
+    <string name="language_notification_offset">下へ %1$d dp</string>
+    <string name="language_position_left_top">左上</string>
+    <string name="language_position_left_bottom">左下</string>
+    <string name="language_position_right_top">右上</string>
+    <string name="language_position_right_bottom">右下</string>
+</resources>
+

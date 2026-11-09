@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_language_title">Язык приложения</string>
+    <string name="app_language_summary">Выберите язык интерфейса модуля</string>
+    <string name="app_language_follow_system">Как в системе</string>
+    <string name="app_language_change_failed">Не удалось изменить язык приложения. Повторите попытку</string>
+</resources>

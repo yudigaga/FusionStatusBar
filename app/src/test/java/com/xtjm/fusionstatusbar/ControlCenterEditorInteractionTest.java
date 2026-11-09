@@ -23,7 +23,7 @@ import org.robolectric.annotation.LooperMode;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34, manifest = Config.NONE)
+@Config(sdk = 34, manifest = Config.NONE, qualifiers = "zh-rCN")
 @LooperMode(LooperMode.Mode.PAUSED)
 public class ControlCenterEditorInteractionTest {
     private ActivityController<Activity> activity;

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_desktop">홈</string>
+    <string name="navigation_status">상태 표시줄</string>
+    <string name="navigation_notifications">알림</string>
+    <string name="navigation_controls">제어판</string>
+    <string name="navigation_misc">기타</string>
+    <string name="navigation_settings">설정</string>
+</resources>

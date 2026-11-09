@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_main_00188fe7a9" formatted="false">&quot;No molestar&quot;</string>
+    <string name="ui_main_00fe42e992" formatted="false">&quot; · Sin verificar&quot;</string>
+    <string name="ui_main_0194696b2b" formatted="false">&quot;No molestar&quot;</string>
+    <string name="ui_main_01f2c16cda" formatted="false">&quot;Dispositivo&quot;</string>
+    <string name="ui_main_03038853a8" formatted="false">&quot;Mosaicos rápidos de aplicaciones&quot;</string>
+    <string name="ui_main_03e973a353" formatted="false">&quot;Hora del sistema&quot;</string>
+    <string name="ui_main_04a189e0d0" formatted="false">&quot;Leyendo mosaicos disponibles&quot;</string>
+    <string name="ui_main_05c46fa3b7" formatted="false">&quot;Bajar&quot;</string>
+    <string name="ui_main_0846bb3699" formatted="false">&quot;Mantenimiento del módulo&quot;</string>
+    <string name="ui_main_0a4e6bb96b" formatted="false">&quot; filas&quot;</string>
+    <string name="ui_main_0c1893535c" formatted="false">&quot;Copia las capturas al portapapeles e impide que Servicios de seguridad lo desactive. Activa el ámbito del sistema en LSPosed y reinicia el teléfono.&quot;</string>
+    <string name="ui_main_0e9fb13a08" formatted="false">&quot;La personalización está desactivada; al aplicar se usará el diseño nativo. Actívala para usar los ajustes del lienzo.&quot;</string>
+    <string name="ui_main_10045df8c9" formatted="false">&quot;Copiar capturas al portapapeles&quot;</string>
+    <string name="ui_main_117bac1e45" formatted="false">&quot;Vibración&quot;</string>
+    <string name="ui_main_11a77556d9" formatted="false">&quot;Tarjeta agrupada · Combinar dos mosaicos&quot;</string>
+    <string name="ui_main_14c6fc4c9c" formatted="false">&quot;Contraer la referencia del diseño real&quot;</string>
+    <string name="ui_main_16ffe4d1e6" formatted="false">&quot;Exporta los registros recientes del módulo para diagnosticar problemas&quot;</string>
+    <string name="ui_main_1a1f6dff78" formatted="false">&quot;Sistema&quot;</string>
+    <string name="ui_main_1a55548023" formatted="false">&quot;Dos filas, posiciones de los elementos y altura total de la barra de estado&quot;</string>
+    <string name="ui_main_1f251c8a07" formatted="false">&quot;Varios&quot;</string>
+    <string name="ui_main_21060eb7c7" formatted="false">&quot;Toca para ver propiedades · Mantén pulsado para editar y mover · Los estados son ilustrativos&quot;</string>
+    <string name="ui_main_2132740e22" formatted="false">&quot;Diseño compacto · Lienzo sobre el fondo&quot;</string>
+    <string name="ui_main_21559f1bdf" formatted="false">&quot;Formato personalizado · &quot;</string>
+    <string name="ui_main_21eb350372" formatted="false">&quot;Activa para editar el diseño y aplícalo al teléfono&quot;</string>
+    <string name="ui_main_2226343fe1" formatted="false">&quot;No se puede aplicar: hay elementos superpuestos, fuera de los límites o duplicados&quot;</string>
+    <string name="ui_main_23141370a4" formatted="false">&quot;Traducir&quot;</string>
+    <string name="ui_main_240e63fd16" formatted="false">&quot;Extensiones de Seguridad · 13.8.0&quot;</string>
+    <string name="ui_main_255a39f160" formatted="false">&quot;Usar la hora del sistema&quot;</string>
+    <string name="ui_main_27f2e31b49" formatted="false">&quot;Luz nocturna&quot;</string>
+    <string name="ui_main_28c081a127" formatted="false">&quot;Se necesitan al menos dos mosaicos disponibles&quot;</string>
+    <string name="ui_main_2ae991695d" formatted="false">&quot;Una fila&quot;</string>
+    <string name="ui_main_2fae1be172" formatted="false">&quot; · Sistema&quot;</string>
+    <string name="ui_main_2fda065bcd" formatted="false">&quot;Obteniendo diseño; abre una vez el centro de control del teléfono y vuelve&quot;</string>
+    <string name="ui_main_32019b6351" formatted="false">&quot;Más ···&quot;</string>
+    <string name="ui_main_3285a90ceb" formatted="false">&quot;No se ha registrado ninguna conexión de la interfaz del sistema desde el arranque&quot;</string>
+    <string name="ui_main_3351f422ba" formatted="false">&quot;% · Radio de esquina &quot;</string>
+    <string name="ui_main_34026cfe7c" formatted="false">&quot;Datos móviles&quot;</string>
+    <string name="ui_main_353e6b73fd" formatted="false">&quot;Grande 2×2&quot;</string>
+    <string name="ui_main_3631b84ff7" formatted="false">&quot; visibles&quot;</string>
+    <string name="ui_main_36b147975c" formatted="false">&quot;La cuadrícula actual ya está vacía&quot;</string>
+    <string name="ui_main_3721efa12a" formatted="false">&quot;0 dp hacia abajo&quot;</string>
+    <string name="ui_main_3771dd6baa" formatted="false">&quot;Inicio de aplicaciones&quot;</string>
+    <string name="ui_main_385948af8e" formatted="false">&quot; · No incluido en el diseño de referencia&quot;</string>
+    <string name="ui_main_3b3dedd8c5" formatted="false">&quot;Estado del módulo&quot;</string>
+    <string name="ui_main_3c4065adbc" formatted="false">&quot;Interfaz&quot;</string>
+    <string name="ui_main_3d28ab41be" formatted="false">&quot;Importar lienzo&quot;</string>
+    <string name="ui_main_3de3f46c53" formatted="false">&quot; dp · Separación &quot;</string>
+    <string name="ui_main_4594a416f9" formatted="false">&quot;Componente · &quot;</string>
+    <string name="ui_main_4650ff1bf5" formatted="false">&quot;Importado al borrador; aplícalo para usarlo&quot;</string>
+    <string name="ui_main_471daad874" formatted="false">&quot;Formato personalizado&quot;</string>
+    <string name="ui_main_477bf50991" formatted="false">&quot;Estándar 1×1&quot;</string>
+    <string name="ui_main_4d18f3e7b1" formatted="false">&quot;Usar la altura de fila predefinida del centro de control del sistema&quot;</string>
+    <string name="ui_main_4e6ae50756" formatted="false">&quot;Solicitud de restauración enviada; comprueba el diseño real del sistema&quot;</string>
+    <string name="ui_main_4ed766e0c3" formatted="false">&quot;Internet&quot;</string>
+    <string name="ui_main_4fb9a43221" formatted="false">&quot;Borra los ajustes personalizados de la barra de estado y el panel de notificaciones&quot;</string>
+    <string name="ui_main_4fcaa2ab50" formatted="false">&quot;Punto de acceso&quot;</string>
+    <string name="ui_main_58c6737aa3" formatted="false">&quot;Estado sin leer&quot;</string>
+    <string name="ui_main_599fbf62ae" formatted="false">&quot;Modo avión&quot;</string>
+    <string name="ui_main_59e23b09ad" formatted="false">&quot;Fila completa &quot;</string>
+    <string name="ui_main_5b0acd185d" formatted="false">&quot; minutos&quot;</string>
+    <string name="ui_main_5d75da382f" formatted="false">&quot;Gestiona todos los mosaicos rápidos detectados del sistema y de aplicaciones en los diseños estándar y compacto. Los elementos desactivados se ocultan y desaparecen de la lista para añadir, pero siguen aquí para poder reactivarlos. Solo se modifica el borrador; aplícalo para usarlo en el centro de control. No se activa ni desactiva directamente Wi-Fi, Bluetooth ni otras funciones.&quot;</string>
+    <string name="ui_main_605a85c998" formatted="false">&quot;Notificaciones de aplicaciones&quot;</string>
+    <string name="ui_main_6164fd65d1" formatted="false">&quot;Visualización combinada de Wi-Fi, red móvil y batería&quot;</string>
+    <string name="ui_main_65f7a7975a" formatted="false">&quot;NFC&quot;</string>
+    <string name="ui_main_65fdeb927b" formatted="false">&quot;Escritorio&quot;</string>
+    <string name="ui_main_65fe35c45e" formatted="false">&quot;Conectado&quot;</string>
+    <string name="ui_main_676c2ba1b3" formatted="false">&quot;Solicitud de restauración guardada; abre el centro de control y obtén el diseño real para comprobarlo&quot;</string>
+    <string name="ui_main_69b1b1b09f" formatted="false">&quot;Se aplica a los diseños estándar y compacto&quot;</string>
+    <string name="ui_main_6f65927fa3" formatted="false">&quot;Forma del componente · &quot;</string>
+    <string name="ui_main_70870457f5" formatted="false">&quot;No hay cambios que aplicar&quot;</string>
+    <string name="ui_main_714b4caceb" formatted="false">&quot;Referencia del diseño real&quot;</string>
+    <string name="ui_main_715c9f42d2" formatted="false">&quot;Aún no se ha obtenido ningún diseño&quot;</string>
+    <string name="ui_main_72c625be82" formatted="false">&quot; columnas · &quot;</string>
+    <string name="ui_main_7390e5e477" formatted="false">&quot;Intervalo de visualización del tiempo de pantalla&quot;</string>
+    <string name="ui_main_75c60a4d4b" formatted="false">&quot;Tarjeta agrupada vacía&quot;</string>
+    <string name="ui_main_774975835a" formatted="false">&quot;Tamaño &quot;</string>
+    <string name="ui_main_77836d3a99" formatted="false">&quot;Más acciones&quot;</string>
+    <string name="ui_main_780ff71c8f" formatted="false">&quot;Wi-Fi&quot;</string>
+    <string name="ui_main_7addf666d5" formatted="false">&quot;No hay mosaicos&quot;</string>
+    <string name="ui_main_7dceb1f7f9" formatted="false">&quot;Mosaicos del sistema y otros&quot;</string>
+    <string name="ui_main_7debf9cb03" formatted="false">&quot;Ajustes&quot;</string>
+    <string name="ui_main_7eb2141d59" formatted="false">&quot; · Mostrar el tiempo&quot;</string>
+    <string name="ui_main_7f859d93c4" formatted="false">&quot;Activación global de mosaicos&quot;</string>
+    <string name="ui_main_84c5bdd621" formatted="false">&quot;Bloqueo de rotación&quot;</string>
+    <string name="ui_main_84fbaa22a0" formatted="false">&quot;Forma del mosaico&quot;</string>
+    <string name="ui_main_851cdd6091" formatted="false">&quot;Derecha&quot;</string>
+    <string name="ui_main_8766c4e8d4" formatted="false">&quot;Grabación de pantalla&quot;</string>
+    <string name="ui_main_8872ba182f" formatted="false">&quot;Comprobando&quot;</string>
+    <string name="ui_main_88c34452cc" formatted="false">&quot;Ubicación&quot;</string>
+    <string name="ui_main_8a0c839791" formatted="false">&quot;Subir&quot;</string>
+    <string name="ui_main_8bf6bd9db8" formatted="false">&quot;Obtén el diseño actual del teléfono como referencia o impórtalo al lienzo para seguir editándolo.&quot;</string>
+    <string name="ui_main_8c2366a96d" formatted="false">&quot;Quitar el diálogo de inicio encadenado&quot;</string>
+    <string name="ui_main_8d7f1e739e" formatted="false">&quot;Desenfoque&quot;</string>
+    <string name="ui_main_8f1079b06e" formatted="false">&quot;Giro automático&quot;</string>
+    <string name="ui_main_90630ac933" formatted="false">&quot;Columnas ocupadas en la cuadrícula&quot;</string>
+    <string name="ui_main_91ab2e741b" formatted="false">&quot;Barra de navegación flotante esmerilada&quot;</string>
+    <string name="ui_main_93ea900ab4" formatted="false">&quot;No se ha podido solicitar una vista previa real a SystemUI&quot;</string>
+    <string name="ui_main_96f9752b2d" formatted="false">&quot;Añadir elemento&quot;</string>
+    <string name="ui_main_9806241d7d" formatted="false">&quot;Vaciar el lienzo actual&quot;</string>
+    <string name="ui_main_9bed17eabd" formatted="false">&quot;Captura de pantalla&quot;</string>
+    <string name="ui_main_9d5e6a41e6" formatted="false">&quot;No se ha encontrado el servicio; se conservan sus ajustes para cuando esté disponible&quot;</string>
+    <string name="ui_main_a0e635b985" formatted="false">&quot;Red móvil&quot;</string>
+    <string name="ui_main_a0fb38c3ab" formatted="false">&quot;Lienzo de diseño&quot;</string>
+    <string name="ui_main_a42059d828" formatted="false">&quot;Usar la hora y fecha del sistema&quot;</string>
+    <string name="ui_main_a59a4239b0" formatted="false">&quot;Temperatura, potencia, corriente y velocidad de red en tiempo real&quot;</string>
+    <string name="ui_main_a6caf2effb" formatted="false">&quot;Abajo&quot;</string>
+    <string name="ui_main_a773c162e2" formatted="false">&quot;El diseño real no contiene elementos que se puedan importar&quot;</string>
+    <string name="ui_main_a7f814c0a4" formatted="false">&quot;Editar&quot;</string>
+    <string name="ui_main_a875081e2b" formatted="false">&quot;Ancho horizontal&quot;</string>
+    <string name="ui_main_a98663f918" formatted="false">&quot;La configuración aún no se ha cargado; inténtalo de nuevo&quot;</string>
+    <string name="ui_main_abb84a8cf5" formatted="false">&quot;Diseño estándar · Lienzo sobre el fondo&quot;</string>
+    <string name="ui_main_abdc9f414f" formatted="false">&quot;No hay cambios del centro de control que aplicar&quot;</string>
+    <string name="ui_main_ac8a8db039" formatted="false">&quot;Subtítulos instantáneos&quot;</string>
+    <string name="ui_main_afdbd1ddec" formatted="false">&quot;Silencio&quot;</string>
+    <string name="ui_main_b07eaccec9" formatted="false">&quot;Solo red móvil&quot;</string>
+    <string name="ui_main_b1eea7b855" formatted="false">&quot;Activado&quot;</string>
+    <string name="ui_main_b35ef53715" formatted="false">&quot;Brillo automático&quot;</string>
+    <string name="ui_main_b4660eb8eb" formatted="false">&quot; · Fusión&quot;</string>
+    <string name="ui_main_b6161f4bd6" formatted="false">&quot;Restaurar el tamaño original del sistema&quot;</string>
+    <string name="ui_main_b6f86d3938" formatted="false">&quot;Información del dispositivo&quot;</string>
+    <string name="ui_main_b7703abc36" formatted="false">&quot; ocultos&quot;</string>
+    <string name="ui_main_b967ce841a" formatted="false">&quot;Arriba&quot;</string>
+    <string name="ui_main_b98bfe0065" formatted="false">&quot;% · Grosor &quot;</string>
+    <string name="ui_main_bbfbe54c91" formatted="false">&quot;Elegir el segundo mosaico&quot;</string>
+    <string name="ui_main_bd598c6d89" formatted="false">&quot;Mostrar Wi-Fi&quot;</string>
+    <string name="ui_main_bd69fb8241" formatted="false">&quot;Interfaz del sistema conectada&quot;</string>
+    <string name="ui_main_be36c07ac8" formatted="false">&quot;Las coordenadas del diseño están incompletas; abre el centro de control y vuelve a obtenerlo&quot;</string>
+    <string name="ui_main_bed172efc9" formatted="false">&quot;Acerca de&quot;</string>
+    <string name="ui_main_beff4a1cd1" formatted="false">&quot;No disponible&quot;</string>
+    <string name="ui_main_bfb8c272a5" formatted="false">&quot;¿Restablecer todos los ajustes personalizados de la barra de estado y del panel de notificaciones?&quot;</string>
+    <string name="ui_main_c05426b904" formatted="false">&quot; columnas&quot;</string>
+    <string name="ui_main_c0b7548660" formatted="false">&quot;Primero obtén el diseño real&quot;</string>
+    <string name="ui_main_c434901e8a" formatted="false">&quot;Cartera&quot;</string>
+    <string name="ui_main_c4dc12d3de" formatted="false">&quot;Bluetooth&quot;</string>
+    <string name="ui_main_c513c6b4d7" formatted="false">&quot;Disponibles globalmente: &quot;</string>
+    <string name="ui_main_c59f42390a" formatted="false">&quot;Horizontal 2×1&quot;</string>
+    <string name="ui_main_c99b62d26b" formatted="false">&quot;Notificaciones&quot;</string>
+    <string name="ui_main_c9f82b921f" formatted="false">&quot;Columnas del lienzo, escala del contenido, esquinas predeterminadas y separación&quot;</string>
+    <string name="ui_main_c9fd96e1da" formatted="false">&quot;Visualización y diseño&quot;</string>
+    <string name="ui_main_cb961b6c41" formatted="false">&quot;Obtener diseño&quot;</string>
+    <string name="ui_main_cc17a0eb41" formatted="false">&quot;Ampliar la referencia del diseño real&quot;</string>
+    <string name="ui_main_cd832cba04" formatted="false">&quot;Leyendo mosaicos rápidos de aplicaciones&quot;</string>
+    <string name="ui_main_cde09a7a38" formatted="false">&quot;Adaptado para 13.8.0-261020.0.1. Activa el ámbito de Seguridad en LSPosed y reinicia sus procesos o el teléfono tras los cambios. Desbloquear una opción no garantiza compatibilidad del hardware.&quot;</string>
+    <string name="ui_main_cee01af794" formatted="false">&quot;No se ha detectado la activación&quot;</string>
+    <string name="ui_main_cf5fe0fb5d" formatted="false">&quot;Cambios pendientes · Se aplicará el diseño &quot;</string>
+    <string name="ui_main_cfa348a535" formatted="false">&quot;Linterna&quot;</string>
+    <string name="ui_main_d22d87b4bd" formatted="false">&quot;Aplicar cambios&quot;</string>
+    <string name="ui_main_d2e556a337" formatted="false">&quot; · Altura total &quot;</string>
+    <string name="ui_main_d31d72e630" formatted="false">&quot;Ahorro de batería&quot;</string>
+    <string name="ui_main_d3d59c09bd" formatted="false">&quot;Centro de notificaciones&quot;</string>
+    <string name="ui_main_d7c3ef9a57" formatted="false">&quot;Solo cambia el intervalo de visualización del tiempo de referencia, no su precisión de medición&quot;</string>
+    <string name="ui_main_d80f5d10d8" formatted="false">&quot;Horizontal 3×1&quot;</string>
+    <string name="ui_main_d90efbc7b3" formatted="false">&quot;Dos filas&quot;</string>
+    <string name="ui_main_d91658def6" formatted="false">&quot;Elegir el primer mosaico&quot;</string>
+    <string name="ui_main_de3798b027" formatted="false">&quot;Referencia del diseño real; obtén primero un diseño&quot;</string>
+    <string name="ui_main_de61aa8e1c" formatted="false">&quot;Vista previa&quot;</string>
+    <string name="ui_main_df3ee66760" formatted="false">&quot;Izquierda&quot;</string>
+    <string name="ui_main_e089904118" formatted="false">&quot;Comunicación por satélite&quot;</string>
+    <string name="ui_main_e3b3386d71" formatted="false">&quot;Las formas se adaptan a la cuadrícula del centro de control. Toca Listo para actualizar la vista previa y aplicar a la interfaz del sistema.&quot;</string>
+    <string name="ui_main_e3f14303ae" formatted="false">&quot;No se ha detectado un diseño legible; abre el centro de control y vuelve a obtenerlo&quot;</string>
+    <string name="ui_main_e53f09ac90" formatted="false">&quot;Forma del mosaico · &quot;</string>
+    <string name="ui_main_e5ace70d77" formatted="false">&quot;Diseño guardado; obtén el diseño real del sistema para comprobarlo&quot;</string>
+    <string name="ui_main_e7291c3a69" formatted="false">&quot; activados · El tamaño de texto, la alineación y el espaciado se ajustan por separado&quot;</string>
+    <string name="ui_main_e7a426d04e" formatted="false">&quot;Centro de control personalizado&quot;</string>
+    <string name="ui_main_e821c7b180" formatted="false">&quot;Bajar &quot;</string>
+    <string name="ui_main_e88ab5ba61" formatted="false">&quot;Sincronización&quot;</string>
+    <string name="ui_main_eb377415af" formatted="false">&quot;Ajusta por separado el ancho y alto que ocupa este componente en la cuadrícula. Restaura el tamaño original para deshacer sus cambios.&quot;</string>
+    <string name="ui_main_ebe00384f0" formatted="false">&quot;Altura vertical&quot;</string>
+    <string name="ui_main_ed0eea8f20" formatted="false">&quot;Modo&quot;</string>
+    <string name="ui_main_f0b955a680" formatted="false">&quot;Restaurar el diseño nativo&quot;</string>
+    <string name="ui_main_f1b4d5750c" formatted="false">&quot;Vuelve a cargar la interfaz del sistema tras cambiar la configuración&quot;</string>
+    <string name="ui_main_f24b9091d8" formatted="false">&quot;Ajustes guardados · Edita y aplícalos al teléfono&quot;</string>
+    <string name="ui_main_f4bc0d1527" formatted="false">&quot;Lienzo sobre el fondo&quot;</string>
+    <string name="ui_main_f90aa1fc7e" formatted="false">&quot;Barra de estado&quot;</string>
+    <string name="ui_main_fa89314af4" formatted="false">&quot;Borra los cambios de diseño y aspecto del centro de control de este módulo y conserva la selección y el orden de los mosaicos.&quot;</string>
+    <string name="ui_main_fa9d5ccdbf" formatted="false">&quot;Aplicar al teléfono los cambios del centro de control&quot;</string>
+    <string name="ui_main_fb17f19c53" formatted="false">&quot; columnas · Contenido &quot;</string>
+    <string name="ui_main_fbab901503" formatted="false">&quot;Permite directamente el inicio entre aplicaciones. Activa el ámbito del sistema (system / system_server) en LSPosed y reinicia el teléfono.&quot;</string>
+    <string name="ui_main_fd69741299" formatted="false">&quot;Hora de la barra de estado, fecha lunar, día de la semana y tiempo&quot;</string>
+    <string name="ui_main_fed31d5ca1" formatted="false">&quot;Referencia del diseño real  &quot;</string>
+</resources>

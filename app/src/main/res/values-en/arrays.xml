@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="desktop_gesture_actions">
+        <item>@string/desktop_action_none</item>
+        <item>@string/desktop_action_notifications</item>
+        <item>@string/desktop_action_quick_settings</item>
+        <item>@string/desktop_action_lock_device</item>
+        <item>@string/desktop_action_sleep</item>
+        <item>@string/desktop_action_screenshot</item>
+        <item>@string/desktop_action_recents</item>
+        <item>@string/desktop_action_power_menu</item>
+        <item>@string/desktop_action_sidebar</item>
+        <item>@string/desktop_action_launch_app</item>
+        <item>@string/desktop_action_launch_shortcut</item>
+        <item>@string/desktop_action_launch_activity</item>
+        <item>@string/desktop_action_toggle</item>
+        <item>@string/desktop_action_clear_memory</item>
+        <item>@string/desktop_action_one_handed</item>
+        <item>@string/desktop_action_clear_notifications</item>
+    </string-array>
+    <string-array name="desktop_toggle_actions">
+        <item>Wi-Fi</item>
+        <item>Bluetooth</item>
+        <item>Location</item>
+        <item>NFC</item>
+        <item>Sound profile</item>
+        <item>Auto brightness</item>
+        <item>Auto-rotate</item>
+        <item>Flashlight</item>
+        <item>Mobile data</item>
+        <item>Hotspot</item>
+        <item>Do Not Disturb</item>
+        <item>Night mode</item>
+    </string-array>
+    <string-array name="telemetry_positions">
+        <item>Left, first row</item>
+        <item>Left, second row</item>
+        <item>Right, first row</item>
+        <item>Right, second row</item>
+    </string-array>
+</resources>

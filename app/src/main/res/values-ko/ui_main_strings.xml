@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_main_00188fe7a9" formatted="false">&quot;방해 금지 모드&quot;</string>
+    <string name="ui_main_00fe42e992" formatted="false">&quot; · 미확인&quot;</string>
+    <string name="ui_main_0194696b2b" formatted="false">&quot;방해 금지&quot;</string>
+    <string name="ui_main_01f2c16cda" formatted="false">&quot;기기&quot;</string>
+    <string name="ui_main_03038853a8" formatted="false">&quot;앱 바로가기 타일&quot;</string>
+    <string name="ui_main_03e973a353" formatted="false">&quot;시스템 시간&quot;</string>
+    <string name="ui_main_04a189e0d0" formatted="false">&quot;사용 가능한 타일 불러오는 중&quot;</string>
+    <string name="ui_main_05c46fa3b7" formatted="false">&quot;아래로 이동&quot;</string>
+    <string name="ui_main_0846bb3699" formatted="false">&quot;모듈 관리&quot;</string>
+    <string name="ui_main_0a4e6bb96b" formatted="false">&quot; 행&quot;</string>
+    <string name="ui_main_0c1893535c" formatted="false">&quot;스크린샷을 클립보드에 자동으로 복사하고 보안 서비스가 자동으로 끄지 못하게 합니다. LSPosed에서 시스템 범위를 선택한 뒤 휴대전화를 다시 시작해야 합니다&quot;</string>
+    <string name="ui_main_0e9fb13a08" formatted="false">&quot;사용자 지정이 꺼져 있습니다. 적용하면 기본 레이아웃을 사용합니다. 스위치를 켜면 캔버스 설정을 적용할 수 있습니다.&quot;</string>
+    <string name="ui_main_10045df8c9" formatted="false">&quot;스크린샷을 클립보드에 자동 복사&quot;</string>
+    <string name="ui_main_117bac1e45" formatted="false">&quot;진동&quot;</string>
+    <string name="ui_main_11a77556d9" formatted="false">&quot;그룹 카드 · 두 타일 결합&quot;</string>
+    <string name="ui_main_14c6fc4c9c" formatted="false">&quot;실제 레이아웃 참고 이미지 접기&quot;</string>
+    <string name="ui_main_16ffe4d1e6" formatted="false">&quot;문제 해결을 위해 최근 모듈 로그를 내보냅니다&quot;</string>
+    <string name="ui_main_1a1f6dff78" formatted="false">&quot;시스템&quot;</string>
+    <string name="ui_main_1a55548023" formatted="false">&quot;두 줄 표시, 요소 위치 및 상태 표시줄 전체 높이&quot;</string>
+    <string name="ui_main_1f251c8a07" formatted="false">&quot;기타&quot;</string>
+    <string name="ui_main_21060eb7c7" formatted="false">&quot;탭하여 속성 보기 · 길게 눌러 편집 및 이동 · 상태는 예시입니다&quot;</string>
+    <string name="ui_main_2132740e22" formatted="false">&quot;간소한 레이아웃 · 배경화면 캔버스&quot;</string>
+    <string name="ui_main_21559f1bdf" formatted="false">&quot;사용자 지정 형식 · &quot;</string>
+    <string name="ui_main_21eb350372" formatted="false">&quot;켜면 레이아웃을 편집할 수 있으며 적용하면 휴대전화에 반영됩니다&quot;</string>
+    <string name="ui_main_2226343fe1" formatted="false">&quot;항목이 겹치거나 범위를 벗어나거나 중복되어 적용할 수 없습니다&quot;</string>
+    <string name="ui_main_23141370a4" formatted="false">&quot;번역&quot;</string>
+    <string name="ui_main_240e63fd16" formatted="false">&quot;보안 앱 확장 · 13.8.0&quot;</string>
+    <string name="ui_main_255a39f160" formatted="false">&quot;시스템 시간 사용&quot;</string>
+    <string name="ui_main_27f2e31b49" formatted="false">&quot;야간 디스플레이&quot;</string>
+    <string name="ui_main_28c081a127" formatted="false">&quot;사용 가능한 타일이 두 개 이상 필요합니다&quot;</string>
+    <string name="ui_main_2ae991695d" formatted="false">&quot;한 줄&quot;</string>
+    <string name="ui_main_2fae1be172" formatted="false">&quot; · 시스템&quot;</string>
+    <string name="ui_main_2fda065bcd" formatted="false">&quot;가져오는 중입니다. 휴대전화의 제어 센터를 한 번 펼친 뒤 돌아오세요&quot;</string>
+    <string name="ui_main_32019b6351" formatted="false">&quot;더 보기 ···&quot;</string>
+    <string name="ui_main_3285a90ceb" formatted="false">&quot;이번 부팅 후 시스템 UI 연결 기록을 아직 받지 못했습니다&quot;</string>
+    <string name="ui_main_3351f422ba" formatted="false">&quot;% · 모서리 &quot;</string>
+    <string name="ui_main_34026cfe7c" formatted="false">&quot;모바일 데이터&quot;</string>
+    <string name="ui_main_353e6b73fd" formatted="false">&quot;크게 2×2&quot;</string>
+    <string name="ui_main_3631b84ff7" formatted="false">&quot; 개 항목 표시&quot;</string>
+    <string name="ui_main_36b147975c" formatted="false">&quot;현재 격자는 이미 비어 있습니다&quot;</string>
+    <string name="ui_main_3721efa12a" formatted="false">&quot;아래로 0 dp&quot;</string>
+    <string name="ui_main_3771dd6baa" formatted="false">&quot;앱 실행&quot;</string>
+    <string name="ui_main_385948af8e" formatted="false">&quot; · 참고 레이아웃에 없음&quot;</string>
+    <string name="ui_main_3b3dedd8c5" formatted="false">&quot;모듈 상태&quot;</string>
+    <string name="ui_main_3c4065adbc" formatted="false">&quot;인터페이스&quot;</string>
+    <string name="ui_main_3d28ab41be" formatted="false">&quot;캔버스로 가져오기&quot;</string>
+    <string name="ui_main_3de3f46c53" formatted="false">&quot; dp · 간격 &quot;</string>
+    <string name="ui_main_4594a416f9" formatted="false">&quot;구성요소 · &quot;</string>
+    <string name="ui_main_4650ff1bf5" formatted="false">&quot;편집 초안으로 가져왔습니다. 적용 버튼을 눌러야 반영됩니다&quot;</string>
+    <string name="ui_main_471daad874" formatted="false">&quot;사용자 지정 형식&quot;</string>
+    <string name="ui_main_477bf50991" formatted="false">&quot;표준 1×1&quot;</string>
+    <string name="ui_main_4d18f3e7b1" formatted="false">&quot;시스템 제어 센터의 행 높이를 사용합니다&quot;</string>
+    <string name="ui_main_4e6ae50756" formatted="false">&quot;복원 요청을 제출했습니다. 시스템의 실제 레이아웃을 확인하세요&quot;</string>
+    <string name="ui_main_4ed766e0c3" formatted="false">&quot;인터넷&quot;</string>
+    <string name="ui_main_4fb9a43221" formatted="false">&quot;상태 표시줄과 알림 패널의 사용자 지정 설정을 지웁니다&quot;</string>
+    <string name="ui_main_4fcaa2ab50" formatted="false">&quot;모바일 핫스팟&quot;</string>
+    <string name="ui_main_58c6737aa3" formatted="false">&quot;상태를 읽지 못함&quot;</string>
+    <string name="ui_main_599fbf62ae" formatted="false">&quot;비행기 모드&quot;</string>
+    <string name="ui_main_59e23b09ad" formatted="false">&quot;전체 행 &quot;</string>
+    <string name="ui_main_5b0acd185d" formatted="false">&quot; 분&quot;</string>
+    <string name="ui_main_5d75da382f" formatted="false">&quot;발견된 모든 시스템 및 앱 바로가기 타일을 관리하며 표준 및 간소한 레이아웃 모두에 영향을 줍니다. 끄면 표시되지 않고 추가 목록에서도 사라지지만 이 목록에는 남아 언제든 다시 켤 수 있습니다. 편집 초안만 변경되며 적용한 뒤 제어 센터에 반영됩니다. Wi-Fi, 블루투스 등의 기능을 직접 켜거나 끄지 않습니다.&quot;</string>
+    <string name="ui_main_605a85c998" formatted="false">&quot;앱 알림&quot;</string>
+    <string name="ui_main_6164fd65d1" formatted="false">&quot;Wi-Fi, 모바일 네트워크 및 배터리 잔량을 통합하여 표시합니다&quot;</string>
+    <string name="ui_main_65f7a7975a" formatted="false">&quot;NFC&quot;</string>
+    <string name="ui_main_65fdeb927b" formatted="false">&quot;홈 화면&quot;</string>
+    <string name="ui_main_65fe35c45e" formatted="false">&quot;연결됨&quot;</string>
+    <string name="ui_main_676c2ba1b3" formatted="false">&quot;복원 요청을 저장했습니다. 제어 센터를 펼친 뒤 실제 레이아웃을 가져와 확인하세요&quot;</string>
+    <string name="ui_main_69b1b1b09f" formatted="false">&quot;표준 및 간소한 레이아웃에 적용&quot;</string>
+    <string name="ui_main_6f65927fa3" formatted="false">&quot;구성요소 모양 · &quot;</string>
+    <string name="ui_main_70870457f5" formatted="false">&quot;미적용 변경 사항 없음&quot;</string>
+    <string name="ui_main_714b4caceb" formatted="false">&quot;실제 레이아웃 참고 이미지&quot;</string>
+    <string name="ui_main_715c9f42d2" formatted="false">&quot;아직 레이아웃을 가져오지 않았습니다&quot;</string>
+    <string name="ui_main_72c625be82" formatted="false">&quot; 열 · &quot;</string>
+    <string name="ui_main_7390e5e477" formatted="false">&quot;화면 켜짐 시간 표시 단위&quot;</string>
+    <string name="ui_main_75c60a4d4b" formatted="false">&quot;빈 그룹 카드&quot;</string>
+    <string name="ui_main_774975835a" formatted="false">&quot;크기 &quot;</string>
+    <string name="ui_main_77836d3a99" formatted="false">&quot;추가 작업&quot;</string>
+    <string name="ui_main_780ff71c8f" formatted="false">&quot;Wi-Fi&quot;</string>
+    <string name="ui_main_7addf666d5" formatted="false">&quot;타일 없음&quot;</string>
+    <string name="ui_main_7dceb1f7f9" formatted="false">&quot;시스템 및 기타 타일&quot;</string>
+    <string name="ui_main_7debf9cb03" formatted="false">&quot;설정&quot;</string>
+    <string name="ui_main_7eb2141d59" formatted="false">&quot; · 날씨 표시&quot;</string>
+    <string name="ui_main_7f859d93c4" formatted="false">&quot;타일 전체 스위치&quot;</string>
+    <string name="ui_main_84c5bdd621" formatted="false">&quot;화면 회전 잠금&quot;</string>
+    <string name="ui_main_84fbaa22a0" formatted="false">&quot;타일 모양&quot;</string>
+    <string name="ui_main_851cdd6091" formatted="false">&quot;오른쪽&quot;</string>
+    <string name="ui_main_8766c4e8d4" formatted="false">&quot;화면 녹화&quot;</string>
+    <string name="ui_main_8872ba182f" formatted="false">&quot;확인 중&quot;</string>
+    <string name="ui_main_88c34452cc" formatted="false">&quot;위치&quot;</string>
+    <string name="ui_main_8a0c839791" formatted="false">&quot;위로 이동&quot;</string>
+    <string name="ui_main_8bf6bd9db8" formatted="false">&quot;휴대전화의 현재 레이아웃을 참고용으로 가져오거나 캔버스로 가져와 계속 편집할 수 있습니다.&quot;</string>
+    <string name="ui_main_8c2366a96d" formatted="false">&quot;앱 간 실행 확인창 제거&quot;</string>
+    <string name="ui_main_8d7f1e739e" formatted="false">&quot;흐림&quot;</string>
+    <string name="ui_main_8f1079b06e" formatted="false">&quot;자동 회전&quot;</string>
+    <string name="ui_main_90630ac933" formatted="false">&quot;차지할 격자 열 수&quot;</string>
+    <string name="ui_main_91ab2e741b" formatted="false">&quot;반투명 플로팅 하단 바&quot;</string>
+    <string name="ui_main_93ea900ab4" formatted="false">&quot;SystemUI에 실제 미리보기를 요청할 수 없습니다&quot;</string>
+    <string name="ui_main_96f9752b2d" formatted="false">&quot;항목 추가&quot;</string>
+    <string name="ui_main_9806241d7d" formatted="false">&quot;현재 캔버스 비우기&quot;</string>
+    <string name="ui_main_9bed17eabd" formatted="false">&quot;스크린샷&quot;</string>
+    <string name="ui_main_9d5e6a41e6" formatted="false">&quot;현재 이 서비스를 찾을 수 없습니다. 복원을 위해 설정을 유지합니다&quot;</string>
+    <string name="ui_main_a0e635b985" formatted="false">&quot;모바일 네트워크&quot;</string>
+    <string name="ui_main_a0fb38c3ab" formatted="false">&quot;레이아웃 캔버스&quot;</string>
+    <string name="ui_main_a42059d828" formatted="false">&quot;시스템 시간 및 날짜 사용&quot;</string>
+    <string name="ui_main_a59a4239b0" formatted="false">&quot;온도, 전력, 전류 및 실시간 네트워크 속도&quot;</string>
+    <string name="ui_main_a6caf2effb" formatted="false">&quot;아래&quot;</string>
+    <string name="ui_main_a773c162e2" formatted="false">&quot;실제 레이아웃에 가져올 수 있는 항목이 없습니다&quot;</string>
+    <string name="ui_main_a7f814c0a4" formatted="false">&quot;편집&quot;</string>
+    <string name="ui_main_a875081e2b" formatted="false">&quot;가로 너비&quot;</string>
+    <string name="ui_main_a98663f918" formatted="false">&quot;설정을 아직 불러오지 않았습니다. 다시 시도하세요&quot;</string>
+    <string name="ui_main_abb84a8cf5" formatted="false">&quot;표준 레이아웃 · 배경화면 캔버스&quot;</string>
+    <string name="ui_main_abdc9f414f" formatted="false">&quot;미적용 제어 센터 변경 사항이 없습니다&quot;</string>
+    <string name="ui_main_ac8a8db039" formatted="false">&quot;실시간 자막&quot;</string>
+    <string name="ui_main_afdbd1ddec" formatted="false">&quot;무음&quot;</string>
+    <string name="ui_main_b07eaccec9" formatted="false">&quot;모바일 네트워크만&quot;</string>
+    <string name="ui_main_b1eea7b855" formatted="false">&quot;활성화됨&quot;</string>
+    <string name="ui_main_b35ef53715" formatted="false">&quot;자동 밝기&quot;</string>
+    <string name="ui_main_b4660eb8eb" formatted="false">&quot; · 통합&quot;</string>
+    <string name="ui_main_b6161f4bd6" formatted="false">&quot;원래 시스템 크기로 복원&quot;</string>
+    <string name="ui_main_b6f86d3938" formatted="false">&quot;기기 정보&quot;</string>
+    <string name="ui_main_b7703abc36" formatted="false">&quot; 개 항목 숨김&quot;</string>
+    <string name="ui_main_b967ce841a" formatted="false">&quot;위&quot;</string>
+    <string name="ui_main_b98bfe0065" formatted="false">&quot;% · 두께 &quot;</string>
+    <string name="ui_main_bbfbe54c91" formatted="false">&quot;두 번째 타일 선택&quot;</string>
+    <string name="ui_main_bd598c6d89" formatted="false">&quot;Wi-Fi 표시&quot;</string>
+    <string name="ui_main_bd69fb8241" formatted="false">&quot;시스템 UI 연결됨&quot;</string>
+    <string name="ui_main_be36c07ac8" formatted="false">&quot;레이아웃 좌표가 완전하지 않습니다. 제어 센터를 펼친 뒤 다시 가져오세요&quot;</string>
+    <string name="ui_main_bed172efc9" formatted="false">&quot;앱 정보&quot;</string>
+    <string name="ui_main_beff4a1cd1" formatted="false">&quot;사용 불가&quot;</string>
+    <string name="ui_main_bfb8c272a5" formatted="false">&quot;상태 표시줄과 알림 패널의 모든 사용자 지정 설정을 복원합니다. 계속할까요?&quot;</string>
+    <string name="ui_main_c05426b904" formatted="false">&quot; 열&quot;</string>
+    <string name="ui_main_c0b7548660" formatted="false">&quot;먼저 실제 레이아웃을 가져오세요&quot;</string>
+    <string name="ui_main_c434901e8a" formatted="false">&quot;전자 지갑&quot;</string>
+    <string name="ui_main_c4dc12d3de" formatted="false">&quot;블루투스&quot;</string>
+    <string name="ui_main_c513c6b4d7" formatted="false">&quot;전체에서 사용 가능: &quot;</string>
+    <string name="ui_main_c59f42390a" formatted="false">&quot;가로 2×1&quot;</string>
+    <string name="ui_main_c99b62d26b" formatted="false">&quot;알림 패널&quot;</string>
+    <string name="ui_main_c9f82b921f" formatted="false">&quot;캔버스 열 수, 콘텐츠 배율, 기본 모서리 및 간격&quot;</string>
+    <string name="ui_main_c9fd96e1da" formatted="false">&quot;표시 및 레이아웃&quot;</string>
+    <string name="ui_main_cb961b6c41" formatted="false">&quot;레이아웃 가져오기&quot;</string>
+    <string name="ui_main_cc17a0eb41" formatted="false">&quot;실제 레이아웃 참고 이미지 펼치기&quot;</string>
+    <string name="ui_main_cd832cba04" formatted="false">&quot;앱 빠른 설정 불러오는 중&quot;</string>
+    <string name="ui_main_cde09a7a38" formatted="false">&quot;13.8.0-261020.0.1에 대응합니다. LSPosed에서 보안 앱 범위를 선택하고 변경 후 보안 앱 프로세스 또는 휴대전화를 다시 시작하세요. 메뉴를 표시해도 하드웨어 기능을 사용할 수 있다는 뜻은 아닙니다.&quot;</string>
+    <string name="ui_main_cee01af794" formatted="false">&quot;활성화가 감지되지 않음&quot;</string>
+    <string name="ui_main_cf5fe0fb5d" formatted="false">&quot;미적용 변경 사항 있음 · 현재 레이아웃 적용: &quot;</string>
+    <string name="ui_main_cfa348a535" formatted="false">&quot;손전등&quot;</string>
+    <string name="ui_main_d22d87b4bd" formatted="false">&quot;변경 사항 적용&quot;</string>
+    <string name="ui_main_d2e556a337" formatted="false">&quot; · 전체 높이 &quot;</string>
+    <string name="ui_main_d31d72e630" formatted="false">&quot;절전 모드&quot;</string>
+    <string name="ui_main_d3d59c09bd" formatted="false">&quot;알림 센터&quot;</string>
+    <string name="ui_main_d7c3ef9a57" formatted="false">&quot;참고 시간의 표시 단위만 조절하며 측정 정확도는 높이지 않습니다&quot;</string>
+    <string name="ui_main_d80f5d10d8" formatted="false">&quot;가로 3×1&quot;</string>
+    <string name="ui_main_d90efbc7b3" formatted="false">&quot;두 줄&quot;</string>
+    <string name="ui_main_d91658def6" formatted="false">&quot;첫 번째 타일 선택&quot;</string>
+    <string name="ui_main_de3798b027" formatted="false">&quot;실제 레이아웃 참고 이미지입니다. 먼저 레이아웃을 가져오세요&quot;</string>
+    <string name="ui_main_de61aa8e1c" formatted="false">&quot;미리보기&quot;</string>
+    <string name="ui_main_df3ee66760" formatted="false">&quot;왼쪽&quot;</string>
+    <string name="ui_main_e089904118" formatted="false">&quot;위성 통신&quot;</string>
+    <string name="ui_main_e3b3386d71" formatted="false">&quot;모양은 제어 센터 격자에 맞춰 조합됩니다. 완료를 누르면 미리보기를 다시 그리고 시스템 UI에 적용합니다.&quot;</string>
+    <string name="ui_main_e3f14303ae" formatted="false">&quot;읽을 수 있는 레이아웃이 없습니다. 제어 센터를 펼친 뒤 다시 가져오세요&quot;</string>
+    <string name="ui_main_e53f09ac90" formatted="false">&quot;타일 모양 · &quot;</string>
+    <string name="ui_main_e5ace70d77" formatted="false">&quot;레이아웃을 저장했습니다. 시스템의 실제 레이아웃을 가져와 확인하세요&quot;</string>
+    <string name="ui_main_e7291c3a69" formatted="false">&quot; 개 사용 · 글자 크기, 정렬 및 간격을 각각 조절할 수 있습니다&quot;</string>
+    <string name="ui_main_e7a426d04e" formatted="false">&quot;제어 센터 사용자 지정&quot;</string>
+    <string name="ui_main_e821c7b180" formatted="false">&quot;아래로 &quot;</string>
+    <string name="ui_main_e88ab5ba61" formatted="false">&quot;동기화&quot;</string>
+    <string name="ui_main_eb377415af" formatted="false">&quot;구성요소가 차지할 격자의 가로와 세로를 따로 조절합니다. 원래 크기로 복원하면 이 구성요소의 변경을 취소할 수 있습니다.&quot;</string>
+    <string name="ui_main_ebe00384f0" formatted="false">&quot;세로 높이&quot;</string>
+    <string name="ui_main_ed0eea8f20" formatted="false">&quot;모드&quot;</string>
+    <string name="ui_main_f0b955a680" formatted="false">&quot;기본 레이아웃 복원&quot;</string>
+    <string name="ui_main_f1b4d5750c" formatted="false">&quot;설정을 변경한 후 시스템 UI를 다시 불러옵니다&quot;</string>
+    <string name="ui_main_f24b9091d8" formatted="false">&quot;설정 저장됨 · 편집 후 휴대전화에 적용&quot;</string>
+    <string name="ui_main_f4bc0d1527" formatted="false">&quot;배경화면 캔버스&quot;</string>
+    <string name="ui_main_f90aa1fc7e" formatted="false">&quot;상태 표시줄&quot;</string>
+    <string name="ui_main_fa89314af4" formatted="false">&quot;이 모듈의 제어 센터 레이아웃 및 모양 변경을 지우고 현재 타일 선택과 순서는 유지합니다.&quot;</string>
+    <string name="ui_main_fa9d5ccdbf" formatted="false">&quot;제어 센터 변경 사항을 휴대전화에 적용&quot;</string>
+    <string name="ui_main_fb17f19c53" formatted="false">&quot; 열 · 콘텐츠 &quot;</string>
+    <string name="ui_main_fbab901503" formatted="false">&quot;앱 간 실행을 바로 허용합니다. LSPosed에서 시스템(system / system_server) 범위를 선택한 뒤 휴대전화를 다시 시작해야 합니다&quot;</string>
+    <string name="ui_main_fd69741299" formatted="false">&quot;상태 표시줄 시간, 음력, 요일 및 날씨&quot;</string>
+    <string name="ui_main_fed31d5ca1" formatted="false">&quot;실제 레이아웃 참고 이미지  &quot;</string>
+</resources>
+

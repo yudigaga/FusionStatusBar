@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_add">Add</string>
+    <string name="editor_add_description">Add control center item</string>
+    <string name="editor_undo">Undo</string>
+    <string name="editor_redo">Redo</string>
+    <string name="editor_saving">Saving</string>
+    <string name="editor_save_failed">Save failed; your draft is kept. Try again.</string>
+    <string name="editor_saved_waiting">Saved; waiting for SystemUI to apply</string>
+    <string name="editor_applied">SystemUI applied this version</string>
+    <string name="editor_degraded">Saved; some SystemUI features are degraded</string>
+    <string name="editor_waiting_mount">Saved; expand the control center to apply</string>
+    <string name="editor_draft_restored">Unpublished draft restored</string>
+    <string name="editor_restore_draft">Restore last draft</string>
+    <string name="editor_nothing_to_undo">Nothing to undo</string>
+    <string name="editor_nothing_to_redo">Nothing to redo</string>
+    <string name="editor_preview_loading">Reading actual layout</string>
+    <string name="editor_preview_failed">Could not read actual layout; fetch it again</string>
+    <string name="editor_preview_ready">Actual layout fetched · Tap the title to expand the reference</string>
+    <string name="editor_done">Done</string>
+    <string name="editor_draft_failed">Could not save the draft; your edits remain in this session</string>
+    <string name="editor_draft_retrying">Could not save the draft; retrying</string>
+    <string name="editor_draft_retry">Retry saving draft</string>
+    <string name="editor_apply_failed">Saved; SystemUI could not apply</string>
+    <string name="editor_apply_timeout">Saved, but no application acknowledgment from SystemUI</string>
+    <string name="editor_apply_retry">Retry applying</string>
+    <string name="editor_backup_export">Export configuration backup</string>
+    <string name="editor_backup_export_summary">Save the full published configuration</string>
+    <string name="editor_backup_import">Import configuration backup</string>
+    <string name="editor_backup_import_summary">Validate and restore, with an automatic backup first</string>
+    <string name="editor_backup_undo">Undo last configuration restore</string>
+    <string name="editor_backup_undo_summary">Restore the published configuration from before import</string>
+    <string name="editor_backup_busy">Configuration is being saved; try again shortly</string>
+    <string name="editor_backup_draft_kept">Configuration restored; unpublished control center drafts are kept</string>
+    <string name="editor_layout_presets">Layout presets</string>
+</resources>

@@ -33,17 +33,17 @@ final class ControlCenterEditOverlay extends ViewGroup {
         setClipChildren(false);
         setClipToPadding(false);
         setElevation(dp(32));
-        remove = button("−", "移除项目", () -> actions.run(ControlCenterGridEditor.EditAction.REMOVE));
+        remove = button("−", tr(R.string.ui_control_overlay_remove_item), () -> actions.run(ControlCenterGridEditor.EditAction.REMOVE));
         remove.setTextSize(24);
-        lock = button("锁定", "锁定项目", () -> actions.run(ControlCenterGridEditor.EditAction.TOGGLE_LOCK));
-        visibility = button("隐藏", "隐藏项目", () -> actions.run(ControlCenterGridEditor.EditAction.TOGGLE_HIDDEN));
+        lock = button(tr(R.string.ui_control_overlay_lock), tr(R.string.ui_control_overlay_lock_item), () -> actions.run(ControlCenterGridEditor.EditAction.TOGGLE_LOCK));
+        visibility = button(tr(R.string.ui_control_overlay_hide), tr(R.string.ui_control_overlay_hide_item), () -> actions.run(ControlCenterGridEditor.EditAction.TOGGLE_HIDDEN));
         primary.add(remove);
         primary.add(lock);
         primary.add(visibility);
-        primary.add(button("属性", "调整项目属性", actions::properties));
-        primary.add(button("完成", "完成画布编辑", actions::done));
-        direction = button("换排列", "切换组合排列", () -> actions.run(ControlCenterGridEditor.EditAction.TOGGLE_DIRECTION));
-        split = button("拆分", "拆分组合卡片", () -> actions.run(ControlCenterGridEditor.EditAction.UNPAIR));
+        primary.add(button(tr(R.string.ui_control_overlay_properties), tr(R.string.ui_control_overlay_properties_description), actions::properties));
+        primary.add(button(tr(R.string.ui_control_overlay_done), tr(R.string.ui_control_overlay_done_description), actions::done));
+        direction = button(tr(R.string.ui_control_overlay_arrangement), tr(R.string.ui_control_overlay_arrangement_description), () -> actions.run(ControlCenterGridEditor.EditAction.TOGGLE_DIRECTION));
+        split = button(tr(R.string.ui_control_overlay_ungroup), tr(R.string.ui_control_overlay_ungroup_description), () -> actions.run(ControlCenterGridEditor.EditAction.UNPAIR));
         status = new TextView(context);
         status.setTextSize(11);
         status.setGravity(Gravity.CENTER);
@@ -63,7 +63,7 @@ final class ControlCenterEditOverlay extends ViewGroup {
             }
         };
         resize.setBackground(material());
-        resize.setContentDescription("拖动调整尺寸");
+        resize.setContentDescription(tr(R.string.ui_control_overlay_resize));
         // Keyboard/accessibility users retain the numeric size controls.
         resize.setOnClickListener(view -> actions.properties());
         addView(resize);
@@ -71,15 +71,15 @@ final class ControlCenterEditOverlay extends ViewGroup {
 
     void bind(ControlCenterGridEditor.Cell cell) {
         paired = cell.secondLabel != null || cell.groupItem != null;
-        lock.setText(cell.locked ? "解锁" : "锁定");
-        lock.setContentDescription(cell.locked ? "解锁项目" : "锁定项目");
-        visibility.setText(cell.hidden ? "显示" : "隐藏");
-        visibility.setContentDescription(cell.hidden ? "显示项目" : "隐藏项目");
+        lock.setText(cell.locked ? tr(R.string.ui_control_overlay_unlock) : tr(R.string.ui_control_overlay_lock));
+        lock.setContentDescription(cell.locked ? tr(R.string.ui_control_overlay_unlock_item) : tr(R.string.ui_control_overlay_lock_item));
+        visibility.setText(cell.hidden ? tr(R.string.ui_control_overlay_show) : tr(R.string.ui_control_overlay_hide));
+        visibility.setContentDescription(cell.hidden ? tr(R.string.ui_control_overlay_show_item) : tr(R.string.ui_control_overlay_hide_item));
         for (View view : new View[] {remove, visibility, direction, split, resize}) {
             view.setEnabled(!cell.locked);
             view.setAlpha(cell.locked ? 0.4f : 1f);
         }
-        direction.setText(cell.horizontalPair ? "上下排" : "左右排");
+        direction.setText(cell.horizontalPair ? tr(R.string.ui_control_overlay_vertical_pair) : tr(R.string.ui_control_overlay_horizontal_pair));
         direction.setVisibility(cell.secondLabel != null ? VISIBLE : GONE);
         split.setVisibility(paired ? VISIBLE : GONE);
         resize.setVisibility(cell.locked ? GONE : VISIBLE);
@@ -89,7 +89,8 @@ final class ControlCenterEditOverlay extends ViewGroup {
 
     void placement(int width, int height, boolean valid, boolean active) {
         status.setVisibility(active ? VISIBLE : GONE);
-        status.setText(valid ? width + " × " + height : "位置不可用");
+        status.setText(valid ? tr(R.string.ui_control_overlay_dimensions, width, height)
+                : tr(R.string.ui_control_overlay_unavailable));
         status.setTextColor(valid ? Color.WHITE : Color.rgb(255, 143, 133));
     }
 
@@ -179,4 +180,8 @@ final class ControlCenterEditOverlay extends ViewGroup {
     private void place(View view, int x, int y, int width, int height) { view.layout(x, y, x + width, y + height); }
     private int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+
+    private String tr(int resource, Object... args) {
+        return ModuleStrings.get(getContext(), resource, args);
+    }
 }

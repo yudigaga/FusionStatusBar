@@ -1,4 +1,4 @@
-name: Validate Android builds
+name: Validate Android Release
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Tool regression tests
         run: python -m unittest discover -s tools/tests -v
-      - name: Validate Debug and Release without signing secrets
+      - name: Validate R8 Release without signing secrets
         shell: pwsh
         run: ./tools/release.ps1 -VerifyOnly -JavaHome $env:JAVA_HOME -AndroidSdk $env:ANDROID_HOME
       - name: Archive validation evidence

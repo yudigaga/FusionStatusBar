@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language_fusion_summary">Размер %1$d%% · Толщина %2$d%% · %3$s</string>
+    <string name="language_layout_summary">%1$s · Объединённые: %2$s · Системные: %3$s · Общая высота %4$d dp</string>
+    <string name="language_telemetry_summary">Включено: %1$d · Размер шрифта, выравнивание и отступы настраиваются отдельно</string>
+    <string name="language_control_summary">Столбцов: %1$d · Содержимое %2$d%% · Скругление %3$d dp · Отступ %4$d dp</string>
+    <string name="language_canvas_summary">%1$s · Столбцов: %2$d · Видимых элементов: %3$d</string>
+    <string name="language_canvas_summary_hidden">%1$s · Столбцов: %2$d · Видимых элементов: %3$d · Скрытых элементов: %4$d</string>
+    <string name="language_pending_mode">Есть изменения для отправки · Будет применено: %1$s</string>
+    <string name="language_notification_pattern">Свой формат · %1$s</string>
+    <string name="language_notification_offset">Смещение вниз %1$d dp</string>
+    <string name="language_position_left_top">Слева сверху</string>
+    <string name="language_position_left_bottom">Слева снизу</string>
+    <string name="language_position_right_top">Справа сверху</string>
+    <string name="language_position_right_bottom">Справа снизу</string>
+</resources>

@@ -10,6 +10,7 @@ final class ControlCenterSettingsPage {
     interface ContentBuilder { void build(LinearLayout content); }
 
     interface Host {
+        android.content.Context pageContext();
         void showPageDialog(String title, ContentBuilder builder);
         ControlCenterLayoutPlan currentGridPlan();
         ControlCenterLayoutPlan.Mode resolvedGridMode(boolean compact);
@@ -116,7 +117,7 @@ final class ControlCenterSettingsPage {
         if (selected == null) return;
         String title = selected.type == ControlCenterLayoutPlan.Type.PAIR
                 || selected.type == ControlCenterLayoutPlan.Type.GROUP
-                ? "组合卡片" : host.tileLabel(selected.firstSpec);
+                ? tr(host, R.string.ui_control_page_group_card) : host.tileLabel(selected.firstSpec);
         host.showPageDialog(title, content -> buildItemProperties(content, id, selected, host));
     }
 
@@ -126,11 +127,11 @@ final class ControlCenterSettingsPage {
                 ? host.addPageGroupEditor(content, id) : null;
         boolean selectedCompact = compact();
         int columns = host.currentGridPlan().mode(selectedCompact).columns;
-        host.addPageSlider(content, "宽度", "占用网格列数", 1, columns,
-                selected.width, " 列", value -> editGridItem(id, item -> item.withSize(value,
+        host.addPageSlider(content, tr(host, R.string.ui_control_page_width), tr(host, R.string.ui_control_page_width_summary), 1, columns,
+                selected.width, tr(host, R.string.ui_control_page_columns_suffix), value -> editGridItem(id, item -> item.withSize(value,
                         item.height), false, host));
-        host.addPageSlider(content, "高度", "占用网格行数", 1, 6,
-                selected.height, " 行", value -> editGridItem(id, item -> item.withSize(item.width,
+        host.addPageSlider(content, tr(host, R.string.ui_control_page_height), tr(host, R.string.ui_control_page_height_summary), 1, 6,
+                selected.height, tr(host, R.string.ui_control_page_rows_suffix), value -> editGridItem(id, item -> item.withSize(item.width,
                         value), false, host));
         ControlCenterCardStylePicker stylePicker = host.addPageCardStylePicker(content, selected,
                 proposed -> {
@@ -138,55 +139,55 @@ final class ControlCenterSettingsPage {
                     return findResolvedItem(id, compact(), host);
                 });
 
-        Button remove = host.addPageButton(content, "从网格移除", !selected.locked, () -> {
+        Button remove = host.addPageButton(content, tr(host, R.string.ui_control_page_remove_grid), !selected.locked, () -> {
             applyGridAction(id, ControlCenterGridEditor.EditAction.REMOVE, host);
             if (selected.type == ControlCenterLayoutPlan.Type.GROUP
                     && findResolvedItem(id, compact(), host) == null) content.removeAllViews();
         });
         Button[] lock = new Button[1];
         lock[0] = host.addPageButton(content,
-                selected.locked ? "解锁此项目" : "锁定此项目", true, () -> {
+                selected.locked ? tr(host, R.string.ui_control_page_unlock_item) : tr(host, R.string.ui_control_page_lock_item), true, () -> {
                     editGridItem(id, item -> item.withLocked(!item.locked), true, host);
                     ControlCenterLayoutPlan.Item current = findResolvedItem(id, compact(), host);
                     if (current == null) return;
-                    lock[0].setText(current.locked ? "解锁此项目" : "锁定此项目");
+                    lock[0].setText(current.locked ? tr(host, R.string.ui_control_page_unlock_item) : tr(host, R.string.ui_control_page_lock_item));
                     stylePicker.bind(current);
                     remove.setEnabled(!current.locked);
                     if (groupEditor != null) host.refreshPageGroupEditor(groupEditor);
                 });
         Button[] visibility = new Button[1];
         visibility[0] = host.addPageButton(content,
-                selected.hidden ? "显示此项目" : "隐藏此项目", true, () -> {
+                selected.hidden ? tr(host, R.string.ui_control_page_show_item) : tr(host, R.string.ui_control_page_hide_item), true, () -> {
             editGridItem(id, item -> item.withHidden(!item.hidden), true, host);
             ControlCenterLayoutPlan.Item current = findResolvedItem(id, compact(), host);
-            if (current != null) visibility[0].setText(current.hidden ? "显示此项目" : "隐藏此项目");
+            if (current != null) visibility[0].setText(current.hidden ? tr(host, R.string.ui_control_page_show_item) : tr(host, R.string.ui_control_page_hide_item));
         });
-        host.addPageSlider(content, "层级", "重叠时的绘制顺序", -20, 20,
+        host.addPageSlider(content, tr(host, R.string.ui_control_page_layer), tr(host, R.string.ui_control_page_layer_summary), -20, 20,
                 selected.zIndex, "", value -> editGridItem(id, item -> item.withZIndex(value),
                         true, host));
         if (columns > selected.width) {
-            host.addPageSlider(content, "横向位置", "网格起始列", 0, columns - selected.width,
-                    selected.x, " 列", value -> editGridItem(id,
+            host.addPageSlider(content, tr(host, R.string.ui_control_page_horizontal_position), tr(host, R.string.ui_control_page_start_column), 0, columns - selected.width,
+                    selected.x, tr(host, R.string.ui_control_page_columns_suffix), value -> editGridItem(id,
                             item -> item.withPosition(value, item.y), false, host));
         }
-        host.addPageSlider(content, "纵向位置", "网格起始行", 0,
+        host.addPageSlider(content, tr(host, R.string.ui_control_page_vertical_position), tr(host, R.string.ui_control_page_start_row), 0,
                 Math.min(ControlCenterLayoutPlan.MAX_ROWS - selected.height,
-                        Math.max(24, selected.y + 4)), selected.y, " 行",
+                        Math.max(24, selected.y + 4)), selected.y, tr(host, R.string.ui_control_page_rows_suffix),
                 value -> editGridItem(id, item -> item.withPosition(item.x, value), false, host));
         if (selected.type == ControlCenterLayoutPlan.Type.PAIR) {
             boolean isHorizontal = selected.direction == ControlCenterLayoutPlan.Direction.HORIZONTAL;
             Button[] direction = new Button[1];
             direction[0] = host.addPageButton(content,
-                    isHorizontal ? "改为上下排列" : "改为左右排列", true, () -> {
+                    isHorizontal ? tr(host, R.string.ui_control_page_pair_vertical) : tr(host, R.string.ui_control_page_pair_horizontal), true, () -> {
                 applyGridAction(id, ControlCenterGridEditor.EditAction.TOGGLE_DIRECTION, host);
                 ControlCenterLayoutPlan.Item current = findResolvedItem(id, compact(), host);
                 if (current != null) direction[0].setText(current.direction
-                        == ControlCenterLayoutPlan.Direction.HORIZONTAL ? "改为上下排列" : "改为左右排列");
+                        == ControlCenterLayoutPlan.Direction.HORIZONTAL ? tr(host, R.string.ui_control_page_pair_vertical) : tr(host, R.string.ui_control_page_pair_horizontal));
             });
-            host.addPageButton(content, "拆分卡片", true,
+            host.addPageButton(content, tr(host, R.string.ui_control_page_ungroup), true,
                     () -> applyGridAction(id, ControlCenterGridEditor.EditAction.UNPAIR, host));
         } else if (selected.type == ControlCenterLayoutPlan.Type.TILE) {
-            host.addPageButton(content, "与另一磁贴组成卡片", true, host::showPairCreation);
+            host.addPageButton(content, tr(host, R.string.ui_control_page_pair_with_tile), true, host::showPairCreation);
         }
     }
 
@@ -198,13 +199,13 @@ final class ControlCenterSettingsPage {
         if (target == null || proposed == null) return false;
         ControlCenterLayoutPlan.Item current = target.stored;
         if (current.locked) {
-            host.rejectPageEdit("项目已锁定，请先解锁");
+            host.rejectPageEdit(tr(host, R.string.ui_control_page_locked_error));
             return false;
         }
         ControlCenterLayoutPlan.Mode placed = ControlCenterGridPlacement.place(mode,
                 current.withShape(proposed.shape, proposed.cornerRadius));
         if (placed == null) {
-            host.rejectPageEdit("目标位置超出画布或被锁定项目占用");
+            host.rejectPageEdit(tr(host, R.string.ui_control_page_placement_error));
             return false;
         }
         ControlCenterConfig next = draft().withLayoutPlan(plan.withMode(selectedCompact, placed).encode());
@@ -223,7 +224,7 @@ final class ControlCenterSettingsPage {
         if (target == null) return false;
         ControlCenterLayoutPlan.Item stored = target.stored;
         if (stored.locked && !allowLocked) {
-            host.rejectPageEdit("项目已锁定，请先解锁");
+            host.rejectPageEdit(tr(host, R.string.ui_control_page_locked_error));
             return false;
         }
         ControlCenterLayoutPlan.Item changed = change.apply(stored);
@@ -240,7 +241,7 @@ final class ControlCenterSettingsPage {
         } else {
             nextMode = ControlCenterGridPlacement.place(mode, changed);
             if (nextMode == null) {
-                host.rejectPageEdit("目标位置超出画布或被锁定项目占用");
+                host.rejectPageEdit(tr(host, R.string.ui_control_page_placement_error));
                 return false;
             }
         }
@@ -303,7 +304,7 @@ final class ControlCenterSettingsPage {
         }
         ControlCenterLayoutPlan.Mode nextMode = next.mode(selectedCompact);
         if (!nextMode.validate().isEmpty()) {
-            host.rejectPageEdit("当前位置空间不足，布局未修改");
+            host.rejectPageEdit(tr(host, R.string.ui_control_page_space_error));
             return false;
         }
         return publishPlan(next, host);
@@ -381,50 +382,51 @@ final class ControlCenterSettingsPage {
     }
 
     void showAppearanceDialog(Host host) {
-        host.showPageDialog("布局与外观", content -> {
+        host.showPageDialog(tr(host, R.string.ui_control_page_appearance_title), content -> {
             ControlCenterConfig settings = draft();
             boolean selectedCompact = compact();
-            String modeLabel = selectedCompact ? "紧凑布局" : "标准布局";
-            host.addPageSectionLabel(content, "当前画布");
+            String modeLabel = selectedCompact ? tr(host, R.string.ui_control_page_compact_mode) : tr(host, R.string.ui_control_page_regular_mode);
+            host.addPageSectionLabel(content, tr(host, R.string.ui_control_page_current_canvas));
             ControlCenterLayoutPlan initialPlan = host.currentGridPlan();
-            host.addPageSlider(content, "画布列数", "仅调整当前" + modeLabel + "的网格列数", 3, 6,
-                    initialPlan.mode(selectedCompact).columns, " 列", value -> {
+            host.addPageSlider(content, tr(host, R.string.ui_control_page_canvas_columns),
+                    tr(host, R.string.ui_control_page_canvas_columns_summary, modeLabel), 3, 6,
+                    initialPlan.mode(selectedCompact).columns, tr(host, R.string.ui_control_page_columns_suffix), value -> {
                         ControlCenterConfig current = draft();
                         ControlCenterLayoutPlan plan = host.currentGridPlan();
                         update(host, current.withLayoutPlan(plan.withMode(selectedCompact,
                                 plan.mode(selectedCompact).withColumns(value)).encode()));
                     });
 
-            host.addPageSectionLabel(content, "控制中心顶部信息");
-            host.addPageToggle(content, "隐藏日期", "仅隐藏控制中心顶部日期", settings.hideDate,
+            host.addPageSectionLabel(content, tr(host, R.string.ui_control_page_header_info));
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_hide_date), tr(host, R.string.ui_control_page_hide_date_summary), settings.hideDate,
                     value -> update(host, draft().withHideDate(value)));
-            host.addPageToggle(content, "隐藏运营商", "保留隐私提示图标", settings.hideCarrier,
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_hide_carrier), tr(host, R.string.ui_control_page_hide_carrier_summary), settings.hideCarrier,
                     value -> update(host, draft().withHideCarrier(value)));
 
-            host.addPageSectionLabel(content, "统一外观范围");
+            host.addPageSectionLabel(content, tr(host, R.string.ui_control_page_appearance_scope));
             SystemSurfaceConfig systemSurfaces = settings.systemSurfaces;
-            host.addPageToggle(content, "接管电源菜单", "", systemSurfaces.powerMenu, value ->
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_power_menu), "", systemSurfaces.powerMenu, value ->
                     update(host, draft().withSystemSurfaces(draft().systemSurfaces.withPowerMenu(value))));
-            host.addPageToggle(content, "接管音量菜单", "", systemSurfaces.volumeDialog, value ->
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_volume_menu), "", systemSurfaces.volumeDialog, value ->
                     update(host, draft().withSystemSurfaces(draft().systemSurfaces.withVolumeDialog(value))));
-            host.addPageToggle(content, "接管通知中心通知", "", systemSurfaces.notifications, value ->
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_notification_center), "", systemSurfaces.notifications, value ->
                     update(host, draft().withSystemSurfaces(draft().systemSurfaces.withNotifications(value))));
-            host.addPageToggle(content, "接管悬浮通知", "", systemSurfaces.headsUp, value ->
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_heads_up), "", systemSurfaces.headsUp, value ->
                     update(host, draft().withSystemSurfaces(draft().systemSurfaces.withHeadsUp(value))));
-            host.addPageSectionLabel(content, "系统菜单");
-            host.addPageToggle(content, "三条电源菜单", "", systemSurfaces.extendedPowerMenu, value ->
+            host.addPageSectionLabel(content, tr(host, R.string.ui_control_page_system_menu));
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_extended_power_menu), "", systemSurfaces.extendedPowerMenu, value ->
                     update(host, draft().withSystemSurfaces(draft().systemSurfaces.withExtendedPowerMenu(value))));
-            host.addPageChoice(content, "音量条长度", new String[] {"标准", "短款"},
+            host.addPageChoice(content, tr(host, R.string.ui_control_page_volume_length), new String[] {tr(host, R.string.ui_control_page_standard), tr(host, R.string.ui_control_page_short)},
                     systemSurfaces.compactVolume ? 1 : 0, index ->
                             update(host, draft().withSystemSurfaces(
                                     draft().systemSurfaces.withCompactVolume(index == 1))));
 
-            host.addPageSectionLabel(content, "全局外观");
+            host.addPageSectionLabel(content, tr(host, R.string.ui_control_page_global_appearance));
             ControlCenterSurface[] surfaces = ControlCenterSurface.values();
             String[] surfaceLabels = new String[surfaces.length];
-            for (int i = 0; i < surfaces.length; i++) surfaceLabels[i] = surfaces[i].label;
+            for (int i = 0; i < surfaces.length; i++) surfaceLabels[i] = surfaces[i].label(host.pageContext());
             View[] containerBlurRows = new View[2];
-            host.addPageChoice(content, "全局容器背景", surfaceLabels, settings.surface.ordinal(), index -> {
+            host.addPageChoice(content, tr(host, R.string.ui_control_page_surface), surfaceLabels, settings.surface.ordinal(), index -> {
                 ControlCenterSurface selected = surfaces[index];
                 update(host, draft().withSurface(selected));
                 for (View row : containerBlurRows) {
@@ -432,33 +434,33 @@ final class ControlCenterSettingsPage {
                 }
             });
             View[] borderWidthRow = new View[1];
-            host.addPageToggle(content, "全局描边", "", settings.borderEnabled, value -> {
+            host.addPageToggle(content, tr(host, R.string.ui_control_page_global_border), "", settings.borderEnabled, value -> {
                 ControlCenterConfig current = draft();
                 update(host, current.withGlobalBorder(value, current.borderWidthDp));
                 if (borderWidthRow[0] != null) host.setPageSliderEnabled(borderWidthRow[0], value);
             });
-            borderWidthRow[0] = host.addPageSlider(content, "描边粗细", "", 1, 4,
+            borderWidthRow[0] = host.addPageSlider(content, tr(host, R.string.ui_control_page_border_width), "", 1, 4,
                     settings.borderWidthDp, " dp", value -> {
                         ControlCenterConfig current = draft();
                         update(host, current.withGlobalBorder(current.borderEnabled, value));
                     });
             host.setPageSliderEnabled(borderWidthRow[0], settings.borderEnabled);
-            host.addPageHint(content, "以下设置同时应用于标准布局和紧凑布局。项目尺寸、形状和独立圆角请在画布中点击项目调整。");
-            host.addPageSlider(content, "内容缩放", "统一缩放组件外框、内容、间距和占用高度",
+            host.addPageHint(content, tr(host, R.string.ui_control_page_appearance_summary));
+            host.addPageSlider(content, tr(host, R.string.ui_control_page_content_scale), tr(host, R.string.ui_control_page_content_scale_summary),
                     70, 130, settings.tileScale, "%", value -> update(host, draft().withTileScale(value)));
-            host.addPageSlider(content, "默认圆角", "用于矩形项目；单项目设置的独立圆角优先，圆角为 0 时使用此默认值",
+            host.addPageSlider(content, tr(host, R.string.ui_control_page_default_radius), tr(host, R.string.ui_control_page_default_radius_summary),
                     0, 32, settings.cornerRadius, " dp", value -> update(host, draft().withCornerRadius(value)));
-            host.addPageSlider(content, "项目间距", "调整画布中相邻项目之间的留白",
+            host.addPageSlider(content, tr(host, R.string.ui_control_page_item_spacing), tr(host, R.string.ui_control_page_item_spacing_summary),
                     0, 24, settings.spacing, " dp", value -> update(host, draft().withSpacing(value)));
-            host.addPageBlurSlider(content, "背景模糊", settings.backgroundBlur, value -> {
+            host.addPageBlurSlider(content, tr(host, R.string.ui_control_page_background_blur), settings.backgroundBlur, value -> {
                 ControlCenterConfig current = draft();
                 update(host, current.withBlur(value, current.cardBlur, current.tileBlur));
             });
-            containerBlurRows[0] = host.addPageBlurSlider(content, "卡片模糊", settings.cardBlur, value -> {
+            containerBlurRows[0] = host.addPageBlurSlider(content, tr(host, R.string.ui_control_page_card_blur), settings.cardBlur, value -> {
                 ControlCenterConfig current = draft();
                 update(host, current.withBlur(current.backgroundBlur, value, current.tileBlur));
             });
-            containerBlurRows[1] = host.addPageBlurSlider(content, "磁贴模糊", settings.tileBlur, value -> {
+            containerBlurRows[1] = host.addPageBlurSlider(content, tr(host, R.string.ui_control_page_tile_blur), settings.tileBlur, value -> {
                 ControlCenterConfig current = draft();
                 update(host, current.withBlur(current.backgroundBlur, current.cardBlur, value));
             });
@@ -475,5 +477,9 @@ final class ControlCenterSettingsPage {
     void replaceSession(ControlCenterEditorSession next) {
         if (next == null) throw new IllegalArgumentException("editor_session_required");
         session = next;
+    }
+
+    private static String tr(Host host, int resource, Object... args) {
+        return ModuleStrings.get(host.pageContext(), resource, args);
     }
 }

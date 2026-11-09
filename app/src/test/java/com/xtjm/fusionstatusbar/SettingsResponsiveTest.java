@@ -28,7 +28,7 @@ import java.io.FileOutputStream;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34, qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = 34, qualifiers = "zh-rCN-w320dp-h640dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class SettingsResponsiveTest {
     private ActivityController<Activity> activity;
@@ -58,7 +58,7 @@ public class SettingsResponsiveTest {
         checkExpandedChoice("settings-inline-choice-expanded.png");
     }
 
-    @Test @Config(qualifiers = "w320dp-h640dp-night-mdpi")
+    @Test @Config(qualifiers = "zh-rCN-w320dp-h640dp-night-mdpi")
     public void darkExpandedLayoutChoiceFitsSmallScreenAtLargeFontScale() throws Exception {
         checkExpandedChoice("settings-inline-choice-expanded-dark.png");
     }
@@ -96,7 +96,7 @@ public class SettingsResponsiveTest {
                 selectorBounds.bottom <= scroll.getScrollY() + scroll.getHeight());
     }
 
-    @Test @Config(qualifiers = "w320dp-h640dp-night-mdpi")
+    @Test @Config(qualifiers = "zh-rCN-w320dp-h640dp-night-mdpi")
     public void darkSmallScreenLargeFontSettingsRemainReadable() throws Exception { checkAll("dark"); }
 
     @Test @Config(sdk = 33)

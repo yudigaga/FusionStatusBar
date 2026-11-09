@@ -71,17 +71,34 @@ try {
     & (Join-Path $PSScriptRoot 'save-source-snapshot.ps1') -ProjectRoot $projectRoot -GitPath $GitPath -Destination $directory
     if (-not $SkipBuild) {
         $gradle = Join-Path $projectRoot $(if ($windowsHost) { 'gradlew.bat' } else { 'gradlew' })
-        Invoke-Checked $gradle @(':app:testDebugUnitTest', ':app:testReleaseUnitTest', ':app:lintDebug', ':app:lintRelease',
-            ':app:assembleDebug', ':app:assembleRelease', '--console=plain', '--no-daemon')
+        Invoke-Checked $gradle @(':app:testReleaseUnitTest', ':app:lintRelease',
+            ':app:assembleRelease', '--console=plain', '--no-daemon')
     }
     $validationPath = Join-Path $directory 'verified-build.json'
     Invoke-Checked $PythonPath @((Join-Path $PSScriptRoot 'validate-build.py'), '--project-root', $projectRoot,
         '--package', $PackageName, '--namespace', $Namespace, '--output', $validationPath)
     $validation = Get-Content -LiteralPath $validationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $variants = [ordered]@{}
-    foreach ($variantName in @('debug', 'release')) {
+    foreach ($variantName in @('release')) {
         $variant = $validation.variants.$variantName
         $apk = [string]$variant.apk
+        if ($variant.minified -ne $true -or $variant.engine -ne 'R8') { throw "The $variantName APK was not verified as R8 output." }
+        if ((Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $variant.apkSha256) {
+            throw "The $variantName APK changed after validation."
+        }
+        $archivedR8 = [ordered]@{}
+        $mappingDirectory = Join-Path $directory "mapping/$variantName"
+        [void](New-Item -ItemType Directory -Path $mappingDirectory -Force)
+        foreach ($artifact in $variant.r8Artifacts.PSObject.Properties) {
+            $sourceArtifact = [string]$artifact.Value.path
+            $artifactName = [IO.Path]::GetFileName($sourceArtifact)
+            $relativeArtifact = "mapping/$variantName/$artifactName"
+            $targetArtifact = Join-Path $directory $relativeArtifact
+            Copy-Item -LiteralPath $sourceArtifact -Destination $targetArtifact
+            $artifactHash = (Get-FileHash -LiteralPath $targetArtifact -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($artifactHash -ne $artifact.Value.sha256) { throw "The $variantName R8 artifact changed after validation: $artifactName" }
+            $archivedR8[$artifact.Name] = [ordered]@{ path = $relativeArtifact; sha256 = $artifactHash; size = (Get-Item -LiteralPath $targetArtifact).Length }
+        }
         $archivedName = "fusion-statusbar-v$($identity.versionName)-$variantName.apk"
         $target = Join-Path $directory $archivedName
         $certificate = $null; $signing = 'unsigned'; $alignment = 'not_performed'
@@ -120,20 +137,15 @@ try {
             Write-Utf8 (Join-Path $directory "signature-$variantName.txt") $signatureText
             if ($variantName -eq 'debug') { $signing = 'debug' }
         }
+        [void](Invoke-Checked $PythonPath @((Join-Path $PSScriptRoot 'verify-r8-apk.py'),
+            '--project-root', $projectRoot, '--apk', $target,
+            '--mapping', (Join-Path $mappingDirectory 'mapping.txt'),
+            '--output', (Join-Path $directory "r8-structure-$variantName.json")))
         $testDir = "app/build/test-results/test$($variantName.Substring(0,1).ToUpperInvariant())$($variantName.Substring(1))UnitTest"
         Copy-Item -LiteralPath $testDir -Destination (Join-Path $directory "tests-$variantName") -Recurse
         Copy-Item -LiteralPath "app/build/reports/lint-results-$variantName.xml" -Destination $directory
-        $variants[$variantName] = [ordered]@{ apk = $archivedName; apkSha256 = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant(); apkSize = (Get-Item -LiteralPath $target).Length; debuggable = $variantName -eq 'debug'; signing = $signing; signingCertificateSha256 = $certificate; zipAlignment = $alignment; tests = $variant.tests; lint = $variant.lint }
+        $variants[$variantName] = [ordered]@{ apk = $archivedName; apkSha256 = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant(); apkSize = (Get-Item -LiteralPath $target).Length; debuggable = $variantName -eq 'debug'; signing = $signing; signingCertificateSha256 = $certificate; zipAlignment = $alignment; tests = $variant.tests; lint = $variant.lint; minified = $true; engine = $variant.engine; r8Version = $variant.r8Version; mappingId = $variant.mappingId; mappingPath = $archivedR8.mapping.path; mappingSha256 = $archivedR8.mapping.sha256; r8Artifacts = $archivedR8; xposedEntryPoints = $variant.xposedEntryPoints }
     }
-    $mappingDirectory = Join-Path $projectRoot 'app/build/outputs/mapping/release'
-    $mappingFile = Join-Path $mappingDirectory 'mapping.txt'
-    if (-not (Test-Path -LiteralPath $mappingFile -PathType Leaf)) { throw 'R8 mapping is required for Release publication.' }
-    $optimizedApk = Join-Path $directory $variants.release.apk
-    [void](Invoke-Checked $PythonPath @((Join-Path $PSScriptRoot 'verify-r8-apk.py'), '--project-root', $projectRoot,
-        '--apk', $optimizedApk, '--mapping', $mappingFile, '--output', (Join-Path $directory 'r8-verification.json')))
-    Copy-Item -LiteralPath $mappingDirectory -Destination (Join-Path $directory 'r8') -Recurse
-    $r8 = [ordered]@{ enabled = $true; resourceShrinking = $false; mapping = 'r8/mapping.txt';
-        mappingSha256 = (Get-FileHash -LiteralPath $mappingFile -Algorithm SHA256).Hash.ToLowerInvariant(); verification = 'r8-verification.json' }
     $source = Get-Content -LiteralPath (Join-Path $directory 'snapshot.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $patchHash = (Get-FileHash -LiteralPath (Join-Path $directory 'tracked.patch') -Algorithm SHA256).Hash.ToLowerInvariant()
     $wrapper = [IO.File]::ReadAllText((Join-Path $projectRoot 'gradle/wrapper/gradle-wrapper.properties'))
@@ -143,7 +155,6 @@ try {
     $lockFiles = @(Get-ChildItem -LiteralPath $projectRoot -Recurse -Filter '*.lockfile' | Where-Object { $_.FullName -notmatch '[\\/](?:artifacts|build|\.gradle)[\\/]' } | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($projectRoot.Length + 1).Replace('\', '/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
     if ($lockFiles.Count -eq 0) { throw 'Dependency lockfiles are required.' }
     $manifest = [ordered]@{ schemaVersion = 2; versionName = $identity.versionName; versionCode = $identity.versionCode; packageName = $identity.applicationId; namespace = $identity.namespace; buildMode = $(if ($VerifyOnly) { 'verification_only' } elseif ($source.sourceDirty) { 'local_dirty_signed' } else { 'official_signed' }); sourceCommit = $source.sourceCommit; sourceRef = $SourceRef; sourceTags = @(Invoke-Checked $GitPath @('tag', '--points-at', 'HEAD')); sourceDirty = [bool]$source.sourceDirty; sourceArchiveSha256 = $source.archiveSha256; sourceIndexSha256 = $source.sourceIndexSha256; sourcePatchSha256 = $patchHash; sourceSnapshot = 'source.zip'; variants = $variants; createdUtc = [DateTime]::UtcNow.ToString('o'); toolchain = [ordered]@{ jdk = $jdk; gradle = $gradleVersion; agp = $agpVersion; compileSdk = $identity.compileSdk; targetSdk = $identity.targetSdk; buildTools = $buildTools.Name; dependencyLocks = $lockFiles }; validationInput = $(if ($SkipBuild) { 'existing_build_outputs' } else { 'built_in_this_run' }); installation = 'not_performed'; systemUiInjection = 'not_performed'; romValidation = 'not_performed' }
-    $manifest['r8'] = $r8
     Write-Utf8 (Join-Path $directory 'release.json') ($manifest | ConvertTo-Json -Depth 10)
     Write-Utf8 (Join-Path $directory 'validation.md') ("# Local validation v$($identity.versionName)`n`nMode: $($manifest.buildMode). Source: $($source.sourceCommit), dirty=$($source.sourceDirty).`n`n" + (($variants.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value.tests.total) tests, $($_.Value.lint.errors) lint errors, $($_.Value.lint.warnings) warnings; signing=$($_.Value.signing)." }) -join "`n") + "`n`nInstallation, SystemUI injection, ROM compatibility and runtime performance were not validated.`n")
     Write-Output "Verified archive: $directory"

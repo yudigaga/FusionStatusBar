@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_desktop">ホーム</string>
+    <string name="navigation_status">ステータス</string>
+    <string name="navigation_notifications">通知</string>
+    <string name="navigation_controls">パネル</string>
+    <string name="navigation_misc">その他</string>
+    <string name="navigation_settings">設定</string>
+</resources>

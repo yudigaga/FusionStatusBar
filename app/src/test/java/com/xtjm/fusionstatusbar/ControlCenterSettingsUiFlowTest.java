@@ -32,7 +32,7 @@ import org.robolectric.shadows.ShadowDialog;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34, qualifiers = "w360dp-h800dp-mdpi")
+@Config(sdk = 34, qualifiers = "zh-rCN-w360dp-h800dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class ControlCenterSettingsUiFlowTest {
     @org.junit.Rule public final androidx.compose.ui.test.junit4.ComposeTestRule compose = MiuixTestActions.rule();
@@ -333,7 +333,7 @@ public class ControlCenterSettingsUiFlowTest {
     }
 
     @Test @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Config(qualifiers = "w360dp-h800dp-night-mdpi")
+    @Config(qualifiers = "zh-rCN-w360dp-h800dp-night-mdpi")
     public void addTileRowsRenderReadableGlyphsInDarkMode() throws Exception {
         assertAddTileGlyphContrast(android.graphics.Color.BLACK, 0xff1c1c1e);
     }
@@ -485,7 +485,7 @@ public class ControlCenterSettingsUiFlowTest {
     public void exportNarrowLightPage() throws Exception { exportPage("light"); }
 
     @Test @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Config(qualifiers = "w360dp-h800dp-night-mdpi")
+    @Config(qualifiers = "zh-rCN-w360dp-h800dp-night-mdpi")
     public void exportNarrowDarkPage() throws Exception { exportPage("dark"); }
 
     private void exportPage(String name) throws Exception {

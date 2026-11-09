@@ -302,10 +302,15 @@ final class ControlCenterGridEditor extends ViewGroup {
             cell = next;
             setTag(next.id);
             setAlpha(next.hidden ? 0.36f : 1f);
-            setContentDescription((next.secondLabel == null ? next.firstLabel
-                    : next.firstLabel + "、" + next.secondLabel + "组合卡片")
-                    + (next.locked ? "、已锁定" : "") + (next.hidden ? "、已隐藏" : "")
-                    + (next.firstStyle == null || next.firstStyle.state < 0 ? "、示意预览" : "、拉取时状态"));
+            java.util.ArrayList<String> descriptions = new java.util.ArrayList<>();
+            descriptions.add(next.secondLabel == null ? next.firstLabel
+                    : tr(R.string.ui_control_grid_pair_description, next.firstLabel, next.secondLabel));
+            if (next.locked) descriptions.add(tr(R.string.ui_control_grid_locked));
+            if (next.hidden) descriptions.add(tr(R.string.ui_control_grid_hidden));
+            descriptions.add(next.firstStyle == null || next.firstStyle.state < 0
+                    ? tr(R.string.ui_control_grid_sample) : tr(R.string.ui_control_grid_captured));
+            setContentDescription(android.text.TextUtils.join(
+                    tr(R.string.ui_control_grid_accessibility_separator), descriptions));
             if (next.groupItem != null) {
                 card.bindGroup(next.groupItem, next.groupStyles, next.groupLabels,
                         Math.round(radius / getResources().getDisplayMetrics().density));
@@ -412,7 +417,7 @@ final class ControlCenterGridEditor extends ViewGroup {
                     && (width != host.cell.width || height != host.cell.height)) {
                 listener.onItemResized(host.cell.id, width, height);
             } else if (!validPlacement && moved) {
-                announceForAccessibility("位置不可用，布局未修改");
+                announceForAccessibility(tr(R.string.ui_control_grid_invalid_position));
             }
             requestLayout();
             invalidate();
@@ -535,7 +540,7 @@ final class ControlCenterGridEditor extends ViewGroup {
             paint.setColor(Color.rgb(150, 154, 162));
             paint.setTextSize(dp(13));
             paint.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText("空白画布 · 点击添加资源", Math.max(1, getWidth()) / 2f,
+            canvas.drawText(tr(R.string.ui_control_grid_empty_canvas), Math.max(1, getWidth()) / 2f,
                     Math.max(dp(24), getHeight() / 2f), paint);
         }
         if (moved && touching != null && (phase == Phase.DRAG || phase == Phase.RESIZE)) {
@@ -581,4 +586,8 @@ final class ControlCenterGridEditor extends ViewGroup {
     }
     private float clamp(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+
+    private String tr(int resource, Object... args) {
+        return ModuleStrings.get(getContext(), resource, args);
+    }
 }

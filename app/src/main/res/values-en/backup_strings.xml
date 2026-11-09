@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">Configuration backup and restore</string>
+    <string name="backup_export">Export configuration</string>
+    <string name="backup_import">Import configuration</string>
+    <string name="backup_undo">Undo last restore</string>
+    <string name="backup_cancel">Cancel</string>
+    <string name="backup_restore">Restore</string>
+    <string name="backup_enabled">Enabled</string>
+    <string name="backup_disabled">Disabled</string>
+    <string name="backup_busy">Processing, please wait</string>
+    <string name="backup_exported">Configuration exported</string>
+    <string name="backup_export_failed">Could not export configuration; choose another location</string>
+    <string name="backup_import_invalid">The file is invalid, too large, or incompatible. The current configuration is unchanged.</string>
+    <string name="backup_restore_confirmation">Restore full configuration</string>
+    <string name="backup_preview">Icon scale: %1$d%%\nStroke scale: %2$d%%\nStatus bar height: %3$d dp\nControl center columns: %4$d\nCustom control center: %5$s\n\nThis replaces all status bar, notification shade, and control center settings. The current configuration is backed up automatically before restoring.</string>
+    <string name="backup_keep_draft">Unpublished control center drafts will be kept.</string>
+    <string name="backup_undo_confirmation">Restore the full configuration from before the last import, replacing the current settings. Unpublished control center drafts will be kept. This can only be undone once.</string>
+    <string name="backup_undo_unavailable">No restore available to undo</string>
+    <string name="backup_wait_for_save">Changes are being saved. Wait before restoring.</string>
+    <string name="backup_restored">Configuration restored; waiting for the system to apply it</string>
+    <string name="backup_restore_failed">Restore failed; your current configuration is kept. Try again.</string>
+    <string name="backup_picker_unavailable">Could not open file picker</string>
+    <string name="preset_title">Layout presets</string>
+    <string name="preset_save_current">Save current draft as preset</string>
+    <string name="preset_manage">Manage presets</string>
+    <string name="preset_name">Preset name</string>
+    <string name="preset_save">Save</string>
+    <string name="preset_load">Load into draft</string>
+    <string name="preset_rename">Rename</string>
+    <string name="preset_copy">Duplicate</string>
+    <string name="preset_delete">Delete</string>
+    <string name="preset_delete_confirmation">Delete preset “%1$s”?</string>
+    <string name="preset_saved">Preset saved</string>
+    <string name="preset_loaded">Preset loaded into draft</string>
+    <string name="preset_deleted">Preset deleted</string>
+    <string name="preset_empty">No saved presets</string>
+    <string name="preset_invalid_name">Enter a valid name from 1 to 40 characters</string>
+    <string name="preset_duplicate_name">A preset with this name already exists; choose another name</string>
+    <string name="preset_limit">You can save up to 24 presets</string>
+    <string name="preset_read_failed">Could not read presets; existing presets are kept</string>
+    <string name="preset_write_failed">Could not save presets; existing presets are kept</string>
+</resources>

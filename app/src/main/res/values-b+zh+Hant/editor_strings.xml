@@ -1,0 +1,35 @@
+<resources>
+    <string name="editor_add">新增</string>
+    <string name="editor_add_description">新增控制中心項目</string>
+    <string name="editor_undo">復原</string>
+    <string name="editor_redo">重做</string>
+    <string name="editor_saving">儲存中</string>
+    <string name="editor_save_failed">儲存失敗，草稿已保留，請重試</string>
+    <string name="editor_saved_waiting">已儲存，等待 SystemUI 套用</string>
+    <string name="editor_applied">SystemUI 已套用目前版本</string>
+    <string name="editor_degraded">已儲存，SystemUI 部分功能降級</string>
+    <string name="editor_waiting_mount">已儲存，等待控制中心展開後套用</string>
+    <string name="editor_draft_restored">已還原未推送的草稿</string>
+    <string name="editor_restore_draft">還原上次草稿</string>
+    <string name="editor_nothing_to_undo">沒有可復原的變更</string>
+    <string name="editor_nothing_to_redo">沒有可重做的變更</string>
+    <string name="editor_preview_loading">正在讀取實際版面</string>
+    <string name="editor_preview_failed">實際版面讀取失敗，請重新擷取</string>
+    <string name="editor_preview_ready">已擷取實際版面 · 輕觸標題展開參考圖</string>
+    <string name="editor_done">完成</string>
+    <string name="editor_draft_failed">草稿暫存失敗，目前編輯仍保留在本次工作階段中</string>
+    <string name="editor_draft_retrying">草稿暫存失敗，正在重試</string>
+    <string name="editor_draft_retry">重試儲存草稿</string>
+    <string name="editor_apply_failed">已儲存，SystemUI 套用失敗</string>
+    <string name="editor_apply_timeout">已儲存，但未收到 SystemUI 套用確認</string>
+    <string name="editor_apply_retry">重試套用</string>
+    <string name="editor_backup_export">匯出設定備份</string>
+    <string name="editor_backup_export_summary">儲存已發佈的完整設定</string>
+    <string name="editor_backup_import">匯入設定備份</string>
+    <string name="editor_backup_import_summary">驗證後還原設定，還原前自動備份</string>
+    <string name="editor_backup_undo">復原上次設定還原</string>
+    <string name="editor_backup_undo_summary">還原匯入前已發佈的設定</string>
+    <string name="editor_backup_busy">設定儲存中，請稍後重試</string>
+    <string name="editor_backup_draft_kept">設定已還原，未推送的控制中心草稿仍保留</string>
+    <string name="editor_layout_presets">版面預設</string>
+</resources>

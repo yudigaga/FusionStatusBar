@@ -18,16 +18,20 @@ final class ControlCenterGroupData {
     static final int MIN_ICON_SCALE = 25;
     static final int MAX_ICON_SCALE = 200;
     enum Arrangement {
-        VERTICAL("纵向列表"), HORIZONTAL("横向排列"), GRID("均匀网格"), MIXED("大小混排"), CUSTOM("自由排列");
-        final String label;
-        Arrangement(String label) { this.label = label; }
+        VERTICAL(R.string.ui_control_group_arrangement_vertical, "纵向列表"), HORIZONTAL(R.string.ui_control_group_arrangement_horizontal, "横向排列"), GRID(R.string.ui_control_group_arrangement_grid, "均匀网格"), MIXED(R.string.ui_control_group_arrangement_mixed, "大小混排"), CUSTOM(R.string.ui_control_group_arrangement_custom, "自由排列");
+        @Deprecated final String label;
+        @androidx.annotation.StringRes final int labelResource;
+        Arrangement(int labelResource, String label) { this.labelResource = labelResource; this.label = label; }
+        String label(android.content.Context context) { return ModuleStrings.get(context, labelResource); }
         @Override public String toString() { return label; }
     }
     enum Surface {
-        DARK("深色", 0xc8232529), FROSTED("雾面", 0x408c8c92), CLEAR("透明", 0x00000000);
-        final String label;
+        DARK(R.string.ui_control_group_surface_dark, "深色", 0xc8232529), FROSTED(R.string.ui_control_group_surface_frosted, "雾面", 0x408c8c92), CLEAR(R.string.ui_control_group_surface_clear, "透明", 0x00000000);
+        @Deprecated final String label;
+        @androidx.annotation.StringRes final int labelResource;
         final int color;
-        Surface(String label, int color) { this.label = label; this.color = color; }
+        Surface(int labelResource, String label, int color) { this.labelResource = labelResource; this.label = label; this.color = color; }
+        String label(android.content.Context context) { return ModuleStrings.get(context, labelResource); }
         @Override public String toString() { return label; }
     }
     static final class Member {

@@ -27,7 +27,7 @@ internal class MiuixChoiceBinding(private val selector: SettingsChoiceSelector) 
         Column(Modifier.fillMaxWidth().testTag("choice_$title")) {
             SuperArrow(title = title, summary = labels[selector.selectedIndex()],
                 enabled = selector.isEnabled,
-                modifier = Modifier.semantics { contentDescription = "当前选择" },
+                modifier = Modifier.semantics { contentDescription = selector.context.getString(R.string.ui_shared_7f06ec27ae) },
                 onClick = { selector.performClick() })
             if (selector.expanded()) {
                 labels.forEachIndexed { index, label ->

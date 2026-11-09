@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language_fusion_summary">크기 %1$d%% · 두께 %2$d%% · %3$s</string>
+    <string name="language_layout_summary">%1$s · 통합 %2$s · 시스템 %3$s · 전체 높이 %4$d dp</string>
+    <string name="language_telemetry_summary">%1$d개 사용 · 글자 크기, 정렬 및 간격을 각각 조절할 수 있습니다</string>
+    <string name="language_control_summary">%1$d열 · 콘텐츠 %2$d%% · 모서리 %3$d dp · 간격 %4$d dp</string>
+    <string name="language_canvas_summary">%1$s · %2$d열 · %3$d개 항목 표시</string>
+    <string name="language_canvas_summary_hidden">%1$s · %2$d열 · %3$d개 표시 · %4$d개 숨김</string>
+    <string name="language_pending_mode">미적용 변경 사항 있음 · 현재 %1$s을(를) 적용합니다</string>
+    <string name="language_notification_pattern">사용자 지정 형식 · %1$s</string>
+    <string name="language_notification_offset">아래로 %1$d dp</string>
+    <string name="language_position_left_top">왼쪽 위</string>
+    <string name="language_position_left_bottom">왼쪽 아래</string>
+    <string name="language_position_right_top">오른쪽 위</string>
+    <string name="language_position_right_bottom">오른쪽 아래</string>
+</resources>
+

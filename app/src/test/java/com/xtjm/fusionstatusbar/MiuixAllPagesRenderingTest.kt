@@ -20,7 +20,7 @@ import org.robolectric.shadows.ShadowDialog
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "zh-rCN-w320dp-h640dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class MiuixAllPagesRenderingTest {
     @get:Rule(order = 0) val configuration = FusionTestConfigRule()
@@ -31,7 +31,7 @@ class MiuixAllPagesRenderingTest {
     @get:Rule(order = 2) val compose = createAndroidComposeRule<MainActivity>()
 
     @Test fun lightPagesAndSharedSheetsRender() = render("light")
-    @Test @Config(qualifiers = "w320dp-h640dp-night-mdpi")
+    @Test @Config(qualifiers = "zh-rCN-w320dp-h640dp-night-mdpi")
     fun darkPagesAndSharedSheetsRender() = render("dark")
 
     private fun render(theme: String) {

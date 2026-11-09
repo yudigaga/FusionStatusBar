@@ -23,7 +23,7 @@ import org.robolectric.shadows.ShadowDialog;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = {33, 34, 35})
+@Config(sdk = {33, 34, 35}, qualifiers = "zh-rCN")
 public class SettingsPageControllerTest {
     private ActivityController<Activity> activity;
     private SettingsDialogController dialogs;

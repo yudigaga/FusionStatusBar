@@ -63,6 +63,23 @@ final class ControlCenterComponentSpec {
         }
     }
 
+    static String label(android.content.Context context, String spec) {
+        int resource;
+        if (MEDIA.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_media;
+        else if (BRIGHTNESS.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_brightness;
+        else if (VOLUME.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_volume;
+        else if (DEVICE_CENTER.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_device_center;
+        else if (DEVICE_CONTROLS.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_device_controls;
+        else if (FIVE_G.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_five_g;
+        else if (QS_CARD.equalsIgnoreCase(spec)) resource = R.string.ui_control_component_qs_card;
+        else if (spec != null && spec.toLowerCase(Locale.ROOT).startsWith(COMPONENT_PREFIX))
+            resource = R.string.ui_control_component_generic;
+        else return "";
+        return ModuleStrings.get(context, resource);
+    }
+
+    /** Chinese fallback retained for non-UI callers; views use label(Context, String). */
+    @Deprecated
     static String label(String spec) {
         if (MEDIA.equalsIgnoreCase(spec)) return "音乐";
         if (BRIGHTNESS.equalsIgnoreCase(spec)) return "亮度";

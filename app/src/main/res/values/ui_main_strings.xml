@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_main_00188fe7a9" formatted="false">&quot;勿扰模式&quot;</string>
+    <string name="ui_main_00fe42e992" formatted="false">&quot; · 未验证&quot;</string>
+    <string name="ui_main_0194696b2b" formatted="false">&quot;勿扰&quot;</string>
+    <string name="ui_main_01f2c16cda" formatted="false">&quot;设备&quot;</string>
+    <string name="ui_main_03038853a8" formatted="false">&quot;应用快捷磁贴&quot;</string>
+    <string name="ui_main_03e973a353" formatted="false">&quot;系统时间&quot;</string>
+    <string name="ui_main_04a189e0d0" formatted="false">&quot;正在读取可用磁贴&quot;</string>
+    <string name="ui_main_05c46fa3b7" formatted="false">&quot;下移&quot;</string>
+    <string name="ui_main_0846bb3699" formatted="false">&quot;模块维护&quot;</string>
+    <string name="ui_main_0a4e6bb96b" formatted="false">&quot; 行&quot;</string>
+    <string name="ui_main_0c1893535c" formatted="false">&quot;截屏后自动复制到剪贴板，并阻止安全服务自动关闭；需在 LSPosed 勾选系统并重启手机&quot;</string>
+    <string name="ui_main_0e9fb13a08" formatted="false">&quot;自定义已关闭；推送后使用原生布局。开启开关可应用画布设置。&quot;</string>
+    <string name="ui_main_10045df8c9" formatted="false">&quot;截屏自动写入剪贴板&quot;</string>
+    <string name="ui_main_117bac1e45" formatted="false">&quot;振动&quot;</string>
+    <string name="ui_main_11a77556d9" formatted="false">&quot;组合卡片 · 将两个磁贴合并&quot;</string>
+    <string name="ui_main_14c6fc4c9c" formatted="false">&quot;收起真实布局参考图&quot;</string>
+    <string name="ui_main_16ffe4d1e6" formatted="false">&quot;导出最近的模块日志用于排查问题&quot;</string>
+    <string name="ui_main_1a1f6dff78" formatted="false">&quot;系统&quot;</string>
+    <string name="ui_main_1a55548023" formatted="false">&quot;双排、元素位置和状态栏总高度&quot;</string>
+    <string name="ui_main_1f251c8a07" formatted="false">&quot;杂项&quot;</string>
+    <string name="ui_main_21060eb7c7" formatted="false">&quot;点击查看属性 · 长按编辑与移动 · 状态为示意&quot;</string>
+    <string name="ui_main_2132740e22" formatted="false">&quot;紧凑布局 · 壁纸画布&quot;</string>
+    <string name="ui_main_21559f1bdf" formatted="false">&quot;自定义格式 · &quot;</string>
+    <string name="ui_main_21eb350372" formatted="false">&quot;开启后编辑布局，推送后应用到手机&quot;</string>
+    <string name="ui_main_2226343fe1" formatted="false">&quot;布局存在重叠、越界或重复项目，无法推送&quot;</string>
+    <string name="ui_main_23141370a4" formatted="false">&quot;翻译&quot;</string>
+    <string name="ui_main_240e63fd16" formatted="false">&quot;手机管家扩展 · 13.8.0&quot;</string>
+    <string name="ui_main_255a39f160" formatted="false">&quot;使用系统时间&quot;</string>
+    <string name="ui_main_27f2e31b49" formatted="false">&quot;夜间显示&quot;</string>
+    <string name="ui_main_28c081a127" formatted="false">&quot;至少需要两个可用磁贴&quot;</string>
+    <string name="ui_main_2ae991695d" formatted="false">&quot;单排&quot;</string>
+    <string name="ui_main_2fae1be172" formatted="false">&quot; · 系统&quot;</string>
+    <string name="ui_main_2fda065bcd" formatted="false">&quot;正在拉取，请展开手机控制中心一次后返回&quot;</string>
+    <string name="ui_main_32019b6351" formatted="false">&quot;更多 ···&quot;</string>
+    <string name="ui_main_3285a90ceb" formatted="false">&quot;本次开机尚未收到系统界面连接记录&quot;</string>
+    <string name="ui_main_3351f422ba" formatted="false">&quot;% · 圆角 &quot;</string>
+    <string name="ui_main_34026cfe7c" formatted="false">&quot;移动数据&quot;</string>
+    <string name="ui_main_353e6b73fd" formatted="false">&quot;大块 2×2&quot;</string>
+    <string name="ui_main_3631b84ff7" formatted="false">&quot; 项显示&quot;</string>
+    <string name="ui_main_36b147975c" formatted="false">&quot;当前网格已经为空&quot;</string>
+    <string name="ui_main_3721efa12a" formatted="false">&quot;下移 0 dp&quot;</string>
+    <string name="ui_main_3771dd6baa" formatted="false">&quot;应用启动&quot;</string>
+    <string name="ui_main_385948af8e" formatted="false">&quot; · 参考布局未包含&quot;</string>
+    <string name="ui_main_3b3dedd8c5" formatted="false">&quot;模块状态&quot;</string>
+    <string name="ui_main_3c4065adbc" formatted="false">&quot;界面&quot;</string>
+    <string name="ui_main_3d28ab41be" formatted="false">&quot;导入画布&quot;</string>
+    <string name="ui_main_3de3f46c53" formatted="false">&quot; dp · 间距 &quot;</string>
+    <string name="ui_main_4594a416f9" formatted="false">&quot;组件 · &quot;</string>
+    <string name="ui_main_4650ff1bf5" formatted="false">&quot;已导入编辑草稿，点击推送后才会应用&quot;</string>
+    <string name="ui_main_471daad874" formatted="false">&quot;自定义格式&quot;</string>
+    <string name="ui_main_477bf50991" formatted="false">&quot;标准 1×1&quot;</string>
+    <string name="ui_main_4d18f3e7b1" formatted="false">&quot;使用系统控制中心的行高档位&quot;</string>
+    <string name="ui_main_4e6ae50756" formatted="false">&quot;已提交恢复请求，请核对系统实际布局&quot;</string>
+    <string name="ui_main_4ed766e0c3" formatted="false">&quot;互联网&quot;</string>
+    <string name="ui_main_4fb9a43221" formatted="false">&quot;清除状态栏和通知栏的自定义参数&quot;</string>
+    <string name="ui_main_4fcaa2ab50" formatted="false">&quot;个人热点&quot;</string>
+    <string name="ui_main_58c6737aa3" formatted="false">&quot;未读取状态&quot;</string>
+    <string name="ui_main_599fbf62ae" formatted="false">&quot;飞行模式&quot;</string>
+    <string name="ui_main_59e23b09ad" formatted="false">&quot;整行 &quot;</string>
+    <string name="ui_main_5b0acd185d" formatted="false">&quot; 分钟&quot;</string>
+    <string name="ui_main_5d75da382f" formatted="false">&quot;管理所有已发现的系统与应用快捷磁贴，同时影响标准、紧凑两种布局。关闭后不再显示，也不会出现在添加列表；已关闭的项目仍保留在此，可随时重新启用。仅修改编辑草稿，推送后才应用到控制中心；不会直接切换 Wi-Fi、蓝牙等功能。&quot;</string>
+    <string name="ui_main_605a85c998" formatted="false">&quot;应用通知&quot;</string>
+    <string name="ui_main_6164fd65d1" formatted="false">&quot;无线网络、移动网络和电量融合显示&quot;</string>
+    <string name="ui_main_65f7a7975a" formatted="false">&quot;NFC&quot;</string>
+    <string name="ui_main_65fdeb927b" formatted="false">&quot;桌面&quot;</string>
+    <string name="ui_main_65fe35c45e" formatted="false">&quot;已连接&quot;</string>
+    <string name="ui_main_676c2ba1b3" formatted="false">&quot;恢复请求已保存；展开控制中心后拉取实际布局核对&quot;</string>
+    <string name="ui_main_69b1b1b09f" formatted="false">&quot;适用于标准与紧凑布局&quot;</string>
+    <string name="ui_main_6f65927fa3" formatted="false">&quot;组件形状 · &quot;</string>
+    <string name="ui_main_70870457f5" formatted="false">&quot;暂无待推送修改&quot;</string>
+    <string name="ui_main_714b4caceb" formatted="false">&quot;真实布局参考&quot;</string>
+    <string name="ui_main_715c9f42d2" formatted="false">&quot;尚未拉取布局&quot;</string>
+    <string name="ui_main_72c625be82" formatted="false">&quot; 列 · &quot;</string>
+    <string name="ui_main_7390e5e477" formatted="false">&quot;亮屏时间显示粒度&quot;</string>
+    <string name="ui_main_75c60a4d4b" formatted="false">&quot;空白组合卡&quot;</string>
+    <string name="ui_main_774975835a" formatted="false">&quot;大小 &quot;</string>
+    <string name="ui_main_77836d3a99" formatted="false">&quot;更多操作&quot;</string>
+    <string name="ui_main_780ff71c8f" formatted="false">&quot;Wi-Fi&quot;</string>
+    <string name="ui_main_7addf666d5" formatted="false">&quot;暂无磁贴&quot;</string>
+    <string name="ui_main_7dceb1f7f9" formatted="false">&quot;系统与其他磁贴&quot;</string>
+    <string name="ui_main_7debf9cb03" formatted="false">&quot;设置&quot;</string>
+    <string name="ui_main_7eb2141d59" formatted="false">&quot; · 显示天气&quot;</string>
+    <string name="ui_main_7f859d93c4" formatted="false">&quot;全局磁贴开关&quot;</string>
+    <string name="ui_main_84c5bdd621" formatted="false">&quot;旋转锁定&quot;</string>
+    <string name="ui_main_84fbaa22a0" formatted="false">&quot;磁贴形状&quot;</string>
+    <string name="ui_main_851cdd6091" formatted="false">&quot;右&quot;</string>
+    <string name="ui_main_8766c4e8d4" formatted="false">&quot;录屏&quot;</string>
+    <string name="ui_main_8872ba182f" formatted="false">&quot;正在检查&quot;</string>
+    <string name="ui_main_88c34452cc" formatted="false">&quot;位置&quot;</string>
+    <string name="ui_main_8a0c839791" formatted="false">&quot;上移&quot;</string>
+    <string name="ui_main_8bf6bd9db8" formatted="false">&quot;拉取手机当前布局作为参考，也可导入画布继续编辑。&quot;</string>
+    <string name="ui_main_8c2366a96d" formatted="false">&quot;移除链式启动弹窗&quot;</string>
+    <string name="ui_main_8d7f1e739e" formatted="false">&quot;模糊&quot;</string>
+    <string name="ui_main_8f1079b06e" formatted="false">&quot;自动旋转&quot;</string>
+    <string name="ui_main_90630ac933" formatted="false">&quot;占用的网格列数&quot;</string>
+    <string name="ui_main_91ab2e741b" formatted="false">&quot;毛玻璃悬浮底栏&quot;</string>
+    <string name="ui_main_93ea900ab4" formatted="false">&quot;无法向 SystemUI 请求实际预览&quot;</string>
+    <string name="ui_main_96f9752b2d" formatted="false">&quot;添加项目&quot;</string>
+    <string name="ui_main_9806241d7d" formatted="false">&quot;清空当前画布&quot;</string>
+    <string name="ui_main_9bed17eabd" formatted="false">&quot;截屏&quot;</string>
+    <string name="ui_main_9d5e6a41e6" formatted="false">&quot;当前未发现此服务，保留设置供恢复&quot;</string>
+    <string name="ui_main_a0e635b985" formatted="false">&quot;移动网络&quot;</string>
+    <string name="ui_main_a0fb38c3ab" formatted="false">&quot;布局画布&quot;</string>
+    <string name="ui_main_a42059d828" formatted="false">&quot;使用系统时间与日期&quot;</string>
+    <string name="ui_main_a59a4239b0" formatted="false">&quot;温度、功率、电流和实时网速&quot;</string>
+    <string name="ui_main_a6caf2effb" formatted="false">&quot;下&quot;</string>
+    <string name="ui_main_a773c162e2" formatted="false">&quot;真实布局中没有可导入项目&quot;</string>
+    <string name="ui_main_a7f814c0a4" formatted="false">&quot;编辑&quot;</string>
+    <string name="ui_main_a875081e2b" formatted="false">&quot;横向宽度&quot;</string>
+    <string name="ui_main_a98663f918" formatted="false">&quot;配置尚未加载，请重试&quot;</string>
+    <string name="ui_main_abb84a8cf5" formatted="false">&quot;标准布局 · 壁纸画布&quot;</string>
+    <string name="ui_main_abdc9f414f" formatted="false">&quot;没有待推送的控制中心修改&quot;</string>
+    <string name="ui_main_ac8a8db039" formatted="false">&quot;实时字幕&quot;</string>
+    <string name="ui_main_afdbd1ddec" formatted="false">&quot;静音&quot;</string>
+    <string name="ui_main_b07eaccec9" formatted="false">&quot;仅移动网络&quot;</string>
+    <string name="ui_main_b1eea7b855" formatted="false">&quot;已激活&quot;</string>
+    <string name="ui_main_b35ef53715" formatted="false">&quot;自动亮度&quot;</string>
+    <string name="ui_main_b4660eb8eb" formatted="false">&quot; · 融合&quot;</string>
+    <string name="ui_main_b6161f4bd6" formatted="false">&quot;恢复系统原始尺寸&quot;</string>
+    <string name="ui_main_b6f86d3938" formatted="false">&quot;设备信息&quot;</string>
+    <string name="ui_main_b7703abc36" formatted="false">&quot; 项隐藏&quot;</string>
+    <string name="ui_main_b967ce841a" formatted="false">&quot;上&quot;</string>
+    <string name="ui_main_b98bfe0065" formatted="false">&quot;% · 粗细 &quot;</string>
+    <string name="ui_main_bbfbe54c91" formatted="false">&quot;选择第二个磁贴&quot;</string>
+    <string name="ui_main_bd598c6d89" formatted="false">&quot;显示 Wi-Fi&quot;</string>
+    <string name="ui_main_bd69fb8241" formatted="false">&quot;系统界面已连接&quot;</string>
+    <string name="ui_main_be36c07ac8" formatted="false">&quot;布局坐标不完整，请展开控制中心后重新拉取&quot;</string>
+    <string name="ui_main_bed172efc9" formatted="false">&quot;关于&quot;</string>
+    <string name="ui_main_beff4a1cd1" formatted="false">&quot;不可用&quot;</string>
+    <string name="ui_main_bfb8c272a5" formatted="false">&quot;将恢复状态栏和通知栏的全部自定义参数，是否继续？&quot;</string>
+    <string name="ui_main_c05426b904" formatted="false">&quot; 列&quot;</string>
+    <string name="ui_main_c0b7548660" formatted="false">&quot;请先拉取真实布局&quot;</string>
+    <string name="ui_main_c434901e8a" formatted="false">&quot;电子钱包&quot;</string>
+    <string name="ui_main_c4dc12d3de" formatted="false">&quot;蓝牙&quot;</string>
+    <string name="ui_main_c513c6b4d7" formatted="false">&quot;全局可用：&quot;</string>
+    <string name="ui_main_c59f42390a" formatted="false">&quot;横向 2×1&quot;</string>
+    <string name="ui_main_c99b62d26b" formatted="false">&quot;通知栏&quot;</string>
+    <string name="ui_main_c9f82b921f" formatted="false">&quot;画布列数、内容缩放、默认圆角与间距&quot;</string>
+    <string name="ui_main_c9fd96e1da" formatted="false">&quot;显示与布局&quot;</string>
+    <string name="ui_main_cb961b6c41" formatted="false">&quot;拉取布局&quot;</string>
+    <string name="ui_main_cc17a0eb41" formatted="false">&quot;展开真实布局参考图&quot;</string>
+    <string name="ui_main_cd832cba04" formatted="false">&quot;正在读取应用快捷开关&quot;</string>
+    <string name="ui_main_cde09a7a38" formatted="false">&quot;适配 13.8.0-261020.0.1；需在 LSPosed 勾选手机管家，更改后请重启手机管家进程或手机。解锁入口不代表硬件能力可用。&quot;</string>
+    <string name="ui_main_cee01af794" formatted="false">&quot;未检测到激活&quot;</string>
+    <string name="ui_main_cf5fe0fb5d" formatted="false">&quot;有待推送的修改 · 将应用当前的&quot;</string>
+    <string name="ui_main_cfa348a535" formatted="false">&quot;手电筒&quot;</string>
+    <string name="ui_main_d22d87b4bd" formatted="false">&quot;推送修改&quot;</string>
+    <string name="ui_main_d2e556a337" formatted="false">&quot; · 总高 &quot;</string>
+    <string name="ui_main_d31d72e630" formatted="false">&quot;省电模式&quot;</string>
+    <string name="ui_main_d3d59c09bd" formatted="false">&quot;通知中心&quot;</string>
+    <string name="ui_main_d7c3ef9a57" formatted="false">&quot;只调整参考时间的显示粒度，不提高测量准确率&quot;</string>
+    <string name="ui_main_d80f5d10d8" formatted="false">&quot;横向 3×1&quot;</string>
+    <string name="ui_main_d90efbc7b3" formatted="false">&quot;双排&quot;</string>
+    <string name="ui_main_d91658def6" formatted="false">&quot;选择第一个磁贴&quot;</string>
+    <string name="ui_main_de3798b027" formatted="false">&quot;真实布局参考，请先拉取布局&quot;</string>
+    <string name="ui_main_de61aa8e1c" formatted="false">&quot;预览&quot;</string>
+    <string name="ui_main_df3ee66760" formatted="false">&quot;左&quot;</string>
+    <string name="ui_main_e089904118" formatted="false">&quot;卫星通信&quot;</string>
+    <string name="ui_main_e3b3386d71" formatted="false">&quot;形状会按控制中心网格组合，点击完成后重绘预览并应用到系统界面。&quot;</string>
+    <string name="ui_main_e3f14303ae" formatted="false">&quot;未检测到可读取的布局，请展开控制中心后重新拉取&quot;</string>
+    <string name="ui_main_e53f09ac90" formatted="false">&quot;磁贴形状 · &quot;</string>
+    <string name="ui_main_e5ace70d77" formatted="false">&quot;布局已保存，请拉取系统实际布局核对&quot;</string>
+    <string name="ui_main_e7291c3a69" formatted="false">&quot; 项启用 · 可分别调整字号、对齐和间距&quot;</string>
+    <string name="ui_main_e7a426d04e" formatted="false">&quot;自定义控制中心&quot;</string>
+    <string name="ui_main_e821c7b180" formatted="false">&quot;下移 &quot;</string>
+    <string name="ui_main_e88ab5ba61" formatted="false">&quot;同步&quot;</string>
+    <string name="ui_main_eb377415af" formatted="false">&quot;横向和纵向分别调整组件占用的网格；恢复原始尺寸可撤销本组件修改。&quot;</string>
+    <string name="ui_main_ebe00384f0" formatted="false">&quot;纵向高度&quot;</string>
+    <string name="ui_main_ed0eea8f20" formatted="false">&quot;模式&quot;</string>
+    <string name="ui_main_f0b955a680" formatted="false">&quot;恢复原生布局&quot;</string>
+    <string name="ui_main_f1b4d5750c" formatted="false">&quot;配置修改后让系统界面重新加载&quot;</string>
+    <string name="ui_main_f24b9091d8" formatted="false">&quot;设置已保存 · 编辑后推送到手机&quot;</string>
+    <string name="ui_main_f4bc0d1527" formatted="false">&quot;壁纸画布&quot;</string>
+    <string name="ui_main_f90aa1fc7e" formatted="false">&quot;状态栏&quot;</string>
+    <string name="ui_main_fa89314af4" formatted="false">&quot;清除本模块的控制中心布局和外观修改，保留当前磁贴选择与顺序。&quot;</string>
+    <string name="ui_main_fa9d5ccdbf" formatted="false">&quot;推送控制中心修改到手机&quot;</string>
+    <string name="ui_main_fb17f19c53" formatted="false">&quot; 列 · 内容 &quot;</string>
+    <string name="ui_main_fbab901503" formatted="false">&quot;直接允许应用间启动；需在 LSPosed 勾选系统（system / system_server）并重启手机&quot;</string>
+    <string name="ui_main_fd69741299" formatted="false">&quot;状态栏时间、农历、星期和天气&quot;</string>
+    <string name="ui_main_fed31d5ca1" formatted="false">&quot;真实布局参考  &quot;</string>
+</resources>

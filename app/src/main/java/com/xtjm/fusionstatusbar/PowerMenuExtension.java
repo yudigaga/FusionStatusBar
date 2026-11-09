@@ -108,11 +108,11 @@ final class PowerMenuExtension {
             clipChildren = parent.getClipChildren();
             clipPadding = parent.getClipToPadding();
             Context context = center.getContext();
-            left = new PowerMenuSideSlider(context, "线刷模式", R.drawable.cc_icon_usb,
-                    "卡刷模式", R.drawable.cc_icon_settings_backup_restore,
+            left = new PowerMenuSideSlider(context, ModuleStrings.get(center.getContext(), R.string.ui_shared_e39b364ed5), R.drawable.cc_icon_usb,
+                    ModuleStrings.get(center.getContext(), R.string.ui_shared_34a2e834da), R.drawable.cc_icon_settings_backup_restore,
                     direction -> action(direction < 0 ? PowerMenuActions.Action.BOOTLOADER : PowerMenuActions.Action.RECOVERY));
-            right = new PowerMenuSideSlider(context, "飞行模式", R.drawable.cc_icon_airplanemode_active,
-                    "静音模式", R.drawable.cc_icon_notifications_off,
+            right = new PowerMenuSideSlider(context, ModuleStrings.get(center.getContext(), R.string.ui_shared_599fbf62ae), R.drawable.cc_icon_airplanemode_active,
+                    ModuleStrings.get(center.getContext(), R.string.ui_shared_3f264ea66e), R.drawable.cc_icon_notifications_off,
                     direction -> action(direction < 0 ? PowerMenuActions.Action.AIRPLANE : PowerMenuActions.Action.SILENT));
             left.setTag(LEFT_TAG);
             right.setTag(RIGHT_TAG);
@@ -186,7 +186,7 @@ final class PowerMenuExtension {
                 }
             } catch (Exception error) {
                 Log.w("FusionStatusBar", "power menu side action failed: " + action, error);
-                Toast.makeText(context, "操作未完成，请重试", Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, ModuleStrings.get(center.getContext(), R.string.ui_shared_80b8df95ad), Toast.LENGTH_SHORT).show();
             }
         }
 

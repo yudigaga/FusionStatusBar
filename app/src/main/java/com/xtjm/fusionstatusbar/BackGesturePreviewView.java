@@ -17,7 +17,7 @@ public final class BackGesturePreviewView extends View {
 
     public BackGesturePreviewView(Context context) {
         super(context);
-        setContentDescription("侧滑返回动画预览");
+        setContentDescription(ModuleStrings.get(getContext(), R.string.ui_shared_d5a40d4953));
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     }
 

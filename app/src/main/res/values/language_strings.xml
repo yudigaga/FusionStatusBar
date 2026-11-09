@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_language_title">应用语言</string>
+    <string name="app_language_summary">选择模块界面的显示语言</string>
+    <string name="app_language_follow_system">跟随系统</string>
+    <string name="app_language_change_failed">无法切换应用语言，请重试</string>
+    <string-array name="app_language_names" translatable="false">
+        <item>@string/app_language_follow_system</item>
+        <item>简体中文</item>
+        <item>繁體中文</item>
+        <item>English</item>
+        <item>日本語</item>
+        <item>한국어</item>
+        <item>Русский</item>
+        <item>Español</item>
+    </string-array>
+</resources>

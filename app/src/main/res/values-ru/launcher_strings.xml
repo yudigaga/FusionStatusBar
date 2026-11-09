@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hide_launcher_icon">Скрыть значок приложения</string>
+    <string name="hide_launcher_icon_summary">Скрыть значок на рабочем столе. Настройки останутся доступны через LSPosed</string>
+    <string name="hide_launcher_icon_failed">Не удалось изменить видимость значка. Повторите попытку</string>
+</resources>

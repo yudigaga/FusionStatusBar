@@ -10,8 +10,8 @@ android {
         applicationId "io.github.yudigaga.fusionstatusbar"
         minSdk 33
         targetSdk 35
-        versionCode 238
-        versionName "0.5.24"
+        versionCode 239
+        versionName "0.5.25"
     }
 
     compileOptions {
@@ -33,11 +33,9 @@ android {
     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/miuix-license"))
     sourceSets.main.resources.srcDir(layout.buildDirectory.dir("generated/materialkolor-license"))
 
-    buildTypes {
-        release {
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-        }
+    buildTypes.configureEach {
+        minifyEnabled true
+        proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
     }
 
     applicationVariants.all { variant ->

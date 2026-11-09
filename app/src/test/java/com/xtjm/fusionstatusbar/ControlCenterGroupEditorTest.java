@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = 34)
+@Config(sdk = 34, qualifiers = "zh-rCN")
 public class ControlCenterGroupEditorTest {
     @Test public void memberPickerCommitsOnlyAfterSelection() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();

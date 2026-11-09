@@ -109,7 +109,8 @@ public class ControlCenterCardVisualTest {
         assertEquals(Color.rgb(248, 249, 251), ControlCenterIcons.color("mute", false));
     }
 
-    @Test public void pickerAndMenuRenderInLightAndDarkPalettesWithoutEditingOnOpen() throws Exception {
+    @Test @Config(qualifiers = "zh-rCN-w440dp-h960dp-mdpi")
+    public void pickerAndMenuRenderInLightAndDarkPalettesWithoutEditingOnOpen() throws Exception {
         ControlCenterLayoutPlan.Item item = ControlCenterLayoutPlan.Item.tile("wifi", 0, 0, 2, 1)
                 .withShape(ControlCenterLayoutPlan.Shape.RECTANGLE, 17);
         for (boolean dark : new boolean[] {false, true}) {

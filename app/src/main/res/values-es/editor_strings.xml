@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_add">Añadir</string>
+    <string name="editor_add_description">Añadir un elemento al centro de control</string>
+    <string name="editor_undo">Deshacer</string>
+    <string name="editor_redo">Rehacer</string>
+    <string name="editor_saving">Guardando</string>
+    <string name="editor_save_failed">Error al guardar; se conserva el borrador. Inténtalo de nuevo.</string>
+    <string name="editor_saved_waiting">Guardado; esperando a que SystemUI lo aplique</string>
+    <string name="editor_applied">SystemUI ha aplicado esta versión</string>
+    <string name="editor_degraded">Guardado; algunas funciones de SystemUI están limitadas</string>
+    <string name="editor_waiting_mount">Guardado; abre el centro de control para aplicarlo</string>
+    <string name="editor_draft_restored">Borrador sin aplicar restaurado</string>
+    <string name="editor_restore_draft">Restaurar el último borrador</string>
+    <string name="editor_nothing_to_undo">No hay cambios que deshacer</string>
+    <string name="editor_nothing_to_redo">No hay cambios que rehacer</string>
+    <string name="editor_preview_loading">Leyendo el diseño real</string>
+    <string name="editor_preview_failed">No se ha podido leer el diseño real; vuelve a obtenerlo</string>
+    <string name="editor_preview_ready">Diseño real obtenido · Toca el título para ampliar la referencia</string>
+    <string name="editor_done">Listo</string>
+    <string name="editor_draft_failed">No se ha podido guardar el borrador; los cambios se conservan en esta sesión</string>
+    <string name="editor_draft_retrying">No se ha podido guardar el borrador; reintentando</string>
+    <string name="editor_draft_retry">Reintentar guardar el borrador</string>
+    <string name="editor_apply_failed">Guardado; SystemUI no ha podido aplicarlo</string>
+    <string name="editor_apply_timeout">Guardado, pero SystemUI no ha confirmado su aplicación</string>
+    <string name="editor_apply_retry">Reintentar aplicación</string>
+    <string name="editor_backup_export">Exportar copia de la configuración</string>
+    <string name="editor_backup_export_summary">Guarda toda la configuración publicada</string>
+    <string name="editor_backup_import">Importar copia de la configuración</string>
+    <string name="editor_backup_import_summary">Valida y restaura, creando antes una copia de seguridad</string>
+    <string name="editor_backup_undo">Deshacer la última restauración de configuración</string>
+    <string name="editor_backup_undo_summary">Restaura la configuración publicada antes de la importación</string>
+    <string name="editor_backup_busy">Se está guardando la configuración; inténtalo en unos instantes</string>
+    <string name="editor_backup_draft_kept">Configuración restaurada; se conservan los borradores del centro de control sin aplicar</string>
+    <string name="editor_layout_presets">Diseños predefinidos</string>
+</resources>

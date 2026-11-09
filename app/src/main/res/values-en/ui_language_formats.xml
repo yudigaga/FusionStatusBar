@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language_fusion_summary">Size %1$d%% · Stroke %2$d%% · %3$s</string>
+    <string name="language_layout_summary">%1$s · Fusion: %2$s · System: %3$s · Total height %4$d dp</string>
+    <string name="language_telemetry_summary">%1$d enabled · Adjust text size, alignment, and spacing independently</string>
+    <string name="language_control_summary">%1$d columns · Content %2$d%% · Corners %3$d dp · Spacing %4$d dp</string>
+    <string name="language_canvas_summary">%1$s · %2$d columns · %3$d shown</string>
+    <string name="language_canvas_summary_hidden">%1$s · %2$d columns · %3$d shown · %4$d hidden</string>
+    <string name="language_pending_mode">Pending changes · Will apply the current %1$s</string>
+    <string name="language_notification_pattern">Custom format · %1$s</string>
+    <string name="language_notification_offset">Down %1$d dp</string>
+    <string name="language_position_left_top">Top left</string>
+    <string name="language_position_left_bottom">Bottom left</string>
+    <string name="language_position_right_top">Top right</string>
+    <string name="language_position_right_bottom">Bottom right</string>
+</resources>

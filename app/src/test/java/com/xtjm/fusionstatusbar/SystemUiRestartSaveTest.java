@@ -25,6 +25,7 @@ public class SystemUiRestartSaveTest {
     private Button restartButton;
     private final ArrayDeque<Runnable> writes = new ArrayDeque<>();
     private final ArrayDeque<Runnable> callbacks = new ArrayDeque<>();
+    private FusionConfigRepository repository;
     private FusionConfig saved;
     private int writeCount;
     private int restartCount;
@@ -45,7 +46,7 @@ public class SystemUiRestartSaveTest {
         assertTrue(activity.settingsLoaded());
         restartButton = activity.findViewById(R.id.restart_systemui_button);
         saved = (FusionConfig) field("config").get(activity);
-        FusionConfigRepository repository = new FusionConfigRepository(new FusionConfigRepository.Storage() {
+        repository = new FusionConfigRepository(new FusionConfigRepository.Storage() {
             @Override public FusionConfig read() { return saved; }
             @Override public FusionConfigStore.WriteResult write(FusionConfig value) {
                 writeCount++;
@@ -60,6 +61,241 @@ public class SystemUiRestartSaveTest {
 
     @After public void close() {
         if (controller != null) controller.pause().stop().destroy();
+    }
+
+    @Test public void languageChangeWaitsForDebouncedSettingsToBeCommitted() {
+        activity.update(saved.withIconScale(123));
+        activity.requestAppLanguage(3);
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        assertEquals(1, writes.size());
+        completeSave();
+        assertEquals(123, saved.iconScale);
+        assertEquals(3, AppLanguageSettings.selectedIndex(activity));
+    }
+
+    @Test public void languageChangeWaitsForEditsBehindAnInFlightSave() {
+        activity.update(saved.withIconScale(123));
+        activity.flushSettingsSave();
+        activity.update(saved.withIconScale(139));
+        activity.requestAppLanguage(3);
+        completeSave();
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        completeSave();
+        assertEquals(139, saved.iconScale);
+        assertEquals(3, AppLanguageSettings.selectedIndex(activity));
+    }
+
+    @Test public void aFailedSaveCancelsLanguageChangeUntilAnExplicitRetry() {
+        activity.update(saved.withIconScale(127));
+        failWrite = true;
+        activity.requestAppLanguage(3);
+        assertEquals(1, writes.size());
+        completeSave();
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        failWrite = false;
+        activity.requestAppLanguage(3);
+        completeSave();
+        assertEquals(127, saved.iconScale);
+        assertEquals(3, AppLanguageSettings.selectedIndex(activity));
+    }
+
+    @Test public void languageChangeWaitsForControlCenterPublication() {
+        activity.updateControlCenterDraft(activity.editorSession().draft()
+                .withSurface(ControlCenterSurface.SOFT_GLASS));
+        ((Button) uncheckedField("controlCenterPushButton")).performClick();
+        activity.requestAppLanguage(3);
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        completeSave();
+        assertEquals(ControlCenterSurface.SOFT_GLASS, saved.controlCenter.surface);
+        assertEquals(3, AppLanguageSettings.selectedIndex(activity));
+    }
+
+    @Test public void savedPageSurvivesStateSavingForALanguageChange() throws Exception {
+        org.robolectric.util.ReflectionHelpers.callInstanceMethod(activity, "selectPage",
+                org.robolectric.util.ReflectionHelpers.ClassParameter.from(int.class, 5));
+        activity.requestAppLanguage(3);
+        android.os.Bundle state = new android.os.Bundle();
+        controller.saveInstanceState(state);
+        assertEquals(5, state.getInt("selected_page", -1));
+    }
+
+    @Test public void stateSavingKeepsTheLatestRegularEditsAndPendingLanguageBehindAnInFlightWrite() {
+        activity.update(saved.withIconScale(123));
+        activity.flushSettingsSave();
+        FusionConfig latest = saved.withIconScale(139).withStrokeScale(117).withShowWeather(true);
+        activity.update(latest);
+        activity.requestAppLanguage(3);
+
+        android.os.Bundle state = new android.os.Bundle();
+        controller.saveInstanceState(state);
+
+        assertEquals(3, state.getInt("pending_app_language", -1));
+        android.os.Bundle snapshot = state.getBundle("pending_app_language_config");
+        assertNotNull("the full latest configuration must accompany the language request", snapshot);
+        assertConfigurationEquals(latest, FusionConfig.fromBundle(snapshot));
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        assertEquals(1, writes.size());
+        assertEquals(0, writeCount);
+    }
+
+    @Test public void stateSavingCombinesLatestRegularEditsWithTheActualSubmittedControlCenterTarget() {
+        ControlCenterConfig submitted = activity.editorSession().draft()
+                .withSurface(ControlCenterSurface.SOFT_GLASS);
+        activity.updateControlCenterDraft(submitted);
+        ((Button) uncheckedField("controlCenterPushButton")).performClick();
+        assertTrue(activity.savingControlCenter());
+        FusionConfig latest = saved.withIconScale(137).withStrokeScale(121);
+        activity.update(latest);
+        activity.updateControlCenterDraft(activity.editorSession().draft().withSurface(ControlCenterSurface.DARK));
+        activity.requestAppLanguage(3);
+
+        android.os.Bundle state = new android.os.Bundle();
+        controller.saveInstanceState(state);
+
+        assertEquals(3, state.getInt("pending_app_language", -1));
+        android.os.Bundle snapshot = state.getBundle("pending_app_language_config");
+        assertNotNull(snapshot);
+        assertConfigurationEquals(latest.withControlCenter(submitted), FusionConfig.fromBundle(snapshot));
+        assertEquals(ControlCenterSurface.DEFAULT, saved.controlCenter.surface);
+        assertEquals(ControlCenterSurface.DARK, activity.editorSession().draft().surface);
+        assertTrue("later unpublished changes must remain dirty", activity.editorSession().isDirty());
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+    }
+
+    @Test public void recreatedActivityRetriesTheCompleteLanguageIntentAfterTheOldSubmittedWriteFails()
+            throws Exception {
+        ControlCenterConfig submitted = activity.editorSession().draft()
+                .withSurface(ControlCenterSurface.SOFT_GLASS);
+        activity.updateControlCenterDraft(submitted);
+        ((Button) uncheckedField("controlCenterPushButton")).performClick();
+        FusionConfig latest = saved.withIconScale(139).withStrokeScale(117).withShowWeather(true);
+        activity.update(latest);
+        activity.updateControlCenterDraft(activity.editorSession().draft().withSurface(ControlCenterSurface.DARK));
+        activity.requestAppLanguage(3);
+        android.os.Bundle state = new android.os.Bundle();
+        controller.pause().saveInstanceState(state).stop().destroy();
+        controller = null;
+
+        Field application = FusionConfigRepository.class.getDeclaredField("application");
+        application.setAccessible(true);
+        application.set(null, repository);
+        failWrite = true;
+        controller = Robolectric.buildActivity(MainActivity.class)
+                .create(state).start().restoreInstanceState(state).resume();
+        activity = controller.get();
+        assertFalse("startup must wait for the old repository operation", activity.settingsLoaded());
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        completeSave();
+        awaitSettingsLoaded();
+
+        assertEquals(1, writeCount);
+        assertEquals(ControlCenterSurface.DEFAULT, saved.controlCenter.surface);
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        assertEquals("the new Activity must resubmit the complete preserved intent", 1, writes.size());
+        failWrite = false;
+        writes.remove().run();
+        assertConfigurationEquals(latest.withControlCenter(submitted).withRevision(saved.revision), saved);
+        assertEquals("a committed write still needs its success callback before changing language", 0,
+                AppLanguageSettings.selectedIndex(activity));
+        assertFalse(callbacks.isEmpty());
+        callbacks.remove().run();
+
+        assertEquals(2, writeCount);
+        assertEquals(3, AppLanguageSettings.selectedIndex(activity));
+        assertEquals(ControlCenterSurface.DARK, activity.editorSession().draft().surface);
+        assertTrue("a successful retry must not publish or discard later DARK edits",
+                activity.editorSession().isDirty());
+    }
+
+    @Test public void compactPublicationRetryAfterRecreationClearsAnUnchangedAutomaticDraft()
+            throws Exception {
+        ControlCenterLayoutPlan automatic = ControlCenterLayoutPlan.blank(4);
+        assertEquals(ControlCenterLayoutPlan.RuntimeLayout.AUTOMATIC, automatic.runtimeLayout);
+        ControlCenterConfig draft = activity.editorSession().draft()
+                .withSurface(ControlCenterSurface.SOFT_GLASS).withLayoutPlan(automatic.encode());
+        activity.updateControlCenterDraft(draft);
+        activity.editorSession().selectMode(true);
+        ((Button) uncheckedField("controlCenterPushButton")).performClick();
+        assertTrue(activity.savingControlCenter());
+        assertEquals(ControlCenterLayoutPlan.RuntimeLayout.AUTOMATIC,
+                ControlCenterLayoutPlan.decode(activity.editorSession().draft().layoutPlan).runtimeLayout);
+        activity.requestAppLanguage(3);
+
+        android.os.Bundle state = new android.os.Bundle();
+        controller.pause().saveInstanceState(state).stop().destroy();
+        controller = null;
+        Field application = FusionConfigRepository.class.getDeclaredField("application");
+        application.setAccessible(true);
+        application.set(null, repository);
+        failWrite = true;
+        controller = Robolectric.buildActivity(MainActivity.class)
+                .create(state).start().restoreInstanceState(state).resume();
+        activity = controller.get();
+        assertFalse(activity.settingsLoaded());
+        completeSave();
+        awaitSettingsLoaded();
+
+        assertEquals(ControlCenterSurface.DEFAULT, saved.controlCenter.surface);
+        assertEquals(0, AppLanguageSettings.selectedIndex(activity));
+        assertEquals(1, writes.size());
+        assertEquals(ControlCenterLayoutPlan.RuntimeLayout.AUTOMATIC,
+                ControlCenterLayoutPlan.decode(activity.editorSession().draft().layoutPlan).runtimeLayout);
+        failWrite = false;
+        completeSave();
+
+        assertEquals(ControlCenterSurface.SOFT_GLASS, saved.controlCenter.surface);
+        assertEquals(ControlCenterLayoutPlan.RuntimeLayout.COMPACT,
+                ControlCenterLayoutPlan.decode(saved.controlCenter.layoutPlan).runtimeLayout);
+        assertFalse("the unchanged raw draft was published as COMPACT and must no longer need pushing",
+                activity.editorSession().isDirty());
+        assertTrue(ControlCenterEditorSession.sameConfig(saved.controlCenter,
+                activity.editorSession().draft()));
+        assertEquals(3, AppLanguageSettings.selectedIndex(activity));
+    }
+
+    private void awaitSettingsLoaded() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!activity.settingsLoaded() && System.nanoTime() < deadline) {
+            ShadowLooper.idleMainLooper();
+            Thread.sleep(5);
+        }
+        assertTrue("the recreated Activity must finish loading", activity.settingsLoaded());
+    }
+
+    @Test public void anotherStateSaveDuringStartupKeepsTheUnconsumedLanguageIntent() throws Exception {
+        activity.update(saved.withIconScale(123));
+        activity.flushSettingsSave();
+        FusionConfig latest = saved.withIconScale(139).withShowWeather(true);
+        activity.update(latest);
+        activity.requestAppLanguage(3);
+        android.os.Bundle first = new android.os.Bundle();
+        controller.pause().saveInstanceState(first).stop().destroy();
+        controller = null;
+        Field application = FusionConfigRepository.class.getDeclaredField("application");
+        application.setAccessible(true);
+        application.set(null, repository);
+        controller = Robolectric.buildActivity(MainActivity.class)
+                .create(first).start().restoreInstanceState(first).resume();
+        activity = controller.get();
+        assertFalse(activity.settingsLoaded());
+        android.os.Bundle second = new android.os.Bundle();
+        controller.saveInstanceState(second);
+        assertEquals(3, second.getInt("pending_app_language", -1));
+        assertNotNull(second.getBundle("pending_app_language_config"));
+        assertConfigurationEquals(latest, FusionConfig.fromBundle(second.getBundle("pending_app_language_config")));
+    }
+
+    private void assertConfigurationEquals(FusionConfig expected, FusionConfig actual) {
+        android.os.Bundle expectedValues = expected.toBundle();
+        android.os.Bundle actualValues = actual.toBundle();
+        assertEquals(expectedValues.keySet(), actualValues.keySet());
+        for (String key : expectedValues.keySet())
+            assertEquals("configuration value " + key, expectedValues.get(key), actualValues.get(key));
+    }
+
+    private Object uncheckedField(String name) {
+        try { return field(name).get(activity); }
+        catch (Exception error) { throw new AssertionError(error); }
     }
 
     @Test public void restartFlushesDebouncedSettingsAndWaitsForSaveConfirmation() {

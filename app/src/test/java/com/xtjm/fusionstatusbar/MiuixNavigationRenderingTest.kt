@@ -19,7 +19,7 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "zh-rCN-w320dp-h640dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class MiuixNavigationRenderingTest {
     @get:Rule(order = 0) val configuration = FusionTestConfigRule()
@@ -30,7 +30,7 @@ class MiuixNavigationRenderingTest {
     @get:Rule(order = 2) val compose = createAndroidComposeRule<MainActivity>()
 
     @Test fun lightNavigationRendersBothModes() = render("light")
-    @Test @Config(qualifiers = "w320dp-h640dp-night-mdpi")
+    @Test @Config(qualifiers = "zh-rCN-w320dp-h640dp-night-mdpi")
     fun darkNavigationRendersBothModes() = render("dark")
 
     private fun render(theme: String) {

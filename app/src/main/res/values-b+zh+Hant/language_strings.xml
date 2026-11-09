@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_language_title">應用程式語言</string>
+    <string name="app_language_summary">選擇模組介面的顯示語言</string>
+    <string name="app_language_follow_system">跟隨系統</string>
+    <string name="app_language_change_failed">無法切換應用程式語言，請重試</string>
+</resources>

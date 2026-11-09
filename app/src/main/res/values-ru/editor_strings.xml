@@ -1,0 +1,35 @@
+<resources>
+    <string name="editor_add">Добавить</string>
+    <string name="editor_add_description">Добавить элемент центра управления</string>
+    <string name="editor_undo">Отменить</string>
+    <string name="editor_redo">Повторить</string>
+    <string name="editor_saving">Сохранение</string>
+    <string name="editor_save_failed">Не удалось сохранить. Черновик сохранён, повторите попытку</string>
+    <string name="editor_saved_waiting">Сохранено, ожидается применение в SystemUI</string>
+    <string name="editor_applied">SystemUI применил текущую версию</string>
+    <string name="editor_degraded">Сохранено, часть функций SystemUI работает в ограниченном режиме</string>
+    <string name="editor_waiting_mount">Сохранено, будет применено после открытия центра управления</string>
+    <string name="editor_draft_restored">Неотправленный черновик восстановлен</string>
+    <string name="editor_restore_draft">Восстановить последний черновик</string>
+    <string name="editor_nothing_to_undo">Нет изменений для отмены</string>
+    <string name="editor_nothing_to_redo">Нет изменений для повтора</string>
+    <string name="editor_preview_loading">Чтение текущего расположения</string>
+    <string name="editor_preview_failed">Не удалось прочитать текущее расположение. Загрузите его снова</string>
+    <string name="editor_preview_ready">Текущее расположение загружено · Нажмите заголовок, чтобы открыть образец</string>
+    <string name="editor_done">Готово</string>
+    <string name="editor_draft_failed">Не удалось сохранить черновик. Текущие изменения остаются в этом сеансе</string>
+    <string name="editor_draft_retrying">Не удалось сохранить черновик, повторная попытка</string>
+    <string name="editor_draft_retry">Повторить сохранение черновика</string>
+    <string name="editor_apply_failed">Сохранено, но SystemUI не смог применить настройки</string>
+    <string name="editor_apply_timeout">Сохранено, но подтверждение от SystemUI не получено</string>
+    <string name="editor_apply_retry">Применить снова</string>
+    <string name="editor_backup_export">Экспорт резервной копии настроек</string>
+    <string name="editor_backup_export_summary">Сохранить все опубликованные настройки</string>
+    <string name="editor_backup_import">Импорт резервной копии настроек</string>
+    <string name="editor_backup_import_summary">Проверить и восстановить настройки, предварительно создав резервную копию</string>
+    <string name="editor_backup_undo">Отменить последнее восстановление настроек</string>
+    <string name="editor_backup_undo_summary">Вернуть опубликованные настройки до импорта</string>
+    <string name="editor_backup_busy">Настройки сохраняются. Повторите попытку позже</string>
+    <string name="editor_backup_draft_kept">Настройки восстановлены. Неотправленный черновик центра управления сохранён</string>
+    <string name="editor_layout_presets">Шаблоны расположения</string>
+</resources>

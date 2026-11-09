@@ -32,22 +32,22 @@ final class SettingsPageController {
     }
 
     void showFusion() {
-        show("融合图标", content -> {
+        show(tr(R.string.ui_control_settings_fusion_title), content -> {
             FusionConfig initial = model.current();
-            section(content, "显示");
-            toggle(content, "显示无线网络图标", "关闭后仅保留移动网络状态", model.current().wifiIcon,
+            section(content, tr(R.string.ui_control_settings_display));
+            toggle(content, tr(R.string.ui_control_settings_wifi_icon), tr(R.string.ui_control_settings_wifi_icon_summary), model.current().wifiIcon,
                     value -> edit(current -> current.withWifiIcon(value)));
-            toggle(content, "充电时显示充电图标", "开启后充电时用闪电替换电量数字，关闭后继续显示数字",
+            toggle(content, tr(R.string.ui_control_settings_charging_icon), tr(R.string.ui_control_settings_charging_icon_summary),
                     initial.fusionContent.chargingIcon,
                     value -> edit(current -> current.withFusionChargingIcon(value)));
-            section(content, "尺寸");
-            slider(content, "整体大小", "融合图标整体等比例缩放", 50, 150, model.current().iconScale, "%",
+            section(content, tr(R.string.ui_control_settings_dimensions));
+            slider(content, tr(R.string.ui_control_settings_icon_scale), tr(R.string.ui_control_settings_icon_scale_summary), 50, 150, model.current().iconScale, "%",
                     value -> edit(current -> current.withIconScale(value)));
-            slider(content, "整体粗细", "圆环和内部图形同步变粗或变细", 50, 150, model.current().strokeScale, "%",
+            slider(content, tr(R.string.ui_control_settings_stroke_scale), tr(R.string.ui_control_settings_stroke_scale_summary), 50, 150, model.current().strokeScale, "%",
                     value -> edit(current -> current.withStrokeScale(value)));
-            section(content, "内容位置");
-            String[] labels = {"顶部", "中间", "底部"};
-            String[] titles = {"电量百分比位置", "Wi-Fi / 5G 位置", "双排信号位置"};
+            section(content, tr(R.string.ui_control_settings_content_position));
+            String[] labels = {tr(R.string.ui_control_settings_top), tr(R.string.ui_control_settings_middle), tr(R.string.ui_control_settings_bottom)};
+            String[] titles = {tr(R.string.ui_control_settings_battery_position), tr(R.string.ui_control_settings_network_position), tr(R.string.ui_control_settings_signal_position)};
             SettingsChoiceSelector[] selectors = new SettingsChoiceSelector[3];
             for (int part = 0; part < selectors.length; part++) {
                 final int index = part;
@@ -59,123 +59,123 @@ final class SettingsPageController {
                             }
                         });
             }
-            section(content, "上下微调");
-            slider(content, "Wi-Fi 上下微调", "相对融合图标高度；负值上移，正值下移", -20, 20,
+            section(content, tr(R.string.ui_control_settings_vertical_fine_tuning));
+            slider(content, tr(R.string.ui_control_settings_wifi_vertical), tr(R.string.ui_control_settings_wifi_vertical_summary), -20, 20,
                     initial.fusionContent.wifiOffsetYPercent, "%",
                     value -> edit(current -> current.withFusionWifiOffsetYPercent(value)));
-            slider(content, "5G 上下微调", "移动网络文字；负值上移，正值下移", -20, 20,
+            slider(content, tr(R.string.ui_control_settings_mobile_vertical), tr(R.string.ui_control_settings_mobile_vertical_summary), -20, 20,
                     initial.fusionContent.mobileOffsetYPercent, "%",
                     value -> edit(current -> current.withFusionMobileOffsetYPercent(value)));
-            section(content, "内容大小");
-            slider(content, "电量百分比大小", "电量数值", 50, 150,
+            section(content, tr(R.string.ui_control_settings_content_size));
+            slider(content, tr(R.string.ui_control_settings_battery_size), tr(R.string.ui_control_settings_battery_size_summary), 50, 150,
                     initial.fusionContent.batteryScale, "%",
                     value -> edit(current -> current.withFusionContentScale(FusionContentConfig.BATTERY, value)));
-            slider(content, "Wi-Fi / 5G 大小", "无线网络图形与移动网络文字", 50, 150,
+            slider(content, tr(R.string.ui_control_settings_network_size), tr(R.string.ui_control_settings_network_size_summary), 50, 150,
                     initial.fusionContent.networkScale, "%",
                     value -> edit(current -> current.withFusionContentScale(FusionContentConfig.NETWORK, value)));
-            slider(content, "双排信号大小", "两排信号同步缩放", 50, 150,
+            slider(content, tr(R.string.ui_control_settings_signal_size), tr(R.string.ui_control_settings_signal_size_summary), 50, 150,
                     initial.fusionContent.signalScale, "%",
                     value -> edit(current -> current.withFusionContentScale(FusionContentConfig.SIGNAL, value)));
         });
     }
 
     void showClock() {
-        show("时间与天气", content -> {
-            section(content, "时间");
+        show(tr(R.string.ui_control_settings_clock_weather), content -> {
+            section(content, tr(R.string.ui_control_settings_time));
             FusionConfig initial = model.current();
-            Switch custom = toggle(content, "自定义时间格式", "仅应用于状态栏时间", model.current().customClock, value -> { });
+            Switch custom = toggle(content, tr(R.string.ui_control_settings_custom_time), tr(R.string.ui_control_settings_custom_time_summary), model.current().customClock, value -> { });
             EditText pattern = pattern(content, model.current().clockPattern, model.current().customClock, false,
-                    "例如：HH:mm E", value -> edit(current -> current.withClockPattern(value)));
+                    tr(R.string.ui_control_settings_time_example), value -> edit(current -> current.withClockPattern(value)));
             custom.setOnCheckedChangeListener((button, value) -> {
                 pattern.setEnabled(value);
                 edit(current -> current.withCustomClock(value));
             });
-            optionalSize(content, "自定义字号", "关闭时恢复系统原始字号", "状态栏时间字号",
-                    "只调整顶部状态栏时间，不影响通知中心时间", initial.statusClockSizeSp,
+            optionalSize(content, tr(R.string.ui_control_settings_custom_font), tr(R.string.ui_control_settings_original_font_summary), tr(R.string.ui_control_settings_status_clock_size),
+                    tr(R.string.ui_control_settings_status_clock_size_summary), initial.statusClockSizeSp,
                     16, 8, 48, value -> edit(current -> current.withStatusClockSizeSp(value)));
-            section(content, "天气");
-            toggle(content, "显示天气", "在时间后显示天气摘要", model.current().showWeather,
+            section(content, tr(R.string.ui_control_settings_weather));
+            toggle(content, tr(R.string.ui_control_settings_show_weather), tr(R.string.ui_control_settings_show_weather_summary), model.current().showWeather,
                     value -> edit(current -> current.withShowWeather(value)));
         });
     }
 
     void showNotificationClock() {
-        show("通知中心时间", content -> {
+        show(tr(R.string.ui_control_settings_notification_clock), content -> {
             NotificationClockConfig initial = model.current().notificationClock;
-            section(content, "时间与日期");
-            Switch enabled = toggle(content, "自定义通知中心时间", "时间和日期使用同一个格式", initial.enabled, value -> { });
+            section(content, tr(R.string.ui_control_settings_date_time));
+            Switch enabled = toggle(content, tr(R.string.ui_control_settings_custom_notification_clock), tr(R.string.ui_control_settings_custom_notification_clock_summary), initial.enabled, value -> { });
             EditText format = pattern(content, initial.combinedPattern(), initial.enabled, true,
-                    "例如：HH:mm\nMM/dd E", value -> notification(current -> current.withPattern(value)));
+                    tr(R.string.ui_control_settings_notification_clock_example), value -> notification(current -> current.withPattern(value)));
             enabled.setOnCheckedChangeListener((button, value) -> {
                 format.setEnabled(value);
                 notification(current -> current.withEnabled(value));
             });
-            section(content, "样式");
-            toggle(content, "时间居中", "通知中心时间水平居中", initial.timeCentered,
+            section(content, tr(R.string.ui_control_settings_appearance));
+            toggle(content, tr(R.string.ui_control_settings_center_time), tr(R.string.ui_control_settings_center_time_summary), initial.timeCentered,
                     value -> notification(current -> current.withTimeCentered(value)));
-            toggle(content, "日期自动居中", "合并布局中仅调整日期这一行的对齐", initial.dateCentered,
+            toggle(content, tr(R.string.ui_control_settings_auto_center_date), tr(R.string.ui_control_settings_auto_center_date_summary), initial.dateCentered,
                     value -> notification(current -> current.withDateCentered(value)));
-            toggle(content, "隐藏通知设置按钮", "隐藏通知中心右侧的设置图标", initial.hideSettings,
+            toggle(content, tr(R.string.ui_control_settings_hide_notification_settings), tr(R.string.ui_control_settings_hide_notification_settings_summary), initial.hideSettings,
                     value -> notification(current -> current.withHideSettings(value)));
-            optionalSize(content, "自定义字号", "关闭时保留系统原始字号", "字号", "通知中心大时间",
+            optionalSize(content, tr(R.string.ui_control_settings_custom_font), tr(R.string.ui_control_settings_keep_original_font_summary), tr(R.string.ui_control_settings_font_size), tr(R.string.ui_control_settings_large_notification_clock),
                     initial.sizeSp, 52, 24, 180, value -> notification(current -> current.withSize(value)));
-            optionalSize(content, "自定义日期字号", "与时间同一布局，单独调整第二行字号", "日期字号",
-                    "时间和日期仍属于同一个通知中心布局", initial.dateSizeSp, 16, 10, 72,
+            optionalSize(content, tr(R.string.ui_control_settings_custom_date_font), tr(R.string.ui_control_settings_custom_date_font_summary), tr(R.string.ui_control_settings_date_font_size),
+                    tr(R.string.ui_control_settings_date_font_layout_summary), initial.dateSizeSp, 16, 10, 72,
                     value -> notification(current -> current.withDateSize(value)));
-            slider(content, "上下位置", "相对于系统原始位置微调", -24, 64, initial.offsetYDp, " dp",
+            slider(content, tr(R.string.ui_control_settings_vertical_position), tr(R.string.ui_control_settings_vertical_position_summary), -24, 64, initial.offsetYDp, " dp",
                     value -> notification(current -> current.withOffsetY(value)));
         });
     }
 
     void showNotificationDate() {
-        show("通知中心日期", content -> {
+        show(tr(R.string.ui_control_settings_notification_date), content -> {
             NotificationClockConfig initial = model.current().notificationClock;
-            section(content, "日期");
-            Switch enabled = toggle(content, "自定义通知中心日期", "与通知中心时间单独设置", initial.dateEnabled, value -> { });
+            section(content, tr(R.string.ui_control_settings_date));
+            Switch enabled = toggle(content, tr(R.string.ui_control_settings_custom_notification_date), tr(R.string.ui_control_settings_custom_notification_date_summary), initial.dateEnabled, value -> { });
             EditText format = pattern(content, initial.datePattern, initial.dateEnabled, false,
-                    "例如：MM/dd E", value -> notification(current -> current.withDatePattern(value)));
+                    tr(R.string.ui_control_settings_date_example), value -> notification(current -> current.withDatePattern(value)));
             enabled.setOnCheckedChangeListener((button, value) -> {
                 format.setEnabled(value);
                 notification(current -> current.withDateEnabled(value));
             });
-            section(content, "样式");
-            toggle(content, "日期居中", "通知中心日期水平居中", initial.dateCentered,
+            section(content, tr(R.string.ui_control_settings_appearance));
+            toggle(content, tr(R.string.ui_control_settings_center_date), tr(R.string.ui_control_settings_center_date_summary), initial.dateCentered,
                     value -> notification(current -> current.withDateCentered(value)));
-            optionalSize(content, "自定义字号", "关闭时保留系统原始字号", "字号", "仅调整日期字号",
+            optionalSize(content, tr(R.string.ui_control_settings_custom_font), tr(R.string.ui_control_settings_keep_original_font_summary), tr(R.string.ui_control_settings_font_size), tr(R.string.ui_control_settings_date_size_only),
                     initial.dateSizeSp, 18, 10, 72, value -> notification(current -> current.withDateSize(value)));
-            slider(content, "上下位置", "相对于系统原始位置微调", -24, 64, initial.dateOffsetYDp, " dp",
+            slider(content, tr(R.string.ui_control_settings_vertical_position), tr(R.string.ui_control_settings_vertical_position_summary), -24, 64, initial.dateOffsetYDp, " dp",
                     value -> notification(current -> current.withDateOffsetY(value)));
         });
     }
 
     void showNotificationList() {
-        show("通知列表", content -> slider(content, "列表下移", "起始位置", 0, 128,
+        show(tr(R.string.ui_control_settings_notification_list), content -> slider(content, tr(R.string.ui_control_settings_list_offset), tr(R.string.ui_control_settings_list_offset_summary), 0, 128,
                 model.current().notificationClock.listOffsetYDp, " dp",
                 value -> notification(current -> current.withListOffsetY(value))));
     }
 
     void showTelemetry() {
-        show("状态栏监测", content -> {
+        show(tr(R.string.ui_control_settings_telemetry), content -> {
             int[] titles = {R.string.telemetry_temperatures, R.string.telemetry_power_current, R.string.telemetry_net_speed};
-            String[] summaries = {"电池温度在上，GPU 温度在下；仅显示数值", "功率和电流上下显示", "实时上传和下载速度"};
+            String[] summaries = {tr(R.string.ui_control_settings_temperature_summary), tr(R.string.ui_control_settings_power_summary), tr(R.string.ui_control_settings_speed_summary)};
             Switch[] options = new Switch[3];
             for (int metric = 0; metric < 3; metric++) {
                 final int index = metric;
                 TelemetryConfig initial = model.current().telemetry;
                 section(content, activity.getString(titles[metric]));
-                Switch enabled = toggle(content, "启用此信息块", summaries[metric], initial.enabled(metric), value -> { });
+                Switch enabled = toggle(content, tr(R.string.ui_control_settings_enable_telemetry), summaries[metric], initial.enabled(metric), value -> { });
                 enabled.setContentDescription(activity.getString(titles[metric]));
                 LinearLayout details = new LinearLayout(activity); details.setOrientation(LinearLayout.VERTICAL);
                 content.addView(details, wrap());
-                choice(details, "显示位置", positions(), initial.position(metric), value -> telemetry(current -> current.withPosition(index, value)));
-                slider(details, "字号", "只影响当前信息块", 5, 14, initial.textSize(metric), " sp", value -> telemetry(current -> current.withGroupTextSize(index, value)));
-                choice(details, "水平对齐", new String[]{"跟随所在侧", "左对齐", "居中", "右对齐"}, initial.alignment(metric), value -> telemetry(current -> current.withAlignment(index, value)));
-                slider(details, "固定内容宽度", "0 dp 表示根据内容和可用空间自动分配", 0, 240, initial.fixedWidth(metric), " dp", value -> telemetry(current -> current.withFixedWidth(index, value)));
-                slider(details, "左侧间距", "信息块左侧额外留白", 0, 32, initial.leftMargin(metric), " dp", value -> telemetry(current -> current.withLeftMargin(index, value)));
-                slider(details, "右侧间距", "信息块右侧额外留白", 0, 32, initial.rightMargin(metric), " dp", value -> telemetry(current -> current.withRightMargin(index, value)));
-                slider(details, "上下偏移", "微调当前信息块的垂直位置", -24, 24, initial.verticalOffset(metric), " dp", value -> telemetry(current -> current.withVerticalOffset(index, value)));
-                toggle(details, "粗体", "提高小字号下的识别度", initial.bold(metric), value -> telemetry(current -> current.withBold(index, value)));
-                slider(details, "双行间距", "只影响上下两行之间的距离", -4, 12, initial.lineSpacing(metric), " dp", value -> telemetry(current -> current.withLineSpacing(index, value)));
+                choice(details, tr(R.string.ui_control_settings_telemetry_position), positions(), initial.position(metric), value -> telemetry(current -> current.withPosition(index, value)));
+                slider(details, tr(R.string.ui_control_settings_font_size), tr(R.string.ui_control_settings_telemetry_size_summary), 5, 14, initial.textSize(metric), " sp", value -> telemetry(current -> current.withGroupTextSize(index, value)));
+                choice(details, tr(R.string.ui_control_settings_horizontal_alignment), new String[]{tr(R.string.ui_control_settings_align_side), tr(R.string.ui_control_settings_align_left), tr(R.string.ui_control_settings_align_center), tr(R.string.ui_control_settings_align_right)}, initial.alignment(metric), value -> telemetry(current -> current.withAlignment(index, value)));
+                slider(details, tr(R.string.ui_control_settings_fixed_width), tr(R.string.ui_control_settings_fixed_width_summary), 0, 240, initial.fixedWidth(metric), " dp", value -> telemetry(current -> current.withFixedWidth(index, value)));
+                slider(details, tr(R.string.ui_control_settings_margin_left), tr(R.string.ui_control_settings_margin_left_summary), 0, 32, initial.leftMargin(metric), " dp", value -> telemetry(current -> current.withLeftMargin(index, value)));
+                slider(details, tr(R.string.ui_control_settings_margin_right), tr(R.string.ui_control_settings_margin_right_summary), 0, 32, initial.rightMargin(metric), " dp", value -> telemetry(current -> current.withRightMargin(index, value)));
+                slider(details, tr(R.string.ui_control_settings_vertical_offset), tr(R.string.ui_control_settings_vertical_offset_summary), -24, 24, initial.verticalOffset(metric), " dp", value -> telemetry(current -> current.withVerticalOffset(index, value)));
+                toggle(details, tr(R.string.ui_control_settings_bold), tr(R.string.ui_control_settings_bold_summary), initial.bold(metric), value -> telemetry(current -> current.withBold(index, value)));
+                slider(details, tr(R.string.ui_control_settings_line_spacing), tr(R.string.ui_control_settings_line_spacing_summary), -4, 12, initial.lineSpacing(metric), " dp", value -> telemetry(current -> current.withLineSpacing(index, value)));
                 enable(details, initial.enabled(metric));
                 enabled.setOnCheckedChangeListener((button, checked) -> {
                     enable(details, checked);
@@ -187,35 +187,35 @@ final class SettingsPageController {
                     telemetry(current -> current.withEnabled(index, checked));
                 });
             }
-            section(content, "显示方式");
+            section(content, tr(R.string.ui_control_settings_display_mode));
             TelemetryConfig initial = model.current().telemetry;
-            options[0] = toggle(content, "网速上下双排", "上传和下载分别占一行", initial.dualSpeed, value -> telemetry(current -> current.withDualSpeed(value)));
-            options[1] = toggle(content, "电流使用 mA", "优先读取并显示毫安值", initial.currentInMilliamps, value -> telemetry(current -> current.withCurrentInMilliamps(value)));
-            options[2] = toggle(content, "电流始终显示正值", "隐藏充放电方向符号", initial.currentPositive, value -> telemetry(current -> current.withCurrentPositive(value)));
+            options[0] = toggle(content, tr(R.string.ui_control_settings_dual_speed), tr(R.string.ui_control_settings_dual_speed_summary), initial.dualSpeed, value -> telemetry(current -> current.withDualSpeed(value)));
+            options[1] = toggle(content, tr(R.string.ui_control_settings_current_ma), tr(R.string.ui_control_settings_current_ma_summary), initial.currentInMilliamps, value -> telemetry(current -> current.withCurrentInMilliamps(value)));
+            options[2] = toggle(content, tr(R.string.ui_control_settings_current_positive), tr(R.string.ui_control_settings_current_positive_summary), initial.currentPositive, value -> telemetry(current -> current.withCurrentPositive(value)));
             options[0].setEnabled(initial.enabled(2)); options[1].setEnabled(initial.enabled(1)); options[2].setEnabled(initial.enabled(1));
         });
     }
 
     void showLayout() {
-        show("状态栏布局", content -> {
+        show(tr(R.string.ui_control_settings_layout_title), content -> {
             FusionConfig initial = model.current();
-            section(content, "基础布局");
-            Switch doubleRow = toggle(content, "启用双排状态栏", "将时间、通知、系统图标和信息块分配到两排", initial.doubleRow, value -> { });
-            slider(content, "状态栏总高度", "调整顶部状态栏内容区域；双排在此总高度内均分", 32, 96, initial.statusBarHeight, " dp", value -> edit(current -> current.withStatusBarHeight(value)));
-            section(content, "元素位置");
+            section(content, tr(R.string.ui_control_settings_basic_layout));
+            Switch doubleRow = toggle(content, tr(R.string.ui_control_settings_double_row), tr(R.string.ui_control_settings_double_row_summary), initial.doubleRow, value -> { });
+            slider(content, tr(R.string.ui_control_settings_status_height), tr(R.string.ui_control_settings_status_height_summary), 32, 96, initial.statusBarHeight, " dp", value -> edit(current -> current.withStatusBarHeight(value)));
+            section(content, tr(R.string.ui_control_settings_element_position));
             LinearLayout placements = new LinearLayout(activity); placements.setOrientation(LinearLayout.VERTICAL); content.addView(placements, wrap());
-            choice(placements, "时间", positions(), initial.clockSide * 2 + initial.clockRow, value -> edit(current -> current.withElementPosition(0, value / 2, value % 2)));
-            choice(placements, "应用通知图标", positions(), initial.notificationSide * 2 + initial.notificationRow, value -> edit(current -> current.withElementPosition(1, value / 2, value % 2)));
-            choice(placements, "系统图标", positions(), initial.systemSide * 2 + initial.systemRow, value -> edit(current -> current.withElementPosition(2, value / 2, value % 2)));
-            choice(placements, "融合图标", positions(), initial.fusionSide * 2 + initial.fusionRow, value -> edit(current -> current.withFusionPosition(value / 2, value % 2)));
-            section(content, "元素尺寸");
-            slider(content, "系统图标大小", "原生系统图标的视觉大小", 50, 150, initial.systemIconScale, "%", value -> edit(current -> current.withSystemIconScale(value)));
-            slider(content, "通知图标大小", "应用通知图标的视觉大小", 50, 150, initial.notificationIconScale, "%", value -> edit(current -> current.withNotificationIconScale(value)));
-            section(content, "跨行融合图标");
-            Switch span = toggle(content, "融合图标跨两排", "信息块和系统元素必须为融合图标让出空间", initial.spanRows, value -> { });
+            choice(placements, tr(R.string.ui_control_settings_time), positions(), initial.clockSide * 2 + initial.clockRow, value -> edit(current -> current.withElementPosition(0, value / 2, value % 2)));
+            choice(placements, tr(R.string.ui_control_settings_notification_icons), positions(), initial.notificationSide * 2 + initial.notificationRow, value -> edit(current -> current.withElementPosition(1, value / 2, value % 2)));
+            choice(placements, tr(R.string.ui_control_settings_system_icons), positions(), initial.systemSide * 2 + initial.systemRow, value -> edit(current -> current.withElementPosition(2, value / 2, value % 2)));
+            choice(placements, tr(R.string.ui_control_settings_fusion_title), positions(), initial.fusionSide * 2 + initial.fusionRow, value -> edit(current -> current.withFusionPosition(value / 2, value % 2)));
+            section(content, tr(R.string.ui_control_settings_element_size));
+            slider(content, tr(R.string.ui_control_settings_system_icon_size), tr(R.string.ui_control_settings_system_icon_size_summary), 50, 150, initial.systemIconScale, "%", value -> edit(current -> current.withSystemIconScale(value)));
+            slider(content, tr(R.string.ui_control_settings_notification_icon_size), tr(R.string.ui_control_settings_notification_icon_size_summary), 50, 150, initial.notificationIconScale, "%", value -> edit(current -> current.withNotificationIconScale(value)));
+            section(content, tr(R.string.ui_control_settings_spanning_fusion));
+            Switch span = toggle(content, tr(R.string.ui_control_settings_span_rows), tr(R.string.ui_control_settings_span_rows_summary), initial.spanRows, value -> { });
             LinearLayout offsets = new LinearLayout(activity); offsets.setOrientation(LinearLayout.VERTICAL); content.addView(offsets, wrap());
-            slider(offsets, "左右位置", "向左或向右微调", -24, 24, initial.spanOffsetX, " dp", value -> edit(current -> current.withSpanOffsetX(value)));
-            slider(offsets, "上下位置", "向上或向下微调", -24, 24, initial.spanOffsetY, " dp", value -> edit(current -> current.withSpanOffsetY(value)));
+            slider(offsets, tr(R.string.ui_control_settings_horizontal_position), tr(R.string.ui_control_settings_horizontal_position_summary), -24, 24, initial.spanOffsetX, " dp", value -> edit(current -> current.withSpanOffsetX(value)));
+            slider(offsets, tr(R.string.ui_control_settings_vertical_position), tr(R.string.ui_control_settings_span_vertical_summary), -24, 24, initial.spanOffsetY, " dp", value -> edit(current -> current.withSpanOffsetY(value)));
             Runnable refresh = () -> {
                 enable(placements, doubleRow.isChecked()); span.setEnabled(doubleRow.isChecked());
                 enable(offsets, doubleRow.isChecked() && span.isChecked());
@@ -226,7 +226,7 @@ final class SettingsPageController {
         });
     }
 
-    private static String[] positions() { return new String[]{"左侧 · 第一排", "左侧 · 第二排", "右侧 · 第一排", "右侧 · 第二排"}; }
+    private String[] positions() { return new String[]{tr(R.string.ui_control_settings_left_first), tr(R.string.ui_control_settings_left_second), tr(R.string.ui_control_settings_right_first), tr(R.string.ui_control_settings_right_second)}; }
 
     private SettingsChoiceSelector choice(LinearLayout content, String title, String[] labels,
             int selected, IntConsumer update) {
@@ -258,7 +258,7 @@ final class SettingsPageController {
         EditText input = new EditText(activity);
         input.setSingleLine(!multiline); input.setText(initial); input.setTextSize(15);
         input.setTextColor(primary()); input.setHintTextColor(secondary()); input.setHint(hint);
-        input.setContentDescription("时间格式");
+        input.setContentDescription(tr(R.string.ui_control_settings_time_format));
         input.setPadding(dp(14), 0, dp(14), 0); input.setBackground(background(inputColor(), 8));
         input.setEnabled(enabled); input.setMinimumHeight(dp(48));
         LinearLayout.LayoutParams params = wrap(); params.topMargin = dp(8);
@@ -354,4 +354,8 @@ final class SettingsPageController {
     private int accent() { return night() ? 0xff72a7ff : 0xff3482ff; }
     private int dp(int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
     private static LinearLayout.LayoutParams wrap() { return new LinearLayout.LayoutParams(-1, -2); }
+
+    private String tr(int resource, Object... args) {
+        return ModuleStrings.get(activity, resource, args);
+    }
 }

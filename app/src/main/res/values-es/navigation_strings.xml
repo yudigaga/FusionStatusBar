@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_desktop">Inicio</string>
+    <string name="navigation_status">Estado</string>
+    <string name="navigation_notifications">Notificaciones</string>
+    <string name="navigation_controls">Controles</string>
+    <string name="navigation_misc">Varios</string>
+    <string name="navigation_settings">Ajustes</string>
+</resources>

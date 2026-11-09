@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="language_fusion_summary">大小 %1$d%% · 粗细 %2$d%% · %3$s</string>
+    <string name="language_layout_summary">%1$s · 融合%2$s · 系统%3$s · 总高 %4$d dp</string>
+    <string name="language_telemetry_summary">%1$d 项启用 · 可分别调整字号、对齐和间距</string>
+    <string name="language_control_summary">%1$d 列 · 内容 %2$d%% · 圆角 %3$d dp · 间距 %4$d dp</string>
+    <string name="language_canvas_summary">%1$s · %2$d 列 · %3$d 项显示</string>
+    <string name="language_canvas_summary_hidden">%1$s · %2$d 列 · %3$d 项显示 · %4$d 项隐藏</string>
+    <string name="language_pending_mode">有待推送的修改 · 将应用当前的%1$s</string>
+    <string name="language_notification_pattern">自定义格式 · %1$s</string>
+    <string name="language_notification_offset">下移 %1$d dp</string>
+    <string name="language_position_left_top">左上</string>
+    <string name="language_position_left_bottom">左下</string>
+    <string name="language_position_right_top">右上</string>
+    <string name="language_position_right_bottom">右下</string>
+</resources>

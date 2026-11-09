@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_language_title">App language</string>
+    <string name="app_language_summary">Choose the display language for the module interface</string>
+    <string name="app_language_follow_system">Follow system</string>
+    <string name="app_language_change_failed">Could not change app language; try again</string>
+</resources>

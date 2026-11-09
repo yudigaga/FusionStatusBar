@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_add">追加</string>
+    <string name="editor_add_description">コントロールセンターの項目を追加</string>
+    <string name="editor_undo">元に戻す</string>
+    <string name="editor_redo">やり直す</string>
+    <string name="editor_saving">保存中</string>
+    <string name="editor_save_failed">保存できませんでした。下書きは維持しています。もう一度お試しください</string>
+    <string name="editor_saved_waiting">保存しました。SystemUI への反映を待っています</string>
+    <string name="editor_applied">SystemUI に現在のバージョンが反映されました</string>
+    <string name="editor_degraded">保存しました。SystemUI の一部機能は縮退動作しています</string>
+    <string name="editor_waiting_mount">保存しました。コントロールセンターを開くと適用されます</string>
+    <string name="editor_draft_restored">未反映の下書きを復元しました</string>
+    <string name="editor_restore_draft">前回の下書きを復元</string>
+    <string name="editor_nothing_to_undo">元に戻せる変更はありません</string>
+    <string name="editor_nothing_to_redo">やり直せる変更はありません</string>
+    <string name="editor_preview_loading">実際のレイアウトを読み込み中</string>
+    <string name="editor_preview_failed">実際のレイアウトを読み込めませんでした。再取得してください</string>
+    <string name="editor_preview_ready">実際のレイアウトを取得済み · 見出しをタップして参考画像を表示</string>
+    <string name="editor_done">完了</string>
+    <string name="editor_draft_failed">下書きを一時保存できませんでした。編集中の内容はこのセッション内に保持しています</string>
+    <string name="editor_draft_retrying">下書きを一時保存できませんでした。再試行しています</string>
+    <string name="editor_draft_retry">下書きの保存を再試行</string>
+    <string name="editor_apply_failed">保存しましたが、SystemUI に適用できませんでした</string>
+    <string name="editor_apply_timeout">保存しましたが、SystemUI から適用確認を受信していません</string>
+    <string name="editor_apply_retry">適用を再試行</string>
+    <string name="editor_backup_export">設定のバックアップをエクスポート</string>
+    <string name="editor_backup_export_summary">反映済みの設定をすべて保存します</string>
+    <string name="editor_backup_import">設定のバックアップをインポート</string>
+    <string name="editor_backup_import_summary">検証後に設定を復元します。復元前に自動でバックアップします</string>
+    <string name="editor_backup_undo">前回の設定の復元を取り消す</string>
+    <string name="editor_backup_undo_summary">インポート前の反映済み設定に戻します</string>
+    <string name="editor_backup_busy">設定を保存中です。後でもう一度お試しください</string>
+    <string name="editor_backup_draft_kept">設定を復元しました。未反映のコントロールセンターの下書きは維持しています</string>
+    <string name="editor_layout_presets">レイアウトのプリセット</string>
+</resources>
+

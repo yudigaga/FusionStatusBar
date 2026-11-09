@@ -98,7 +98,8 @@ public class FusionIconViewVisualTest {
         } finally { wifi.recycle(); mobile.recycle(); }
     }
 
-    @Test public void legacySamplesClearChargingAndPowerSaveState() {
+    @Test @Config(qualifiers = "zh-rCN-mdpi")
+    public void legacySamplesClearChargingAndPowerSaveState() {
         FusionIconView reused = icon(state(24, true, "", true, true, true), Color.BLACK, 100);
         reused.showSample(64, true, "", 4, 3, Color.BLACK);
         Bitmap actual = render(reused);

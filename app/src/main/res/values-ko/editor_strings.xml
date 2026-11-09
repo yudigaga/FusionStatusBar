@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_add">추가</string>
+    <string name="editor_add_description">제어 센터 항목 추가</string>
+    <string name="editor_undo">실행 취소</string>
+    <string name="editor_redo">다시 실행</string>
+    <string name="editor_saving">저장 중</string>
+    <string name="editor_save_failed">저장하지 못했습니다. 초안은 유지됩니다. 다시 시도하세요</string>
+    <string name="editor_saved_waiting">저장했습니다. SystemUI 적용 대기 중입니다</string>
+    <string name="editor_applied">SystemUI에 현재 버전이 적용되었습니다</string>
+    <string name="editor_degraded">저장했습니다. SystemUI의 일부 기능이 제한된 상태입니다</string>
+    <string name="editor_waiting_mount">저장했습니다. 제어 센터를 펼치면 적용됩니다</string>
+    <string name="editor_draft_restored">미적용 초안을 복원했습니다</string>
+    <string name="editor_restore_draft">이전 초안 복원</string>
+    <string name="editor_nothing_to_undo">실행 취소할 변경 사항이 없습니다</string>
+    <string name="editor_nothing_to_redo">다시 실행할 변경 사항이 없습니다</string>
+    <string name="editor_preview_loading">실제 레이아웃 불러오는 중</string>
+    <string name="editor_preview_failed">실제 레이아웃을 불러오지 못했습니다. 다시 가져오세요</string>
+    <string name="editor_preview_ready">실제 레이아웃을 가져왔습니다 · 제목을 탭하여 참고 이미지 펼치기</string>
+    <string name="editor_done">완료</string>
+    <string name="editor_draft_failed">초안을 임시 저장하지 못했습니다. 편집 내용은 현재 세션에 유지됩니다</string>
+    <string name="editor_draft_retrying">초안을 임시 저장하지 못했습니다. 다시 시도하고 있습니다</string>
+    <string name="editor_draft_retry">초안 저장 다시 시도</string>
+    <string name="editor_apply_failed">저장했지만 SystemUI에 적용하지 못했습니다</string>
+    <string name="editor_apply_timeout">저장했지만 SystemUI의 적용 확인을 받지 못했습니다</string>
+    <string name="editor_apply_retry">적용 다시 시도</string>
+    <string name="editor_backup_export">설정 백업 내보내기</string>
+    <string name="editor_backup_export_summary">적용된 전체 설정을 저장합니다</string>
+    <string name="editor_backup_import">설정 백업 가져오기</string>
+    <string name="editor_backup_import_summary">검증 후 설정을 복원하며 복원 전에 자동으로 백업합니다</string>
+    <string name="editor_backup_undo">이전 설정 복원 실행 취소</string>
+    <string name="editor_backup_undo_summary">가져오기 전의 적용된 설정으로 복원합니다</string>
+    <string name="editor_backup_busy">설정을 저장하고 있습니다. 잠시 후 다시 시도하세요</string>
+    <string name="editor_backup_draft_kept">설정을 복원했습니다. 미적용 제어 센터 초안은 유지됩니다</string>
+    <string name="editor_layout_presets">레이아웃 사전 설정</string>
+</resources>
+

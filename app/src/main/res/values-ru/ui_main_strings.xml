@@ -1,0 +1,183 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ui_main_00188fe7a9" formatted="false">"Не беспокоить"</string>
+    <string name="ui_main_00fe42e992" formatted="false">" · Не проверено"</string>
+    <string name="ui_main_0194696b2b" formatted="false">"Не беспокоить"</string>
+    <string name="ui_main_01f2c16cda" formatted="false">"Устройства"</string>
+    <string name="ui_main_03038853a8" formatted="false">"Быстрые плитки приложений"</string>
+    <string name="ui_main_03e973a353" formatted="false">"Системное время"</string>
+    <string name="ui_main_04a189e0d0" formatted="false">"Чтение доступных плиток"</string>
+    <string name="ui_main_05c46fa3b7" formatted="false">"Вниз"</string>
+    <string name="ui_main_0846bb3699" formatted="false">"Обслуживание модуля"</string>
+    <string name="ui_main_0a4e6bb96b" formatted="false">" стр."</string>
+    <string name="ui_main_0c1893535c" formatted="false">"Автоматически копировать снимки экрана в буфер обмена и не давать службе безопасности отключать эту функцию. Включите область действия «Система» в LSPosed и перезагрузите телефон"</string>
+    <string name="ui_main_0e9fb13a08" formatted="false">"Настройка выключена: после отправки будет использовано стандартное расположение. Включите переключатель, чтобы применить настройки холста."</string>
+    <string name="ui_main_10045df8c9" formatted="false">"Копировать снимки экрана в буфер обмена"</string>
+    <string name="ui_main_117bac1e45" formatted="false">"Вибрация"</string>
+    <string name="ui_main_11a77556d9" formatted="false">"Группа плиток · Объединить две плитки"</string>
+    <string name="ui_main_14c6fc4c9c" formatted="false">"Свернуть образец текущего расположения"</string>
+    <string name="ui_main_16ffe4d1e6" formatted="false">"Экспорт последних записей модуля для диагностики"</string>
+    <string name="ui_main_1a1f6dff78" formatted="false">"Система"</string>
+    <string name="ui_main_1a55548023" formatted="false">"Два ряда, положение элементов и общая высота строки состояния"</string>
+    <string name="ui_main_1f251c8a07" formatted="false">"Разное"</string>
+    <string name="ui_main_21060eb7c7" formatted="false">"Нажмите для просмотра свойств · Удерживайте для редактирования и перемещения · Состояние показано для примера"</string>
+    <string name="ui_main_2132740e22" formatted="false">"Компактное расположение · Холст с обоями"</string>
+    <string name="ui_main_21559f1bdf" formatted="false">"Свой формат · "</string>
+    <string name="ui_main_21eb350372" formatted="false">"Включите, отредактируйте расположение и отправьте изменения на телефон"</string>
+    <string name="ui_main_2226343fe1" formatted="false">"Нельзя отправить расположение с пересечениями, выходом за границы или повторяющимися элементами"</string>
+    <string name="ui_main_23141370a4" formatted="false">"Перевод"</string>
+    <string name="ui_main_240e63fd16" formatted="false">"Расширения «Безопасности» · 13.8.0"</string>
+    <string name="ui_main_255a39f160" formatted="false">"Использовать системное время"</string>
+    <string name="ui_main_27f2e31b49" formatted="false">"Ночной режим"</string>
+    <string name="ui_main_28c081a127" formatted="false">"Нужны как минимум две доступные плитки"</string>
+    <string name="ui_main_2ae991695d" formatted="false">"Один ряд"</string>
+    <string name="ui_main_2fae1be172" formatted="false">" · Системное"</string>
+    <string name="ui_main_2fda065bcd" formatted="false">"Загрузка: откройте центр управления на телефоне один раз и вернитесь"</string>
+    <string name="ui_main_32019b6351" formatted="false">"Ещё ···"</string>
+    <string name="ui_main_3285a90ceb" formatted="false">"После этой загрузки устройства подключение системного интерфейса ещё не зарегистрировано"</string>
+    <string name="ui_main_3351f422ba" formatted="false">"% · Скругление "</string>
+    <string name="ui_main_34026cfe7c" formatted="false">"Мобильные данные"</string>
+    <string name="ui_main_353e6b73fd" formatted="false">"Крупный 2×2"</string>
+    <string name="ui_main_3631b84ff7" formatted="false">" показано"</string>
+    <string name="ui_main_36b147975c" formatted="false">"Текущая сетка уже пуста"</string>
+    <string name="ui_main_3721efa12a" formatted="false">"Смещение вниз 0 dp"</string>
+    <string name="ui_main_3771dd6baa" formatted="false">"Запуск приложений"</string>
+    <string name="ui_main_385948af8e" formatted="false">" · Нет в образце расположения"</string>
+    <string name="ui_main_3b3dedd8c5" formatted="false">"Состояние модуля"</string>
+    <string name="ui_main_3c4065adbc" formatted="false">"Интерфейс"</string>
+    <string name="ui_main_3d28ab41be" formatted="false">"Импортировать на холст"</string>
+    <string name="ui_main_3de3f46c53" formatted="false">" dp · Отступ "</string>
+    <string name="ui_main_4594a416f9" formatted="false">"Компонент · "</string>
+    <string name="ui_main_4650ff1bf5" formatted="false">"Импортировано в черновик. Изменения будут применены только после отправки"</string>
+    <string name="ui_main_471daad874" formatted="false">"Свой формат"</string>
+    <string name="ui_main_477bf50991" formatted="false">"Стандартный 1×1"</string>
+    <string name="ui_main_4d18f3e7b1" formatted="false">"Использовать системный уровень высоты строки центра управления"</string>
+    <string name="ui_main_4e6ae50756" formatted="false">"Запрос восстановления отправлен. Проверьте фактическое расположение в системе"</string>
+    <string name="ui_main_4ed766e0c3" formatted="false">"Интернет"</string>
+    <string name="ui_main_4fb9a43221" formatted="false">"Сбросить пользовательские параметры строки состояния и панели уведомлений"</string>
+    <string name="ui_main_4fcaa2ab50" formatted="false">"Точка доступа"</string>
+    <string name="ui_main_58c6737aa3" formatted="false">"Состояние не прочитано"</string>
+    <string name="ui_main_599fbf62ae" formatted="false">"Режим полёта"</string>
+    <string name="ui_main_59e23b09ad" formatted="false">"Весь ряд "</string>
+    <string name="ui_main_5b0acd185d" formatted="false">" мин"</string>
+    <string name="ui_main_5d75da382f" formatted="false">"Управление всеми обнаруженными системными плитками и плитками приложений для стандартного и компактного расположения. Выключенные плитки скрываются из центра управления и списка добавления, но остаются здесь для повторного включения. Изменяется только черновик; настройки применяются после отправки. Wi-Fi, Bluetooth и другие функции напрямую не переключаются."</string>
+    <string name="ui_main_605a85c998" formatted="false">"Уведомления приложений"</string>
+    <string name="ui_main_6164fd65d1" formatted="false">"Объединённое отображение Wi-Fi, мобильной сети и заряда"</string>
+    <string name="ui_main_65f7a7975a" formatted="false">"NFC"</string>
+    <string name="ui_main_65fdeb927b" formatted="false">"Рабочий стол"</string>
+    <string name="ui_main_65fe35c45e" formatted="false">"Подключено"</string>
+    <string name="ui_main_676c2ba1b3" formatted="false">"Запрос восстановления сохранён. Откройте центр управления и загрузите фактическое расположение для проверки"</string>
+    <string name="ui_main_69b1b1b09f" formatted="false">"Для стандартного и компактного расположения"</string>
+    <string name="ui_main_6f65927fa3" formatted="false">"Форма компонента · "</string>
+    <string name="ui_main_70870457f5" formatted="false">"Нет изменений для отправки"</string>
+    <string name="ui_main_714b4caceb" formatted="false">"Образец текущего расположения"</string>
+    <string name="ui_main_715c9f42d2" formatted="false">"Расположение ещё не загружено"</string>
+    <string name="ui_main_72c625be82" formatted="false">" столб. · "</string>
+    <string name="ui_main_7390e5e477" formatted="false">"Шаг отображения времени работы экрана"</string>
+    <string name="ui_main_75c60a4d4b" formatted="false">"Пустая группа плиток"</string>
+    <string name="ui_main_774975835a" formatted="false">"Размер "</string>
+    <string name="ui_main_77836d3a99" formatted="false">"Другие действия"</string>
+    <string name="ui_main_780ff71c8f" formatted="false">"Wi-Fi"</string>
+    <string name="ui_main_7addf666d5" formatted="false">"Плиток пока нет"</string>
+    <string name="ui_main_7dceb1f7f9" formatted="false">"Системные и другие плитки"</string>
+    <string name="ui_main_7debf9cb03" formatted="false">"Настройки"</string>
+    <string name="ui_main_7eb2141d59" formatted="false">" · Показывать погоду"</string>
+    <string name="ui_main_7f859d93c4" formatted="false">"Общие переключатели плиток"</string>
+    <string name="ui_main_84c5bdd621" formatted="false">"Блокировка поворота"</string>
+    <string name="ui_main_84fbaa22a0" formatted="false">"Форма плиток"</string>
+    <string name="ui_main_851cdd6091" formatted="false">"Справа"</string>
+    <string name="ui_main_8766c4e8d4" formatted="false">"Запись экрана"</string>
+    <string name="ui_main_8872ba182f" formatted="false">"Проверка"</string>
+    <string name="ui_main_88c34452cc" formatted="false">"Местоположение"</string>
+    <string name="ui_main_8a0c839791" formatted="false">"Вверх"</string>
+    <string name="ui_main_8bf6bd9db8" formatted="false">"Загрузите текущее расположение телефона как образец или импортируйте его на холст для редактирования."</string>
+    <string name="ui_main_8c2366a96d" formatted="false">"Убрать запрос при запуске из другого приложения"</string>
+    <string name="ui_main_8d7f1e739e" formatted="false">"Размытие"</string>
+    <string name="ui_main_8f1079b06e" formatted="false">"Автоповорот"</string>
+    <string name="ui_main_90630ac933" formatted="false">"Число занимаемых столбцов сетки"</string>
+    <string name="ui_main_91ab2e741b" formatted="false">"Парящая док-панель с матовым стеклом"</string>
+    <string name="ui_main_93ea900ab4" formatted="false">"Не удалось запросить фактический предпросмотр у SystemUI"</string>
+    <string name="ui_main_96f9752b2d" formatted="false">"Добавить элемент"</string>
+    <string name="ui_main_9806241d7d" formatted="false">"Очистить текущий холст"</string>
+    <string name="ui_main_9bed17eabd" formatted="false">"Снимок экрана"</string>
+    <string name="ui_main_9d5e6a41e6" formatted="false">"Служба сейчас не найдена. Настройка сохранена на случай её восстановления"</string>
+    <string name="ui_main_a0e635b985" formatted="false">"Мобильная сеть"</string>
+    <string name="ui_main_a0fb38c3ab" formatted="false">"Холст расположения"</string>
+    <string name="ui_main_a42059d828" formatted="false">"Использовать системные время и дату"</string>
+    <string name="ui_main_a59a4239b0" formatted="false">"Температура, мощность, ток и текущая скорость сети"</string>
+    <string name="ui_main_a6caf2effb" formatted="false">"Внизу"</string>
+    <string name="ui_main_a773c162e2" formatted="false">"В текущем расположении нет элементов для импорта"</string>
+    <string name="ui_main_a7f814c0a4" formatted="false">"Изменить"</string>
+    <string name="ui_main_a875081e2b" formatted="false">"Ширина по горизонтали"</string>
+    <string name="ui_main_a98663f918" formatted="false">"Настройки ещё не загружены. Повторите попытку"</string>
+    <string name="ui_main_abb84a8cf5" formatted="false">"Стандартное расположение · Холст с обоями"</string>
+    <string name="ui_main_abdc9f414f" formatted="false">"Нет изменений центра управления для отправки"</string>
+    <string name="ui_main_ac8a8db039" formatted="false">"Автоматические субтитры"</string>
+    <string name="ui_main_afdbd1ddec" formatted="false">"Без звука"</string>
+    <string name="ui_main_b07eaccec9" formatted="false">"Только мобильная сеть"</string>
+    <string name="ui_main_b1eea7b855" formatted="false">"Активирован"</string>
+    <string name="ui_main_b35ef53715" formatted="false">"Автояркость"</string>
+    <string name="ui_main_b4660eb8eb" formatted="false">" · Объединённые"</string>
+    <string name="ui_main_b6161f4bd6" formatted="false">"Восстановить системный размер"</string>
+    <string name="ui_main_b6f86d3938" formatted="false">"Об устройстве"</string>
+    <string name="ui_main_b7703abc36" formatted="false">" скрыто"</string>
+    <string name="ui_main_b967ce841a" formatted="false">"Вверху"</string>
+    <string name="ui_main_b98bfe0065" formatted="false">"% · Толщина "</string>
+    <string name="ui_main_bbfbe54c91" formatted="false">"Выберите вторую плитку"</string>
+    <string name="ui_main_bd598c6d89" formatted="false">"Показывать Wi-Fi"</string>
+    <string name="ui_main_bd69fb8241" formatted="false">"Системный интерфейс подключён"</string>
+    <string name="ui_main_be36c07ac8" formatted="false">"Координаты расположения неполные. Откройте центр управления и загрузите его снова"</string>
+    <string name="ui_main_bed172efc9" formatted="false">"О приложении"</string>
+    <string name="ui_main_beff4a1cd1" formatted="false">"Недоступно"</string>
+    <string name="ui_main_bfb8c272a5" formatted="false">"Все пользовательские параметры строки состояния и панели уведомлений будут сброшены. Продолжить?"</string>
+    <string name="ui_main_c05426b904" formatted="false">" столб."</string>
+    <string name="ui_main_c0b7548660" formatted="false">"Сначала загрузите текущее расположение"</string>
+    <string name="ui_main_c434901e8a" formatted="false">"Кошелёк"</string>
+    <string name="ui_main_c4dc12d3de" formatted="false">"Bluetooth"</string>
+    <string name="ui_main_c513c6b4d7" formatted="false">"Доступно везде: "</string>
+    <string name="ui_main_c59f42390a" formatted="false">"Горизонтальный 2×1"</string>
+    <string name="ui_main_c99b62d26b" formatted="false">"Панель уведомлений"</string>
+    <string name="ui_main_c9f82b921f" formatted="false">"Столбцы холста, масштаб содержимого, скругление и отступы по умолчанию"</string>
+    <string name="ui_main_c9fd96e1da" formatted="false">"Отображение и расположение"</string>
+    <string name="ui_main_cb961b6c41" formatted="false">"Загрузить расположение"</string>
+    <string name="ui_main_cc17a0eb41" formatted="false">"Развернуть образец текущего расположения"</string>
+    <string name="ui_main_cd832cba04" formatted="false">"Чтение быстрых переключателей приложений"</string>
+    <string name="ui_main_cde09a7a38" formatted="false">"Для версии 13.8.0-261020.0.1. Включите «Безопасность» в областях действия LSPosed. После изменений перезапустите процесс «Безопасности» или телефон. Открытие пункта меню не гарантирует наличия нужного оборудования."</string>
+    <string name="ui_main_cee01af794" formatted="false">"Активация не обнаружена"</string>
+    <string name="ui_main_cf5fe0fb5d" formatted="false">"Есть изменения для отправки · Будет применено текущее"</string>
+    <string name="ui_main_cfa348a535" formatted="false">"Фонарик"</string>
+    <string name="ui_main_d22d87b4bd" formatted="false">"Отправить изменения"</string>
+    <string name="ui_main_d2e556a337" formatted="false">" · Общая высота "</string>
+    <string name="ui_main_d31d72e630" formatted="false">"Энергосбережение"</string>
+    <string name="ui_main_d3d59c09bd" formatted="false">"Панель уведомлений"</string>
+    <string name="ui_main_d7c3ef9a57" formatted="false">"Меняет только шаг отображения справочного времени, без повышения точности измерения"</string>
+    <string name="ui_main_d80f5d10d8" formatted="false">"Горизонтальный 3×1"</string>
+    <string name="ui_main_d90efbc7b3" formatted="false">"Два ряда"</string>
+    <string name="ui_main_d91658def6" formatted="false">"Выберите первую плитку"</string>
+    <string name="ui_main_de3798b027" formatted="false">"Образец текущего расположения: сначала загрузите его"</string>
+    <string name="ui_main_de61aa8e1c" formatted="false">"Предпросмотр"</string>
+    <string name="ui_main_df3ee66760" formatted="false">"Слева"</string>
+    <string name="ui_main_e089904118" formatted="false">"Спутниковая связь"</string>
+    <string name="ui_main_e3b3386d71" formatted="false">"Формы объединяются по сетке центра управления. После нажатия «Готово» предпросмотр обновится, а изменения будут применены к системному интерфейсу."</string>
+    <string name="ui_main_e3f14303ae" formatted="false">"Доступное для чтения расположение не найдено. Откройте центр управления и загрузите его снова"</string>
+    <string name="ui_main_e53f09ac90" formatted="false">"Форма плитки · "</string>
+    <string name="ui_main_e5ace70d77" formatted="false">"Расположение сохранено. Загрузите фактическое системное расположение для проверки"</string>
+    <string name="ui_main_e7291c3a69" formatted="false">" включено · Размер шрифта, выравнивание и отступы настраиваются отдельно"</string>
+    <string name="ui_main_e7a426d04e" formatted="false">"Свой центр управления"</string>
+    <string name="ui_main_e821c7b180" formatted="false">"Смещение вниз "</string>
+    <string name="ui_main_e88ab5ba61" formatted="false">"Синхронизация"</string>
+    <string name="ui_main_eb377415af" formatted="false">"Отдельно настройте занимаемые ячейки по горизонтали и вертикали. Восстановление исходного размера отменит изменения этого компонента."</string>
+    <string name="ui_main_ebe00384f0" formatted="false">"Высота по вертикали"</string>
+    <string name="ui_main_ed0eea8f20" formatted="false">"Режим"</string>
+    <string name="ui_main_f0b955a680" formatted="false">"Восстановить стандартное расположение"</string>
+    <string name="ui_main_f1b4d5750c" formatted="false">"Перезагрузить системный интерфейс после изменения настроек"</string>
+    <string name="ui_main_f24b9091d8" formatted="false">"Настройки сохранены · Отредактируйте и отправьте на телефон"</string>
+    <string name="ui_main_f4bc0d1527" formatted="false">"Холст с обоями"</string>
+    <string name="ui_main_f90aa1fc7e" formatted="false">"Строка состояния"</string>
+    <string name="ui_main_fa89314af4" formatted="false">"Убрать изменения расположения и оформления центра управления, внесённые модулем. Текущие выбранные плитки и их порядок сохранятся."</string>
+    <string name="ui_main_fa9d5ccdbf" formatted="false">"Отправить изменения центра управления на телефон"</string>
+    <string name="ui_main_fb17f19c53" formatted="false">" столб. · Содержимое "</string>
+    <string name="ui_main_fbab901503" formatted="false">"Разрешать запуск приложений друг из друга без запроса. Включите «Система» (system / system_server) в LSPosed и перезагрузите телефон"</string>
+    <string name="ui_main_fd69741299" formatted="false">"Время, китайский лунный календарь, день недели и погода в строке состояния"</string>
+    <string name="ui_main_fed31d5ca1" formatted="false">"Образец текущего расположения  "</string>
+</resources>

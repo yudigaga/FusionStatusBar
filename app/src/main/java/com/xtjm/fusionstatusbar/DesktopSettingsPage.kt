@@ -106,7 +106,7 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
         val viewport = (page.parent as View).parent.parent as FrameLayout
         desktopView = composeView { DesktopContent() }.also {
             it.id = R.id.desktop_miuix_page
-            it.contentDescription = "桌面"
+            it.contentDescription = activity.getString(R.string.ui_shared_65fdeb927b)
             viewport.addView(it, FrameLayout.LayoutParams(-1, -1))
         }
         val root = activity.findViewById<FrameLayout>(android.R.id.content)
@@ -143,7 +143,7 @@ class DesktopSettingsPage(private val activity: ComponentActivity) : AutoCloseab
             modifier = Modifier.fillMaxSize().testTag("desktop_page"),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 18.dp, bottom = navigationPadding.dp)
         ) {
-            item { Text("桌面", fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            item { Text(activity.getString(R.string.ui_shared_65fdeb927b), fontSize = 28.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.testTag("desktop_heading")) }
             item {
                 SmallTitle(text(R.string.desktop_icons_section), insideMargin = PaddingValues(0.dp, 18.dp))

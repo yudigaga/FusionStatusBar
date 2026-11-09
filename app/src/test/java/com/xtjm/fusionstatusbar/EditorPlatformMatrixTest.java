@@ -22,7 +22,7 @@ import java.util.function.BooleanSupplier;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = {33, 34, 35}, qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = {33, 34, 35}, qualifiers = "zh-rCN-w320dp-h640dp-mdpi")
 @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
 public class EditorPlatformMatrixTest {
     private ActivityController<MainActivity> controller;

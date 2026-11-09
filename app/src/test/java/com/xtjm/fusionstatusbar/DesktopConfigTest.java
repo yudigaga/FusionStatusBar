@@ -371,7 +371,8 @@ public class DesktopConfigTest {
         assertTrue(activity.isGestureComplete(DesktopConfig.GESTURE_DOUBLE_TAP));
     }
 
-    @Test public void actionCatalogMatchesLauncherReferenceIdsAndOrder() {
+    @Test @Config(qualifiers = "zh-rCN")
+    public void actionCatalogMatchesLauncherReferenceIdsAndOrder() {
         assertArrayEquals(new int[] {1, 2, 3, 4, 5, 6, 7, 12, 26, 8, 9, 20, 10, 13, 22, 23},
                 context.getResources().getIntArray(R.array.desktop_gesture_action_values));
         assertArrayEquals(new String[] {

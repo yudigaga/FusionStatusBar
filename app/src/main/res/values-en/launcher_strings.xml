@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hide_launcher_icon">Hide app icon</string>
+    <string name="hide_launcher_icon_summary">Hide the launcher icon; settings remain accessible from LSPosed</string>
+    <string name="hide_launcher_icon_failed">Could not change app icon visibility; try again</string>
+</resources>

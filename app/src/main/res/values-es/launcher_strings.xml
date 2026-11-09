@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hide_launcher_icon">Ocultar icono de la aplicación</string>
+    <string name="hide_launcher_icon_summary">Oculta el icono del escritorio; podrás abrir los ajustes desde LSPosed</string>
+    <string name="hide_launcher_icon_failed">No se ha podido cambiar la visibilidad del icono; inténtalo de nuevo</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hide_launcher_icon">앱 아이콘 숨기기</string>
+    <string name="hide_launcher_icon_summary">홈 화면 아이콘을 숨깁니다. LSPosed에서 설정을 계속 열 수 있습니다</string>
+    <string name="hide_launcher_icon_failed">앱 아이콘 설정을 변경하지 못했습니다. 다시 시도하세요</string>
+</resources>
+

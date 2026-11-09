@@ -92,8 +92,8 @@ final class ControlCenter5GTileView extends FrameLayout {
         setAlpha(state.available ? 1f : 0.7f);
         setEnabled(state.available && !released);
         setContentDescription(state.available
-                ? "5G " + (state.enabled ? "已开启" : "已关闭") : "5G 不可用");
-        setStateDescription(state.available ? (state.enabled ? "已开启" : "已关闭") : "不可用");
+                ? "5G " + (state.enabled ? ModuleStrings.get(getContext(), R.string.backup_enabled) : ModuleStrings.get(getContext(), R.string.backup_disabled)) : ModuleStrings.get(getContext(), R.string.ui_shared_bec88ec9dd));
+        setStateDescription(state.available ? (state.enabled ? ModuleStrings.get(getContext(), R.string.backup_enabled) : ModuleStrings.get(getContext(), R.string.backup_disabled)) : ModuleStrings.get(getContext(), R.string.ui_shared_beff4a1cd1));
     }
 
     @Override protected void onAttachedToWindow() {
