@@ -18,8 +18,16 @@
 
 R8 构建、两套完整单元测试、lint、工具测试及签名检查的最终计数，以 [本次构建记录](../artifacts/release-v0.5.24.json)和[验证摘要](../artifacts/validation-v0.5.24.md)为准。普通 JVM 单元测试执行在混淆前类上；优化 APK 另行检查入口与打包边界，不能代替设备验收。远端 CI 以发布提交对应的 GitHub Actions 为准。
 
+本次重构建的 Debug、Release 各 `204` 个测试类、`1572` 项测试全部通过，失败、错误、跳过均为 `0`；两套完整 lint 均为 `0` 错误、`101` 条警告。Python 工具测试 `45` 项通过，其中 `17` 项针对新增 R8 验包边界。
+
+最终正式 APK 为 `3,335,213` 字节，原非 R8 正式包为 `21,701,878` 字节，缩小约 `84.6%`。APK SHA-256 为 `c81924b0db367c26822c3032476eb1fbba59c02b49ff05b9e574e42886eb3789`；原正式证书 SHA-256 为 `ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2`，v3 签名和 `16 KiB` 对齐通过。
+
+签名后 R8 验包确认入口存在、公开且继承 API 102 模块类型，没有打入 compile-only API 定义，Xposed scope 与入口元数据一致，并通过 mapping 与真实 DEX 定义交叉确认实际改名。另检查了公开无参构造、三个回调签名、Manifest/alias、自定义 View 构造和枚举配置标识；`80` 项打包资源与原包逐字节一致。映射中记录的 R8 版本为 `8.13.19`。
+
 ## 来源与映射
 
 R8 源码在隔离检出中由原 `0.5.24` 构建快照恢复，原开发目录和原非 R8 归档未覆盖。新构建的源码提交、快照、APK SHA-256、大小、正式证书指纹及映射哈希均记录在发布附件内。
+
+实际构建源码为干净提交 `e2ab818d4488cb4ee9a6d88a7a6dd707a463362a`；构建记录为 `official_signed`、`sourceDirty=false`、`validationInput=built_in_this_run`。正式发布提交随后只补充文档和产物索引，不改应用代码。源文件索引及 [构建记录](../artifacts/release-v0.5.24.json)随源码保存；原始 R8 源码快照随 Release 附件提供。
 
 `mapping.txt`、合并规则、seeds、usage、`r8-verification.json` 及两套测试和 lint 报告随 [正式发布](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.24)的验证附件提供。资源压缩本轮未启用，资源打包内容另行核对。
