@@ -18,6 +18,7 @@ final class FusionContentConfig {
     static final String KEY_SIGNAL_SCALE = "fusion_signal_content_scale";
     static final String KEY_WIFI_OFFSET_Y_PERCENT = "fusion_wifi_offset_y_percent";
     static final String KEY_MOBILE_OFFSET_Y_PERCENT = "fusion_mobile_offset_y_percent";
+    static final String KEY_CHARGING_ICON = "fusion_charging_icon";
     static final int MAX_NETWORK_OFFSET_Y_PERCENT = 20;
 
     final int batteryPosition;
@@ -29,10 +30,11 @@ final class FusionContentConfig {
     /** Percent of the fused icon height; negative moves upward, positive downward. */
     final int wifiOffsetYPercent;
     final int mobileOffsetYPercent;
+    final boolean chargingIcon;
 
     private FusionContentConfig(int batteryPosition, int networkPosition, int signalPosition,
             int batteryScale, int networkScale, int signalScale,
-            int wifiOffsetYPercent, int mobileOffsetYPercent) {
+            int wifiOffsetYPercent, int mobileOffsetYPercent, boolean chargingIcon) {
         this.batteryPosition = position(batteryPosition);
         int network = position(networkPosition);
         this.networkPosition = network == this.batteryPosition
@@ -45,10 +47,11 @@ final class FusionContentConfig {
         this.signalScale = FusionConfig.clampScale(signalScale);
         this.wifiOffsetYPercent = clampNetworkOffsetYPercent(wifiOffsetYPercent);
         this.mobileOffsetYPercent = clampNetworkOffsetYPercent(mobileOffsetYPercent);
+        this.chargingIcon = chargingIcon;
     }
 
     static FusionContentConfig defaults() {
-        return new FusionContentConfig(TOP, MIDDLE, BOTTOM, 100, 100, 100, 0, 0);
+        return new FusionContentConfig(TOP, MIDDLE, BOTTOM, 100, 100, 100, 0, 0, true);
     }
 
     static FusionContentConfig fromBundle(Bundle values) {
@@ -61,7 +64,8 @@ final class FusionContentConfig {
                 values.getInt(KEY_NETWORK_SCALE, defaults.networkScale),
                 values.getInt(KEY_SIGNAL_SCALE, defaults.signalScale),
                 values.getInt(KEY_WIFI_OFFSET_Y_PERCENT, defaults.wifiOffsetYPercent),
-                values.getInt(KEY_MOBILE_OFFSET_Y_PERCENT, defaults.mobileOffsetYPercent));
+                values.getInt(KEY_MOBILE_OFFSET_Y_PERCENT, defaults.mobileOffsetYPercent),
+                values.getBoolean(KEY_CHARGING_ICON, defaults.chargingIcon));
     }
 
     void writeTo(Bundle values) {
@@ -73,6 +77,7 @@ final class FusionContentConfig {
         values.putInt(KEY_SIGNAL_SCALE, signalScale);
         values.putInt(KEY_WIFI_OFFSET_Y_PERCENT, wifiOffsetYPercent);
         values.putInt(KEY_MOBILE_OFFSET_Y_PERCENT, mobileOffsetYPercent);
+        values.putBoolean(KEY_CHARGING_ICON, chargingIcon);
     }
 
     int positionFor(int part) {
@@ -92,24 +97,32 @@ final class FusionContentConfig {
         }
         positions[part] = next;
         return new FusionContentConfig(positions[0], positions[1], positions[2],
-                batteryScale, networkScale, signalScale, wifiOffsetYPercent, mobileOffsetYPercent);
+                batteryScale, networkScale, signalScale, wifiOffsetYPercent, mobileOffsetYPercent,
+                chargingIcon);
     }
 
     FusionContentConfig withScale(int part, int value) {
         return new FusionContentConfig(batteryPosition, networkPosition, signalPosition,
                 part == BATTERY ? value : batteryScale,
                 part == NETWORK ? value : networkScale,
-                part == SIGNAL ? value : signalScale, wifiOffsetYPercent, mobileOffsetYPercent);
+                part == SIGNAL ? value : signalScale, wifiOffsetYPercent, mobileOffsetYPercent,
+                chargingIcon);
     }
 
     FusionContentConfig withWifiOffsetYPercent(int value) {
         return new FusionContentConfig(batteryPosition, networkPosition, signalPosition,
-                batteryScale, networkScale, signalScale, value, mobileOffsetYPercent);
+                batteryScale, networkScale, signalScale, value, mobileOffsetYPercent, chargingIcon);
     }
 
     FusionContentConfig withMobileOffsetYPercent(int value) {
         return new FusionContentConfig(batteryPosition, networkPosition, signalPosition,
-                batteryScale, networkScale, signalScale, wifiOffsetYPercent, value);
+                batteryScale, networkScale, signalScale, wifiOffsetYPercent, value, chargingIcon);
+    }
+
+    FusionContentConfig withChargingIcon(boolean value) {
+        return new FusionContentConfig(batteryPosition, networkPosition, signalPosition,
+                batteryScale, networkScale, signalScale, wifiOffsetYPercent, mobileOffsetYPercent,
+                value);
     }
 
     boolean sameAs(FusionContentConfig other) {
@@ -118,7 +131,8 @@ final class FusionContentConfig {
                 && batteryScale == other.batteryScale && networkScale == other.networkScale
                 && signalScale == other.signalScale
                 && wifiOffsetYPercent == other.wifiOffsetYPercent
-                && mobileOffsetYPercent == other.mobileOffsetYPercent;
+                && mobileOffsetYPercent == other.mobileOffsetYPercent
+                && chargingIcon == other.chargingIcon;
     }
 
     private static int clampNetworkOffsetYPercent(int value) {

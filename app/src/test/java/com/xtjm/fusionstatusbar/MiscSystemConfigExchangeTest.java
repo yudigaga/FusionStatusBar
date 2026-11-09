@@ -48,6 +48,19 @@ public class MiscSystemConfigExchangeTest {
         assertFalse(MiscConfigStore.read(snapshot).removeChainStartDialog);
     }
 
+    @Test public void screenshotProtectionPersistsAndMalformedUpdateCannotDisableIt() {
+        Context system = systemContext();
+        Intent enabled = update(false).putExtra("screenshot_clipboard_enabled", true);
+        assertTrue(MiscSystemConfigExchange.receive(system, enabled));
+        assertTrue(MiscConfigStore.read(snapshot).screenshotClipboardEnabled);
+        assertFalse(MiscSystemConfigExchange.receive(system,
+                update(false).putExtra("screenshot_clipboard_enabled", "false")));
+        assertTrue(MiscSystemConfigExchange.current().screenshotClipboardEnabled);
+        assertTrue(MiscSystemConfigExchange.receive(system,
+                update(false).putExtra("screenshot_clipboard_enabled", false)));
+        assertFalse(MiscConfigStore.read(snapshot).screenshotClipboardEnabled);
+    }
+
     @Test public void malformedFutureAndWrongDestinationUpdatesPreserveTheSnapshot() {
         Context system = systemContext();
         assertTrue(MiscSystemConfigExchange.receive(system, update(true)));
@@ -64,19 +77,18 @@ public class MiscSystemConfigExchangeTest {
     }
 
     @Test public void publicationTargetsOnlyFrameworkAndRequiresTheModuleIdentity() {
-        int[] sends = {0};
+        java.util.List<String> destinations = new java.util.ArrayList<>();
         Context module = new ContextWrapper(RuntimeEnvironment.getApplication()) {
             @Override public String getPackageName() { return BuildConfig.APPLICATION_ID; }
             @Override public void sendBroadcast(Intent intent) {
-                assertEquals("android", intent.getPackage());
                 assertEquals(MiscSystemConfigExchange.ACTION_PUBLISH, intent.getAction());
                 assertTrue(MiscConfig.fromBundle(intent.getExtras()).removeChainStartDialog);
-                sends[0]++;
+                destinations.add(intent.getPackage());
             }
         };
         MiscSystemConfigExchange.publish(module, MiscConfig.defaults().withRemoveChainStartDialog(true));
         MiscSystemConfigExchange.publish(systemContext(), MiscConfig.defaults());
-        assertEquals(1, sends[0]);
+        assertEquals(java.util.List.of("android", "com.miui.securitycenter"), destinations);
     }
 
     private static Context systemContext() {

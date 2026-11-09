@@ -19,6 +19,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private android.widget.Switch hideLauncherIconSwitch;
     private android.widget.Switch floatingNavigationSwitch;
     private android.widget.Switch chainStartSwitch;
+    private android.widget.Switch screenshotClipboardSwitch;
     private boolean updatingAuxiliarySwitches;
     private android.widget.TextView clockSettingsSummary;
     private com.xtjm.fusionstatusbar.FusionConfig config;
@@ -578,6 +579,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         chainStartSwitch = addSwitch(miscellaneousCard, "移除链式启动弹窗",
                 "直接允许应用间启动；需在 LSPosed 勾选系统（system / system_server）并重启手机",
                 MiscConfig.read(this).removeChainStartDialog, this::setChainStartDialogRemoved);
+        miscellaneousPage.addView(sectionTitle("截屏"));
+        android.widget.LinearLayout screenshotCard = card();
+        miscellaneousPage.addView(screenshotCard, matchWrap());
+        screenshotClipboardSwitch = addSwitch(screenshotCard, "截屏自动写入剪贴板",
+                "截屏后自动复制到剪贴板，并阻止安全服务自动关闭；需在 LSPosed 勾选系统并重启手机",
+                MiscConfig.read(this).screenshotClipboardEnabled, this::setScreenshotClipboardEnabled);
+        installSecurityCenterOptions(miscellaneousPage);
         android.widget.LinearLayout settingsPage = newPage(root, 5, "设置");
         settingsPage.addView(sectionTitle("模块状态"));
         android.widget.LinearLayout linearLayoutCard = card();
@@ -728,6 +736,65 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         if (!MiscConfig.save(this, MiscConfig.read(this).withRemoveChainStartDialog(enabled))) {
             updatingAuxiliarySwitches = true;
             chainStartSwitch.setChecked(!enabled);
+            updatingAuxiliarySwitches = false;
+            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private final java.util.Map<SecurityCenterFeature, android.widget.Switch> securityFeatureSwitches =
+            new java.util.EnumMap<>(SecurityCenterFeature.class);
+    private View securityPrecisionSlider;
+
+    private void installSecurityCenterOptions(LinearLayout page) {
+        page.addView(sectionTitle("手机管家扩展 · 13.8.0"));
+        android.widget.TextView hint = labelView("适配 13.8.0-261020.0.1；需在 LSPosed 勾选手机管家，更改后请重启手机管家进程或手机。解锁入口不代表硬件能力可用。",
+                12f, false);
+        hint.setTextColor(textSecondaryColor());
+        page.addView(hint, matchWrap());
+        String section = null;
+        LinearLayout group = null;
+        MiscConfig initial = MiscConfig.read(this);
+        for (SecurityCenterFeature feature : SecurityCenterFeature.values()) {
+            if (!feature.section.equals(section)) {
+                section = feature.section;
+                page.addView(sectionTitle(section));
+                group = card();
+                page.addView(group, matchWrap());
+            }
+            android.widget.Switch toggle = addSwitch(group, feature.title, feature.summary,
+                    initial.isEnabled(feature), enabled -> setSecurityFeature(feature, enabled));
+            securityFeatureSwitches.put(feature, toggle);
+            if (feature == SecurityCenterFeature.SCREEN_ON_TIME)
+                securityPrecisionSlider = addSlider(group, "亮屏时间显示粒度", "只调整参考时间的显示粒度，不提高测量准确率",
+                        1, 60, initial.screenOnTimePrecisionMinutes, " 分钟", this::setScreenOnTimePrecision);
+        }
+    }
+
+    private void setSecurityFeature(SecurityCenterFeature feature, boolean enabled) {
+        if (updatingAuxiliarySwitches) return;
+        if (!MiscConfig.save(this, MiscConfig.read(this).withSecurityFeature(feature, enabled))) {
+            updatingAuxiliarySwitches = true;
+            securityFeatureSwitches.get(feature).setChecked(!enabled);
+            updatingAuxiliarySwitches = false;
+            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void setScreenOnTimePrecision(int precision) {
+        if (updatingAuxiliarySwitches) return;
+        MiscConfig previous = MiscConfig.read(this);
+        if (!MiscConfig.save(this, previous.withScreenOnTimePrecisionMinutes(precision))) {
+            if (securityPrecisionSlider != null && securityPrecisionSlider.getTag() instanceof android.widget.SeekBar bar)
+                bar.setProgress(previous.screenOnTimePrecisionMinutes - 1);
+            Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void setScreenshotClipboardEnabled(boolean enabled) {
+        if (updatingAuxiliarySwitches) return;
+        if (!MiscConfig.save(this, MiscConfig.read(this).withScreenshotClipboardEnabled(enabled))) {
+            updatingAuxiliarySwitches = true;
+            screenshotClipboardSwitch.setChecked(!enabled);
             updatingAuxiliarySwitches = false;
             Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
         }

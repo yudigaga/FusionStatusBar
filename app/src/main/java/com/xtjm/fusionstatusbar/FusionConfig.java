@@ -455,6 +455,10 @@ public final class FusionConfig {
         return withFusionContent(fusionContent.withMobileOffsetYPercent(value));
     }
 
+    FusionConfig withFusionChargingIcon(boolean value) {
+        return withFusionContent(fusionContent.withChargingIcon(value));
+    }
+
     FusionConfig withRevision(long revision) {
         return new FusionConfig(this, revision);
     }

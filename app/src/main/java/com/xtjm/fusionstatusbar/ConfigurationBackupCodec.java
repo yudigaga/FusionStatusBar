@@ -104,9 +104,10 @@ final class ConfigurationBackupCodec {
             if (!object.has(key)) expectedFields--;
         }
         if (!controlCenterOnly) {
-            // Complete schema-six backups from before independent offsets keep their original placement.
+            // New optional fusion settings retain the original behavior in earlier complete backups.
             for (String key : new String[] {FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT,
-                    FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT}) {
+                    FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT,
+                    FusionContentConfig.KEY_CHARGING_ICON}) {
                 if (!object.has(key)) expectedFields--;
             }
         }

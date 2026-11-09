@@ -299,7 +299,7 @@ public class FusionIconView extends View {
     }
 
     private void drawBatteryContent(Canvas canvas) {
-        if (charging) {
+        if (charging && displayConfig.fusionContent.chargingIcon) {
             drawLightning(canvas);
             return;
         }

@@ -153,7 +153,7 @@ public final class FusionConfigProvider extends ContentProvider {
 
     static void enforceMiscReadCaller(String caller, String ownPackage) {
         if (caller == null || !(caller.equals(ownPackage)
-                || "android".equals(caller))) {
+                || "android".equals(caller) || "com.miui.securitycenter".equals(caller))) {
             throw new SecurityException("misc_config_caller_not_authorized");
         }
     }

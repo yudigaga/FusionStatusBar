@@ -125,6 +125,15 @@ try {
         Copy-Item -LiteralPath "app/build/reports/lint-results-$variantName.xml" -Destination $directory
         $variants[$variantName] = [ordered]@{ apk = $archivedName; apkSha256 = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant(); apkSize = (Get-Item -LiteralPath $target).Length; debuggable = $variantName -eq 'debug'; signing = $signing; signingCertificateSha256 = $certificate; zipAlignment = $alignment; tests = $variant.tests; lint = $variant.lint }
     }
+    $mappingDirectory = Join-Path $projectRoot 'app/build/outputs/mapping/release'
+    $mappingFile = Join-Path $mappingDirectory 'mapping.txt'
+    if (-not (Test-Path -LiteralPath $mappingFile -PathType Leaf)) { throw 'R8 mapping is required for Release publication.' }
+    $optimizedApk = Join-Path $directory $variants.release.apk
+    [void](Invoke-Checked $PythonPath @((Join-Path $PSScriptRoot 'verify-r8-apk.py'), '--project-root', $projectRoot,
+        '--apk', $optimizedApk, '--mapping', $mappingFile, '--output', (Join-Path $directory 'r8-verification.json')))
+    Copy-Item -LiteralPath $mappingDirectory -Destination (Join-Path $directory 'r8') -Recurse
+    $r8 = [ordered]@{ enabled = $true; resourceShrinking = $false; mapping = 'r8/mapping.txt';
+        mappingSha256 = (Get-FileHash -LiteralPath $mappingFile -Algorithm SHA256).Hash.ToLowerInvariant(); verification = 'r8-verification.json' }
     $source = Get-Content -LiteralPath (Join-Path $directory 'snapshot.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $patchHash = (Get-FileHash -LiteralPath (Join-Path $directory 'tracked.patch') -Algorithm SHA256).Hash.ToLowerInvariant()
     $wrapper = [IO.File]::ReadAllText((Join-Path $projectRoot 'gradle/wrapper/gradle-wrapper.properties'))
@@ -134,6 +143,7 @@ try {
     $lockFiles = @(Get-ChildItem -LiteralPath $projectRoot -Recurse -Filter '*.lockfile' | Where-Object { $_.FullName -notmatch '[\\/](?:artifacts|build|\.gradle)[\\/]' } | ForEach-Object { [ordered]@{ path = $_.FullName.Substring($projectRoot.Length + 1).Replace('\', '/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() } })
     if ($lockFiles.Count -eq 0) { throw 'Dependency lockfiles are required.' }
     $manifest = [ordered]@{ schemaVersion = 2; versionName = $identity.versionName; versionCode = $identity.versionCode; packageName = $identity.applicationId; namespace = $identity.namespace; buildMode = $(if ($VerifyOnly) { 'verification_only' } elseif ($source.sourceDirty) { 'local_dirty_signed' } else { 'official_signed' }); sourceCommit = $source.sourceCommit; sourceRef = $SourceRef; sourceTags = @(Invoke-Checked $GitPath @('tag', '--points-at', 'HEAD')); sourceDirty = [bool]$source.sourceDirty; sourceArchiveSha256 = $source.archiveSha256; sourceIndexSha256 = $source.sourceIndexSha256; sourcePatchSha256 = $patchHash; sourceSnapshot = 'source.zip'; variants = $variants; createdUtc = [DateTime]::UtcNow.ToString('o'); toolchain = [ordered]@{ jdk = $jdk; gradle = $gradleVersion; agp = $agpVersion; compileSdk = $identity.compileSdk; targetSdk = $identity.targetSdk; buildTools = $buildTools.Name; dependencyLocks = $lockFiles }; validationInput = $(if ($SkipBuild) { 'existing_build_outputs' } else { 'built_in_this_run' }); installation = 'not_performed'; systemUiInjection = 'not_performed'; romValidation = 'not_performed' }
+    $manifest['r8'] = $r8
     Write-Utf8 (Join-Path $directory 'release.json') ($manifest | ConvertTo-Json -Depth 10)
     Write-Utf8 (Join-Path $directory 'validation.md') ("# Local validation v$($identity.versionName)`n`nMode: $($manifest.buildMode). Source: $($source.sourceCommit), dirty=$($source.sourceDirty).`n`n" + (($variants.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value.tests.total) tests, $($_.Value.lint.errors) lint errors, $($_.Value.lint.warnings) warnings; signing=$($_.Value.signing)." }) -join "`n") + "`n`nInstallation, SystemUI injection, ROM compatibility and runtime performance were not validated.`n")
     Write-Output "Verified archive: $directory"

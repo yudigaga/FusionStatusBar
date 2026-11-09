@@ -10,8 +10,8 @@ android {
         applicationId "io.github.yudigaga.fusionstatusbar"
         minSdk 33
         targetSdk 35
-        versionCode 235
-        versionName "0.5.21"
+        versionCode 238
+        versionName "0.5.24"
     }
 
     compileOptions {
@@ -35,7 +35,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 

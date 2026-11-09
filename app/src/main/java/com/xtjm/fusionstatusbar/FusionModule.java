@@ -18,6 +18,12 @@ public final class FusionModule extends XposedModule {
     @Override
     public void onSystemServerStarting(XposedModuleInterface.SystemServerStartingParam param) {
         try {
+            int installed = ScreenshotClipboardHooks.install(this);
+            log(Log.INFO, TAG, "screenshot clipboard provider bootstrap installed=" + installed);
+        } catch (Throwable error) {
+            log(Log.ERROR, TAG, "screenshot clipboard provider bootstrap failed", error);
+        }
+        try {
             int installed = SystemStartConfirmationHooks.install(this, param.getClassLoader());
             log(Log.INFO, TAG, "system start confirmation hooks version=" + BuildConfig.VERSION_NAME
                     + " installed=" + installed);
@@ -28,6 +34,10 @@ public final class FusionModule extends XposedModule {
 
     @Override
     public void onPackageLoaded(XposedModuleInterface.PackageLoadedParam param) {
+        if (SecurityCenterConfigRuntime.PACKAGE.equals(param.getPackageName())) {
+            SecurityCenterConfigRuntime.prepare(param.getApplicationInfo());
+            return;
+        }
         if (!"com.android.systemui".equals(param.getPackageName())) {
             return;
         }
@@ -37,6 +47,13 @@ public final class FusionModule extends XposedModule {
     @Override
     public void onPackageReady(XposedModuleInterface.PackageReadyParam param) {
         if ("com.miui.securitycenter".equals(param.getPackageName())) {
+            try {
+                if (SecurityCenterConfigRuntime.prepare(param.getApplicationInfo()))
+                    SecurityCenterHooks.install(this, param.getClassLoader());
+                else log(Log.WARN, TAG, "phone manager extensions unsupported host version; expected=40001380");
+            } catch (Throwable error) {
+                log(Log.ERROR, TAG, "phone manager extensions load failed", error);
+            }
             try {
                 int installed = SidebarHooks.install(this, param.getClassLoader());
                 log(Log.INFO, TAG, "sidebar hooks loaded count=" + installed);

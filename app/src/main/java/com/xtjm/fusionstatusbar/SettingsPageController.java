@@ -37,6 +37,9 @@ final class SettingsPageController {
             section(content, "显示");
             toggle(content, "显示无线网络图标", "关闭后仅保留移动网络状态", model.current().wifiIcon,
                     value -> edit(current -> current.withWifiIcon(value)));
+            toggle(content, "充电时显示充电图标", "开启后充电时用闪电替换电量数字，关闭后继续显示数字",
+                    initial.fusionContent.chargingIcon,
+                    value -> edit(current -> current.withFusionChargingIcon(value)));
             section(content, "尺寸");
             slider(content, "整体大小", "融合图标整体等比例缩放", 50, 150, model.current().iconScale, "%",
                     value -> edit(current -> current.withIconScale(value)));

@@ -40,17 +40,17 @@ final class MiscConfigStore {
 
     static boolean write(FusionConfigStore.SnapshotFile file, MiscConfig config) {
         try {
+            JSONObject next = new JSONObject();
             try {
-                JSONObject previous = document(file.read());
-                if (previous.optInt(MiscConfig.KEY_SCHEMA, 0) > MiscConfig.SCHEMA_VERSION) {
+                next = document(file.read());
+                if (next.optInt(MiscConfig.KEY_SCHEMA, 0) > MiscConfig.SCHEMA_VERSION) {
                     throw new IOException("unsupported_misc_config_schema");
                 }
             } catch (FileNotFoundException | JSONException missingOrMalformed) {
                 // An explicit save may initialize or repair this small snapshot.
             }
-            JSONObject next = new JSONObject();
-            next.put(MiscConfig.KEY_SCHEMA, MiscConfig.SCHEMA_VERSION);
-            next.put(MiscConfig.KEY_REMOVE_CHAIN_START_DIALOG, config.removeChainStartDialog);
+            Bundle values = config.toBundle();
+            for (String key : values.keySet()) next.put(key, values.get(key));
             file.write(next.toString().getBytes(StandardCharsets.UTF_8));
             return true;
         } catch (IOException | JSONException | RuntimeException error) {
@@ -64,8 +64,12 @@ final class MiscConfigStore {
         Bundle values = new Bundle();
         values.putInt(MiscConfig.KEY_SCHEMA,
                 json.optInt(MiscConfig.KEY_SCHEMA, MiscConfig.SCHEMA_VERSION));
-        values.putBoolean(MiscConfig.KEY_REMOVE_CHAIN_START_DIALOG,
-                Boolean.TRUE.equals(json.opt(MiscConfig.KEY_REMOVE_CHAIN_START_DIALOG)));
+        for (String key : MiscConfig.defaults().toBundle().keySet()) {
+            if (MiscConfig.KEY_SCHEMA.equals(key)) continue;
+            Object value = json.opt(key);
+            if (value instanceof Boolean) values.putBoolean(key, (Boolean) value);
+            else if (value instanceof Integer) values.putInt(key, (Integer) value);
+        }
         return MiscConfig.fromBundle(values);
     }
 

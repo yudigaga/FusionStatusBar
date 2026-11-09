@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import org.junit.Test;
+import org.json.JSONObject;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
@@ -23,6 +24,40 @@ import static org.junit.Assert.assertTrue;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34, shadows = AndroidAtomicFileShadow.class)
 public class MiscConfigTest {
+    private static final String SCREENSHOT_KEY = "screenshot_clipboard_enabled";
+
+    @Test public void screenshotChoiceDefaultsOffAndRoundTripsWithoutChangingChainStartChoice() {
+        assertFalse(MiscConfig.defaults().toBundle().getBoolean(SCREENSHOT_KEY));
+        assertFalse(MiscConfig.fromBundle(new Bundle()).toBundle().getBoolean(SCREENSHOT_KEY));
+        Bundle values = MiscConfig.defaults().withRemoveChainStartDialog(true).toBundle();
+        values.putBoolean(SCREENSHOT_KEY, true);
+        MiscConfig enabled = MiscConfig.fromBundle(values);
+        assertTrue(enabled.toBundle().getBoolean(SCREENSHOT_KEY));
+        assertTrue(enabled.removeChainStartDialog);
+        MiscConfig chainDisabled = enabled.withRemoveChainStartDialog(false);
+        assertTrue(chainDisabled.toBundle().getBoolean(SCREENSHOT_KEY));
+        assertFalse(chainDisabled.removeChainStartDialog);
+        values.putString(SCREENSHOT_KEY, "true");
+        assertFalse(MiscConfig.fromBundle(values).toBundle().getBoolean(SCREENSHOT_KEY));
+    }
+
+    @Test public void screenshotChoicePersistsWithOtherMiscSettingsAndUnknownSameSchemaFields() throws Exception {
+        MemoryFile file = new MemoryFile();
+        file.bytes = "{\"misc_schema_version\":1,\"remove_chain_start_dialog\":true,\"retained_future_field\":\"keep\"}"
+                .getBytes(StandardCharsets.UTF_8);
+        MiscConfig legacy = MiscConfigStore.read(file);
+        assertTrue(legacy.removeChainStartDialog);
+        assertFalse(legacy.toBundle().getBoolean(SCREENSHOT_KEY));
+        Bundle values = legacy.toBundle();
+        values.putBoolean(SCREENSHOT_KEY, true);
+        assertTrue(MiscConfigStore.write(file, MiscConfig.fromBundle(values)));
+        MiscConfig restored = MiscConfigStore.read(file);
+        assertTrue(restored.toBundle().getBoolean(SCREENSHOT_KEY));
+        assertTrue(restored.removeChainStartDialog);
+        assertTrue("keep".equals(new JSONObject(new String(file.bytes, StandardCharsets.UTF_8))
+                .getString("retained_future_field")));
+    }
+
     @Test public void featureDefaultsOffAndSurvivesBundleRoundTrip() {
         assertFalse(MiscConfig.defaults().removeChainStartDialog);
         assertFalse(MiscConfig.fromBundle(null).removeChainStartDialog);
@@ -71,12 +106,11 @@ public class MiscConfigTest {
         assertFalse(MiscConfigStore.read(file).removeChainStartDialog);
     }
 
-    @Test public void providerAllowsOnlyOwnerWritesAndSystemFrameworkReads() {
+    @Test public void providerAllowsOnlyOwnerWritesAndFrameworkOrScopedHostReads() {
         String own = BuildConfig.APPLICATION_ID;
         FusionConfigProvider.enforceMiscReadCaller(own, own);
         FusionConfigProvider.enforceMiscReadCaller("android", own);
-        assertThrows(SecurityException.class,
-                () -> FusionConfigProvider.enforceMiscReadCaller("com.miui.securitycenter", own));
+        FusionConfigProvider.enforceMiscReadCaller("com.miui.securitycenter", own);
         FusionConfigProvider.enforceCaller(own, own, true);
         assertThrows(SecurityException.class,
                 () -> FusionConfigProvider.enforceMiscReadCaller(null, own));

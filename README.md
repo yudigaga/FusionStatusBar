@@ -2,16 +2,18 @@
 
 面向 SystemUI 的 LibXposed 模块，提供融合图标、双排状态栏、时钟天气、遥测，以及控制中心布局与外观编辑。
 
-当前正式版本为 0.5.21（构建号 235）。修复高光玻璃内圈、控制中心系统磁贴发现与创建，分别保留模式和勿扰的原生标识及稳定名称。见 [0.5.21 更新说明与验证范围](docs/release-notes-v0.5.21.md)。
+当前正式版本为 0.5.24（构建号 238），Release 启用 R8 代码压缩、优化与混淆。包含充电图标显示开关、截图剪贴板保护及手机管家扩展。见 [0.5.24 更新说明与验证范围](docs/release-notes-v0.5.24.md)。
+
+手机管家扩展的 26 项独立选项默认全部关闭，仅适配 13.8.0-261020.0.1（versionCode 40001380）；需勾选手机管家作用域并重启相关进程或手机。功能入口不代表新增硬件能力，见[实现与验证范围](docs/2026-11-09_security-center-13.8-report.md)。[截图剪贴板](docs/2026-11-09_screenshot-clipboard.md)首次加载仍需系统作用域及整机重启。
 
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
 - UI 组件：[Miuix](https://github.com/compose-miuix-ui/miuix) 0.8.8，Apache-2.0；自定义预览与画布通过 View/Compose 互操作复用。
 - 色板计算：MaterialKolor 4.1.1；[来源与许可](third_party/materialkolor/NOTICE)随源码和 APK 保留。
-- 最新正式版：[FusionStatusBar 0.5.21](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.21)
-- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/235-0.5.21)
-- [0.5.21 更新说明与验证范围](docs/release-notes-v0.5.21.md)
+- 最新正式版：[FusionStatusBar 0.5.24](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.24)
+- [LSP 下载页](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/238-0.5.24)
+- [0.5.24 更新说明与验证范围](docs/release-notes-v0.5.24.md)
 - [0.3.193 到 0.3.197 历史更新与作用域升级步骤](docs/release-notes-v0.3.197.md)
 
 ## 构建
@@ -39,7 +41,9 @@ GitHub Actions 的 `Validate Android builds` 工作流运行工具回归、Debug
 
 版本唯一来源为 `app/build.gradle` 的 `versionName/versionCode`。`BuildConfig` 和 Xposed `module.prop` 在构建时生成；模板位于 `app/src/main/xposed/module.properties`。
 
-版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本正式版为 `235`。
+版本号使用 `主版本.中间位.末位`：末位范围为 `0–99`，满 `100` 向中间位进 `1`；中间位范围为 `0–9`，满 `10` 向主版本进 `1`。例如 `0.5.99 → 0.6.0`、`0.9.99 → 1.0.0`。此前的 `0.3.200` 按此规则规范为 `0.5.0`。Android `versionCode` 独立递增，本正式版为 `238`。
+
+Release 使用 `proguard-android-optimize.txt` 和精确的 Xposed 入口保留规则。发布脚本会检查优化 APK 的入口、scope、compile-only API 边界及实际混淆，并把 `mapping.txt`、最终规则、seeds、usage 和核验 JSON 随验证附件归档，供后续定位混淆堆栈。Debug 保持可调试构建。
 
 ## 模块关系
 

@@ -54,6 +54,7 @@ final class MiscSystemConfigExchange {
         HandlerThread thread = new HandlerThread("FusionSystemStartConfig");
         thread.start();
         worker = new Handler(thread.getLooper());
+        ScreenshotClipboardHooks.attach(source, worker);
         worker.post(MiscSystemConfigExchange::registerEndpoints);
         worker.post(REFRESH);
     }
@@ -105,8 +106,10 @@ final class MiscSystemConfigExchange {
             return;
         }
         boolean changed = config.removeChainStartDialog != loaded.removeChainStartDialog;
+        boolean previousScreenshot = config.screenshotClipboardEnabled;
         config = loaded;
         persist(context, loaded);
+        ScreenshotClipboardHooks.configChanged(previousScreenshot, loaded.screenshotClipboardEnabled);
         if (changed || retries >= 0) report("system start confirmation config origin=provider enabled="
                 + loaded.removeChainStartDialog);
         retries = -1;
@@ -117,11 +120,12 @@ final class MiscSystemConfigExchange {
                 || !ACTION_PUBLISH.equals(intent.getAction())
                 || !SYSTEM_PACKAGE.equals(intent.getPackage())) return false;
         Bundle values = intent.getExtras();
-        if (values == null || values.getInt(MiscConfig.KEY_SCHEMA, -1) != MiscConfig.SCHEMA_VERSION
-                || !(values.get(MiscConfig.KEY_REMOVE_CHAIN_START_DIALOG) instanceof Boolean)) return false;
+        if (!MiscConfig.validUpdate(values)) return false;
         MiscConfig loaded = MiscConfig.fromBundle(values);
+        boolean previousScreenshot = config.screenshotClipboardEnabled;
         config = loaded;
         persist(context, loaded);
+        ScreenshotClipboardHooks.configChanged(previousScreenshot, loaded.screenshotClipboardEnabled);
         return true;
     }
 
@@ -137,6 +141,8 @@ final class MiscSystemConfigExchange {
     static void publish(Context module, MiscConfig snapshot) {
         if (module == null || !BuildConfig.APPLICATION_ID.equals(module.getPackageName())) return;
         module.sendBroadcast(new Intent(ACTION_PUBLISH).setPackage(SYSTEM_PACKAGE)
+                .putExtras(snapshot.toBundle()));
+        module.sendBroadcast(new Intent(ACTION_PUBLISH).setPackage("com.miui.securitycenter")
                 .putExtras(snapshot.toBundle()));
     }
 }

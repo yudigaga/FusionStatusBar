@@ -42,6 +42,22 @@ public class SettingsPageControllerTest {
     }
     @After public void close() { dialogs.close(); activity.pause().stop().destroy(); }
 
+    @Test public void chargingIconSwitchUpdatesConfigAndReopensWithSavedChoice() {
+        pages.showFusion();
+        Switch charging = (Switch) find("充电时显示充电图标");
+        assertNotNull(charging);
+        assertTrue(charging.isChecked());
+        charging.performClick();
+        assertFalse(config.toBundle().getBoolean("fusion_charging_icon", true));
+        assertEquals(1, modelUpdates);
+        dialogs.close();
+        pages.showFusion();
+        charging = (Switch) find("充电时显示充电图标");
+        assertFalse(charging.isChecked());
+        charging.performClick();
+        assertTrue(config.toBundle().getBoolean("fusion_charging_icon", false));
+    }
+
     @Test public void fusionContentChoicesSwapPositionsAndUpdateBothVisibleSelections() {
         pages.showFusion();
         SettingsChoiceSelector network = (SettingsChoiceSelector) find("Wi-Fi / 5G 位置");
