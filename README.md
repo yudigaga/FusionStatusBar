@@ -8,6 +8,12 @@
 
 原有充电图标、截图剪贴板及26项手机管家扩展保持独立。手机管家扩展适配13.8.0-261020.0.1，默认关闭，需相应LSPosed作用域；[截图剪贴板](docs/2026-11-09_screenshot-clipboard.md)首次加载仍需系统作用域及整机重启。入口解锁的[硬件限制与反编译证据](docs/2026-11-09_security-center-13.8-report.md)保持适用。
 
+## 赞助
+
+如果你喜欢这个项目，欢迎请我喝杯咖啡 ☕
+
+<img src="docs/assets/sponsor-wechat.png" alt="微信赞赏码" width="360" />
+
 ## 开源项目
 
 - 项目仓库：[yudigaga/FusionStatusBar](https://github.com/yudigaga/FusionStatusBar)
