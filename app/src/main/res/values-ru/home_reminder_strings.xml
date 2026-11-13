@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_home_warnings_title" formatted="false">Скрывать предупреждения о рисках на главной</string>
+    <string name="security_home_warnings_summary" formatted="false">Скрывать сообщения об опасности и надпись «Идёт проверка» на главном экране, показывая карточки проверки на вирусы и ускорения в обычном стиле. Процесс проверки и результаты сканирования не изменяются.</string>
+</resources>

@@ -8,6 +8,7 @@ public enum SecurityCenterFeature {
     CAR_CRASH_DETECTION(R.string.ui_shared_4971bad28a, R.string.ui_shared_f20e26a53c, R.string.ui_shared_21fccda712),
     MOTION_SICKNESS(R.string.ui_shared_6b3ab7cdc5, R.string.ui_shared_3e5f0f83ba, R.string.ui_shared_d2d3e3ce2e),
     SCORE_666(R.string.ui_shared_abac55f77e, R.string.ui_shared_620e48697b, R.string.ui_shared_3b248194b7),
+    HIDE_HOME_WARNINGS(R.string.ui_shared_abac55f77e, R.string.security_home_warnings_title, R.string.security_home_warnings_summary),
     SKIP_TEN_SECONDS(R.string.ui_shared_abac55f77e, R.string.ui_shared_1ed667a339, R.string.ui_shared_2611edc14d),
     GAME_THREE_SECOND_LAUNCH(R.string.ui_shared_0d4eb90dda, R.string.ui_shared_ee63545459, R.string.ui_shared_74e2750b90),
     GAME_FILL_DISPLAY(R.string.ui_shared_0d4eb90dda, R.string.ui_shared_6ded4ea71c, R.string.ui_shared_3afac8982a),

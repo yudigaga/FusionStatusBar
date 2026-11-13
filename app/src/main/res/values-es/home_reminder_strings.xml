@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_home_warnings_title" formatted="false">Ocultar avisos de riesgo en la pantalla principal</string>
+    <string name="security_home_warnings_summary" formatted="false">Oculta los mensajes de peligro y el texto «Análisis en curso» de la pantalla principal, y muestra las tarjetas de análisis de virus y optimización con su estilo normal. El proceso de revisión y los resultados del análisis no cambian.</string>
+</resources>

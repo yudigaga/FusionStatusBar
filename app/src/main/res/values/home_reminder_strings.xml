@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_home_warnings_title" formatted="false">隐藏首页风险提醒</string>
+    <string name="security_home_warnings_summary" formatted="false">隐藏首页危险文案和“正在体检”，并将病毒扫描、优化加速卡片恢复普通样式；体检与扫描结果不变。</string>
+</resources>

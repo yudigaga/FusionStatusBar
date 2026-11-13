@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_home_warnings_title" formatted="false">홈 화면 위험 알림 숨기기</string>
+    <string name="security_home_warnings_summary" formatted="false">홈 화면의 위험 메시지와 ‘검사 중’ 문구를 숨기고 바이러스 검사 및 최적화 카드를 일반 스타일로 표시합니다. 진단 과정과 검사 결과는 변경하지 않습니다.</string>
+</resources>

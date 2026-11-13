@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 2,
+  "versionName": "0.5.27",
+  "versionCode": 241,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "namespace": "com.xtjm.fusionstatusbar",
+  "buildMode": "local_dirty_signed",
+  "sourceCommit": "fe7bb9d230781985779e11e7151fc509acffd59f",
+  "sourceRef": "HEAD",
+  "sourceTags": [
+    "v0.5.21"
+  ],
+  "sourceDirty": true,
+  "sourceArchiveSha256": "7c6e37e88cac0fcc7b543164334d976420e81e4e0f7333ff9377e4713e837144",
+  "sourceIndexSha256": "3d9be7adcaac922eceac39e809948d0ebe39f185056461fdcc89517156272c15",
+  "sourcePatchSha256": "1307ec856b2612a1374d4c4cd3fd50ac59ff953da6575f6b100d812cd5c0c34a",
+  "sourceSnapshot": "source.zip",
+  "variants": {
+    "release": {
+      "apk": "fusion-statusbar-v0.5.27-release.apk",
+      "apkSha256": "864cba54d6b4746b5a20a0059dbf0dc514864f2faefaba9d4ae2a2a3b150aad3",
+      "apkSize": 3896421,
+      "debuggable": false,
+      "signing": "official",
+      "signingCertificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+      "zipAlignment": "passed",
+      "tests": {
+        "total": 32,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "lint": {
+        "errors": 0,
+        "warnings": 142,
+        "customChecksCompatible": true,
+        "highRiskPolicy": "passed"
+      },
+      "minified": true,
+      "engine": "R8",
+      "r8Version": "8.13.19",
+      "mappingId": "3096445c046059544460f966f5f77f96dcf9922fa8acb76ddaaa9c516edfbb2d",
+      "mappingPath": "mapping/release/mapping.txt",
+      "mappingSha256": "7aa6adfdff42f2071cf367479b30e194d5bbf1ce7e9f9614174f31b19353f258",
+      "r8Artifacts": {
+        "mapping": {
+          "path": "mapping/release/mapping.txt",
+          "sha256": "7aa6adfdff42f2071cf367479b30e194d5bbf1ce7e9f9614174f31b19353f258",
+          "size": 33941376
+        },
+        "configuration": {
+          "path": "mapping/release/configuration.txt",
+          "sha256": "0dc0dfa922531f75b24f86817bdd442fc202b03ca3601bf4dea54a161a7b72c7",
+          "size": 49405
+        },
+        "seeds": {
+          "path": "mapping/release/seeds.txt",
+          "sha256": "bd4e6a24993bb876fbe9ec5544b8fc5626cbd7a75b26eeda0b126cd12a8cdbf4",
+          "size": 88438
+        },
+        "usage": {
+          "path": "mapping/release/usage.txt",
+          "sha256": "959307128581fbd0e12283d23f4db65c645c9dbe46d4373e246a2da3d205dfdf",
+          "size": 3229287
+        }
+      },
+      "xposedEntryPoints": [
+        "com.xtjm.fusionstatusbar.FusionModule"
+      ]
+    }
+  },
+  "createdUtc": "2026-11-13T12:41:15.4301532Z",
+  "toolchain": {
+    "jdk": "openjdk 21.0.12.1 2026-08-18 LTS\r\nOpenJDK Runtime Environment Microsoft-14941484 (build 21.0.12.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Microsoft-14941484 (build 21.0.12.1+1-LTS, mixed mode, sharing)",
+    "gradle": "8.13",
+    "agp": "8.13.2",
+    "compileSdk": 36,
+    "targetSdk": 35,
+    "buildTools": "36.0.0",
+    "dependencyLocks": [
+      {
+        "path": "app/gradle.lockfile",
+        "sha256": "f6ef1537703be449923ac0eb16d007569ffcfb714bbe31cac052c53bfb61a73a"
+      }
+    ]
+  },
+  "validationInput": "existing_build_outputs",
+  "installation": "not_performed",
+  "systemUiInjection": "not_performed",
+  "romValidation": "not_performed"
+}

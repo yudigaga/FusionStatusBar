@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_home_warnings_title" formatted="false">ホーム画面のリスク通知を非表示</string>
+    <string name="security_home_warnings_summary" formatted="false">ホーム画面の危険を知らせるメッセージと「診断中」の文字を非表示にし、ウイルススキャンと最適化のカードを通常の表示に戻します。診断処理とスキャン結果は変更しません。</string>
+</resources>

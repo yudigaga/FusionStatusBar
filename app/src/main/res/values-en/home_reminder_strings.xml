@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="security_home_warnings_title" formatted="false">Hide home screen risk reminders</string>
+    <string name="security_home_warnings_summary" formatted="false">Hide home screen danger messages and the “Checkup in progress” text, and show the Virus scan and Boost speed cards in their normal style. The checkup process and scan results stay unchanged.</string>
+</resources>

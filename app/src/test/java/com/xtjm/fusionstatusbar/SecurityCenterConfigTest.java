@@ -20,7 +20,37 @@ public class SecurityCenterConfigTest {
             "bypass_charging_plus", "smart_refresh_rate", "image_enhancement", "charge_features",
             "aim_assist", "gyroscope_acceleration", "cooling_fan_ui", "game_sound_ui",
             "independent_display_ui", "super_resolution", "frame_interpolation", "game_hdr",
-            "car_crash_detection", "skip_charge_dialogs", "screen_on_time"};
+            "car_crash_detection", "skip_charge_dialogs", "screen_on_time", "hide_home_warnings"};
+
+    @Test public void homeWarningsDefaultOffAndRemainIndependentOfTheCosmeticScore() {
+        String homeWarnings = PREFIX + "hide_home_warnings";
+        Bundle values = MiscConfig.defaults().toBundle();
+        assertTrue("serialize the independent home display option", values.containsKey(homeWarnings));
+        assertFalse(values.getBoolean(homeWarnings, true));
+        values.putBoolean(homeWarnings, true);
+        MiscConfig hidden = MiscConfig.fromBundle(values);
+        assertTrue(hidden.toBundle().getBoolean(homeWarnings));
+        assertFalse(hidden.isEnabled(SecurityCenterFeature.SCORE_666));
+        Bundle changed = hidden.withSecurityFeature(SecurityCenterFeature.SCORE_666, true).toBundle();
+        changed.putBoolean(homeWarnings, false);
+        MiscConfig restored = MiscConfig.fromBundle(changed);
+        assertFalse(restored.toBundle().getBoolean(homeWarnings, true));
+        assertTrue(restored.isEnabled(SecurityCenterFeature.SCORE_666));
+    }
+
+    @Test public void homeWarningsSurviveTheAtomicStoreAndRejectNonBooleanValues() {
+        String homeWarnings = PREFIX + "hide_home_warnings";
+        Bundle values = MiscConfig.defaults().withScreenshotClipboardEnabled(true).toBundle();
+        values.putBoolean(homeWarnings, true);
+        MemoryFile file = new MemoryFile();
+        assertTrue(MiscConfigStore.write(file, MiscConfig.fromBundle(values)));
+        Bundle stored = MiscConfigStore.read(file).toBundle();
+        assertTrue(stored.getBoolean(homeWarnings));
+        assertTrue(stored.getBoolean(MiscConfig.KEY_SCREENSHOT_CLIPBOARD_ENABLED));
+        stored.putString(homeWarnings, "true");
+        assertFalse(MiscConfig.validUpdate(stored));
+        assertFalse(MiscConfig.fromBundle(stored).toBundle().getBoolean(homeWarnings, true));
+    }
 
     @Test public void allRequestedOptionsDefaultOffAndRoundTripWithoutLosingExistingOptions() {
         Bundle defaults = MiscConfig.defaults().toBundle();

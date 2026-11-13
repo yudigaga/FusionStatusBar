@@ -1,0 +1,17 @@
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): false
+Verified using v3 scheme (APK Signature Scheme v3): true
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=FusionStatusBar Release, O=yudigaga
+Signer #1 certificate SHA-256 digest: ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2
+Signer #1 certificate SHA-1 digest: a6d71d8d8feacd7b789dcac3be0c43ebc909ee38
+Signer #1 certificate MD5 digest: 540476da55a5d0859a6c1900db55f4c7
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 4096
+Signer #1 public key SHA-256 digest: 3a17f8c36714850db36817104320ab8f1cd27c76ccaa28bec5916fae0e83a35e
+Signer #1 public key SHA-1 digest: 512e2bb33649bd5b2fea2fe5b4d458ba1e95df58
+Signer #1 public key MD5 digest: 6eb06d09d5491ef033bf9ff4b094c3f5

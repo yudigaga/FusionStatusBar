@@ -18,6 +18,39 @@ class MiscSettingsUiTest {
     @get:Rule(order = 0) val configuration = FusionTestConfigRule()
     @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun homeWarningTogglePersistsAndCanBeDisabledWithoutChangingTheScoreOption() {
+        val title = "隐藏首页风险提醒"
+        val key = "security_center_hide_home_warnings"
+        compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
+        compose.onNodeWithTag("navigation_4").performClick()
+        compose.runOnIdle {
+            val values = MiscConfig.read(compose.activity).toBundle()
+            assertTrue(values.containsKey(key))
+            assertFalse(values.getBoolean(key, true))
+        }
+        scrollToSetting(title)
+        compose.onNodeWithTag("setting_$title").assertIsDisplayed().performClick()
+        scrollToSetting("锁定 666 分")
+        compose.onNodeWithTag("setting_锁定 666 分").performClick()
+        compose.runOnIdle {
+            val values = MiscConfig.read(compose.activity).toBundle()
+            assertTrue(values.getBoolean(key))
+            assertTrue(values.getBoolean("security_center_score_666"))
+            assertFalse(values.getBoolean("screenshot_clipboard_enabled"))
+        }
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
+        compose.onNodeWithTag("navigation_4").performClick()
+        compose.runOnIdle { assertTrue(MiscConfig.read(compose.activity).toBundle().getBoolean(key)) }
+        scrollToSetting(title)
+        compose.onNodeWithTag("setting_$title").performClick()
+        compose.runOnIdle {
+            val values = MiscConfig.read(compose.activity).toBundle()
+            assertFalse(values.getBoolean(key, true))
+            assertTrue(values.getBoolean("security_center_score_666"))
+        }
+    }
+
     @Test fun phoneManagerOptionsCanBeScrolledSavedAndRestoredIndependently() {
         compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
         compose.onNodeWithTag("navigation_4").performClick()

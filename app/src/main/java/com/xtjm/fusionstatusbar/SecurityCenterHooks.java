@@ -13,10 +13,11 @@ final class SecurityCenterHooks {
         if (!INSTALLED.compareAndSet(false, true)) return 0;
         int config = SecurityCenterConfigRuntime.install(module, loader);
         int privacy = SecurityCenterPrivacyHooks.install(module, loader);
+        int home = SecurityCenterHomeHooks.install(module, loader);
         int battery = SecurityCenterBatteryHooks.install(module, loader);
         int gameVideo = SecurityCenterGameVideoHooks.install(module, loader);
         module.log(Log.INFO, FusionModule.TAG, "phone manager hooks host=40001380 config=" + config
-                + " privacy=" + privacy + " battery=" + battery + " gameVideo=" + gameVideo);
-        return config + privacy + battery + gameVideo;
+                + " privacy=" + privacy + " home=" + home + " battery=" + battery + " gameVideo=" + gameVideo);
+        return config + privacy + home + battery + gameVideo;
     }
 }
