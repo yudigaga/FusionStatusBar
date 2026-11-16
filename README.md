@@ -1,4 +1,16 @@
+<p align="center">
+  <img src="docs/assets/readme-banner.svg" alt="FusionStatusBar · 从状态栏到控制中心，整理自己的系统界面。" width="100%" />
+</p>
+
 # FusionStatusBar
+
+[下载正式版](https://github.com/yudigaga/FusionStatusBar/releases/latest) · [问题反馈](https://github.com/yudigaga/FusionStatusBar/issues) · [文档目录](docs/README.md)
+
+| 状态栏 | 控制中心 | 系统交互 |
+| --- | --- | --- |
+| 融合图标、双排布局、时钟与显示设置 | 画布、磁贴、音乐卡片与材质编辑 | 桌面手势、通知与菜单外观设置 |
+
+---
 
 面向 MIUI / HyperOS 的 LibXposed 模块，提供融合状态栏、控制中心布局与外观编辑，以及桌面手势和系统界面扩展。
 
