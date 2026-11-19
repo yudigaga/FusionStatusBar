@@ -9,6 +9,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Switch;
@@ -224,6 +225,73 @@ final class SettingsPageController {
             span.setOnCheckedChangeListener((button, checked) -> { edit(current -> current.withSpanRows(checked)); refresh.run(); });
             refresh.run();
         });
+    }
+
+    void showIconVisibility() {
+        show(tr(R.string.ui_control_settings_icon_visibility_title), content -> {
+            section(content, tr(R.string.ui_control_settings_system_status));
+            systemIconToggle(content, R.string.ui_control_icon_network_speed, R.drawable.status_icon_network_speed, FusionConfig.ICON_NETWORK_SPEED);
+            systemIconToggle(content, R.string.ui_control_icon_bluetooth, R.drawable.cc_icon_bluetooth, FusionConfig.ICON_BLUETOOTH);
+            systemIconToggle(content, R.string.ui_control_icon_location, R.drawable.status_icon_location, FusionConfig.ICON_LOCATION);
+            systemIconToggle(content, R.string.ui_control_icon_privacy, R.drawable.status_icon_privacy, FusionConfig.ICON_PRIVACY);
+            systemIconToggle(content, R.string.ui_control_icon_vpn, R.drawable.status_icon_vpn, FusionConfig.ICON_VPN);
+            systemIconToggle(content, R.string.ui_control_icon_hotspot, R.drawable.cc_icon_link, FusionConfig.ICON_HOTSPOT);
+            systemIconToggle(content, R.string.ui_control_icon_volume, R.drawable.cc_icon_notifications_off, FusionConfig.ICON_VOLUME);
+            systemIconToggle(content, R.string.ui_control_icon_zen, R.drawable.cc_preview_night, FusionConfig.ICON_ZEN);
+            systemIconToggle(content, R.string.ui_control_icon_alarm, R.drawable.status_icon_alarm, FusionConfig.ICON_ALARM);
+            systemIconToggle(content, R.string.ui_control_icon_roaming, R.drawable.status_icon_roaming, FusionConfig.ICON_ROAMING);
+            section(content, tr(R.string.ui_control_settings_connected_devices));
+            systemIconToggle(content, R.string.ui_control_icon_headset, R.drawable.status_icon_earbuds, FusionConfig.ICON_HEADSET);
+            systemIconToggle(content, R.string.ui_control_icon_phone, R.drawable.status_icon_phone, FusionConfig.ICON_PHONE);
+            systemIconToggle(content, R.string.ui_control_icon_tablet, R.drawable.status_icon_tablet, FusionConfig.ICON_TABLET);
+            systemIconToggle(content, R.string.ui_control_icon_pc, R.drawable.status_icon_laptop, FusionConfig.ICON_PC);
+            systemIconToggle(content, R.string.ui_control_icon_tv, R.drawable.status_icon_tv, FusionConfig.ICON_TV);
+            systemIconToggle(content, R.string.ui_control_icon_car, R.drawable.status_icon_car, FusionConfig.ICON_CAR);
+            systemIconToggle(content, R.string.ui_control_icon_speaker, R.drawable.status_icon_speaker, FusionConfig.ICON_SPEAKER);
+            systemIconToggle(content, R.string.ui_control_icon_glasses, R.drawable.status_icon_glasses, FusionConfig.ICON_GLASSES);
+            systemIconToggle(content, R.string.ui_control_icon_camera, R.drawable.status_icon_camera, FusionConfig.ICON_CAMERA);
+        });
+    }
+
+    private void systemIconToggle(LinearLayout content, int title, int iconResource, int icon) {
+        FusionConfig initial = model.current();
+        String label = tr(title);
+        boolean checked = (initial.systemIconVisibilityMask & icon) != 0;
+        Consumer<Boolean> update = enabled -> edit(current -> current.withSystemIconEnabled(icon, enabled));
+        if (activity instanceof androidx.activity.ComponentActivity) {
+            MiuixControls.iconToggle(content, label, "", checked, iconResource, update);
+            return;
+        }
+        LinearLayout row = new LinearLayout(activity);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(dp(64));
+        row.setPadding(0, dp(8), 0, dp(8));
+        ImageView glyph = new ImageView(activity);
+        glyph.setImageResource(iconResource);
+        if (!isMulticolorStatusIcon(iconResource)) glyph.setColorFilter(primary());
+        glyph.setBackground(background(inputColor(), 14));
+        glyph.setPadding(dp(12), dp(12), dp(12), dp(12));
+        glyph.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        glyph.setContentDescription(null);
+        row.addView(glyph, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        TextView text = text(label, 16, false);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, -2, 1);
+        labelParams.leftMargin = dp(16);
+        row.addView(text, labelParams);
+        Switch control = new Switch(activity);
+        control.setContentDescription(label);
+        control.setChecked(checked);
+        control.setMinimumWidth(dp(48));
+        control.setMinimumHeight(dp(48));
+        control.setOnCheckedChangeListener((button, enabled) -> update.accept(enabled));
+        row.addView(control, new LinearLayout.LayoutParams(-2, -2));
+        content.addView(row, wrap());
+    }
+
+    private static boolean isMulticolorStatusIcon(int iconResource) {
+        return iconResource == R.drawable.status_icon_privacy
+                || iconResource == R.drawable.status_icon_vpn
+                || iconResource == R.drawable.status_icon_roaming;
     }
 
     private String[] positions() { return new String[]{tr(R.string.ui_control_settings_left_first), tr(R.string.ui_control_settings_left_second), tr(R.string.ui_control_settings_right_first), tr(R.string.ui_control_settings_right_second)}; }

@@ -180,4 +180,6 @@
     <string name="ui_main_fbab901503" formatted="false">&quot;直接允许应用间启动；需在 LSPosed 勾选系统（system / system_server）并重启手机&quot;</string>
     <string name="ui_main_fd69741299" formatted="false">&quot;状态栏时间、农历、星期和天气&quot;</string>
     <string name="ui_main_fed31d5ca1" formatted="false">&quot;真实布局参考  &quot;</string>
+    <string name="ui_main_icon_visibility_customization">图标显示自定义</string>
+    <string name="ui_main_icon_visibility_customization_summary">按系统状态和互联设备分别设置</string>
 </resources>

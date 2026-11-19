@@ -23,15 +23,22 @@ final class ControlCenterOuterHeightReconciler {
     private final ViewGroup carrier;
     private final BooleanSupplier active;
     private final Runnable onSettled;
+    private final Runnable onTimeout;
     private final Scheduler scheduler;
     private Runnable pending;
     private long settleDeadline;
 
     ControlCenterOuterHeightReconciler(ViewGroup carrier, BooleanSupplier active,
             Runnable onSettled, Scheduler scheduler) {
+        this(carrier, active, onSettled, () -> { }, scheduler);
+    }
+
+    ControlCenterOuterHeightReconciler(ViewGroup carrier, BooleanSupplier active,
+            Runnable onSettled, Runnable onTimeout, Scheduler scheduler) {
         this.carrier = carrier;
         this.active = active;
         this.onSettled = onSettled;
+        this.onTimeout = onTimeout;
         this.scheduler = scheduler;
     }
 
@@ -73,6 +80,7 @@ final class ControlCenterOuterHeightReconciler {
             }
             if (SystemClock.elapsedRealtime() >= settleDeadline) {
                 settleDeadline = 0L;
+                onTimeout.run();
                 return;
             }
             pending = task[0];
@@ -82,7 +90,7 @@ final class ControlCenterOuterHeightReconciler {
         scheduler.post(carrier, task[0]);
     }
 
-    private static boolean isSettled(View view) {
+    static boolean isSettled(View view) {
         return view.getVisibility() == View.VISIBLE
                 && view.getAlpha() >= 0.999f
                 && Math.abs(view.getScaleX() - 1f) <= 0.001f

@@ -36,6 +36,7 @@ final class StatusBarHookInstaller {
         CONTAINER_MEASURE,
         CONTAINER_LAYOUT,
         AFTER_SET_IGNORED,
+        AFTER_ADD_IGNORED,
         AFTER_VIEW_ADDED,
         BATTERY_CONTAINER_MEASURE,
         BATTERY_CONTAINER_LAYOUT,
@@ -196,6 +197,8 @@ final class StatusBarHookInstaller {
                 new Class<?>[] {boolean.class, int.class, int.class, int.class, int.class},
                 Callback.CONTAINER_LAYOUT);
         count += exact(type, "setIgnoredSlots", new Class<?>[] {List.class}, Callback.AFTER_SET_IGNORED);
+        count += exactIfPresent(type, "addIgnoredSlots", new Class<?>[] {List.class},
+                Callback.AFTER_ADD_IGNORED);
         count += exact(type, "onViewAdded", new Class<?>[] {View.class}, Callback.AFTER_VIEW_ADDED);
         return count;
     }
@@ -246,13 +249,15 @@ final class StatusBarHookInstaller {
     private int matchingCount(Class<?> type, String methodName, int parameterCount,
             Callback callback) {
         int count = 0;
+        int matches = 0;
         for (Method method : type.getDeclaredMethods()) {
             if (!method.getName().equals(methodName)
                     || method.getParameterCount() != parameterCount) continue;
+            matches++;
             method.setAccessible(true);
             count += install(type, methodName, method, callback);
         }
-        if (count == 0) missingMethods.add(type.getSimpleName() + "#" + methodName);
+        if (matches == 0) missingMethods.add(type.getSimpleName() + "#" + methodName);
         return count;
     }
 
@@ -263,6 +268,12 @@ final class StatusBarHookInstaller {
             return 0;
         }
         return install(type, methodName, method, callback);
+    }
+
+    private int exactIfPresent(Class<?> type, String methodName, Class<?>[] parameters,
+            Callback callback) {
+        Method method = RuntimeReflection.exact(type, methodName, parameters, true);
+        return method == null ? 0 : install(type, methodName, method, callback);
     }
 
     private int matchingViewMethods(Class<?> type, String methodName, Callback callback) {

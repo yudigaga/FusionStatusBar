@@ -180,5 +180,7 @@
     <string name="ui_main_fbab901503" formatted="false">&quot;アプリ間の起動を直接許可します。LSPosed のシステム（system / system_server）スコープを有効にし、端末を再起動してください&quot;</string>
     <string name="ui_main_fd69741299" formatted="false">&quot;ステータスバーの時刻、旧暦、曜日、天気&quot;</string>
     <string name="ui_main_fed31d5ca1" formatted="false">&quot;実際のレイアウトの参考画像  &quot;</string>
+    <string name="ui_main_icon_visibility_customization">アイコン表示をカスタマイズ</string>
+    <string name="ui_main_icon_visibility_customization_summary">システム状態と接続デバイスごとに設定</string>
 </resources>
 

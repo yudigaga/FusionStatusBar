@@ -54,13 +54,18 @@ final class NotificationSurfaceHooks {
         Class<?> row = resolve(loader, ROW_CLASS);
         for (String method : new String[] {"onFinishInflate", "onAttachedToWindow", "onLayout",
                 "setHeadsUp", "setHeadsUpAnimatingAway", "setPinned", "setPinnedStatus", "updateBackgroundColors",
-                "updateBackgroundTint", "updateBackgroundForGroupState", "setActualHeight"}) {
+                "updateBackgroundTint", "updateBackgroundForGroupState"}) {
             installed += hookDeclared(row, method, registrar, chain -> {
                 Object result = chain.proceed();
                 if (chain.getThisObject() instanceof View view) safelyApply(view);
                 return result;
             });
         }
+        installed += hookDeclared(row, "setActualHeight", registrar, chain -> {
+            Object result = chain.proceed();
+            if (chain.getThisObject() instanceof View view) safelyUpdateBounds(view);
+            return result;
+        });
         Class<?> injector = resolve(loader, INJECTOR_CLASS);
         for (String method : new String[] {"updateBackground$1", "updateBlurBg", "initBackground"}) {
             installed += hookDeclared(injector, method, registrar, chain -> {
@@ -75,18 +80,28 @@ final class NotificationSurfaceHooks {
             Object target = chain.getThisObject();
             if (target instanceof View view) {
                 BackgroundState state = backgroundState(view);
-                if (state != null && state.active && view.getBackground() == state.bounded) return null;
+                if (state != null && state.active && view.getBackground() == state.bounded
+                        && SystemSurfaceStyle.drawsNotificationBackground(view)) return null;
             }
             return chain.proceed();
         });
-        for (String method : new String[] {"setCustomBackground", "setTint", "setRadius",
-                "setActualHeight", "setActualWidth", "setExpandAnimationRunning",
-                "setExpandAnimationSize", "setClipTopAmount", "setClipBottomAmount"}) {
+        for (String method : new String[] {"setCustomBackground", "setTint", "setRadius"}) {
             installed += hookDeclared(background, method, registrar, chain -> {
                 Object result = chain.proceed();
                 if (chain.getThisObject() instanceof View view) {
                     View owner = ownerOf(view);
                     if (owner != null) safelyApply(owner);
+                }
+                return result;
+            });
+        }
+        for (String method : new String[] {"setActualHeight", "setActualWidth", "setExpandAnimationRunning",
+                "setExpandAnimationSize", "setClipTopAmount", "setClipBottomAmount"}) {
+            installed += hookDeclared(background, method, registrar, chain -> {
+                Object result = chain.proceed();
+                if (chain.getThisObject() instanceof View view) {
+                    View owner = ownerOf(view);
+                    if (owner != null) safelyUpdateBounds(owner);
                 }
                 return result;
             });
@@ -103,15 +118,23 @@ final class NotificationSurfaceHooks {
     static void reportApplication() {
         FusionConfig value;
         try { value = current.get(); } catch (RuntimeException error) { return; }
-        boolean enabled = value.controlCenter.systemSurfaces.notifications
-                || value.controlCenter.systemSurfaces.headsUp;
-        boolean mounted = !ROWS.isEmpty();
-        reporter.report(value.controlCenter, RuntimeApplicationPolicy.systemSurface(
-                FusionActivationStatus.FEATURE_NOTIFICATION_SURFACE, enabled, hooksAvailable,
-                mounted && enabled, mounted));
-        reporter.report(value.controlCenter, RuntimeApplicationPolicy.systemSurface(
-                FusionActivationStatus.FEATURE_HEADS_UP, value.controlCenter.systemSurfaces.headsUp,
-                hooksAvailable, mounted && value.controlCenter.systemSurfaces.headsUp, mounted));
+        if (value == null) return;
+        View notification = null, headsUp = null;
+        for (View row : new ArrayList<>(ROWS.keySet())) {
+            if (row == null || backgroundOf(row) == null) continue;
+            if (isHeadsUp(row)) headsUp = row;
+            else notification = row;
+        }
+        reportMountedOrWaiting(value, notification, value.controlCenter.systemSurfaces.notifications,
+                FusionActivationStatus.FEATURE_NOTIFICATION_SURFACE);
+        reportMountedOrWaiting(value, headsUp, value.controlCenter.systemSurfaces.headsUp,
+                FusionActivationStatus.FEATURE_HEADS_UP);
+    }
+
+    private static void reportMountedOrWaiting(FusionConfig config, View row, boolean enabled, String feature) {
+        if (row != null) reportRow(row, config, enabled, backgroundOf(row));
+        else reporter.report(config.controlCenter, RuntimeApplicationPolicy.systemSurface(
+                feature, enabled, hooksAvailable, false, false));
     }
 
     static void applyRow(View row, FusionConfig config) {
@@ -122,34 +145,50 @@ final class NotificationSurfaceHooks {
         boolean headsUp = isHeadsUp(row);
         boolean enabled = headsUp ? config.controlCenter.systemSurfaces.headsUp
                 : config.controlCenter.systemSurfaces.notifications;
-        SystemSurfaceStyle.applyContent(row, config.controlCenter, enabled);
+        // Notification text, stateful colors, app content and actions belong to the host.
         BackgroundState state = backgroundState(background);
         if (!enabled && state == null) return;
         if (state == null) {
             state = new BackgroundState(row);
             BACKGROUNDS.put(background, new WeakReference<>(state));
         }
+        long revision = ++state.revision;
         state.owner = new WeakReference<>(row);
-        if (background.getBackground() == state.bounded) background.setBackground(state.styled);
-        SystemSurfaceStyle.apply(background, config.controlCenter, enabled);
-        state.active = enabled;
-        if (enabled) {
+        state.config = config.controlCenter;
+        state.headsUp = headsUp;
+        if (background.getBackground() == state.bounded) {
+            background.setBackground(state.styled);
+            if (!isCurrentBackground(background, state, revision)) return;
+        }
+        SystemSurfaceStyle.applyNotification(background, config.controlCenter, enabled);
+        if (!isCurrentBackground(background, state, revision)) return;
+        state.active = enabled && SystemSurfaceStyle.isApplied(background);
+        if (state.active) {
             state.styled = background.getBackground();
             if (state.styled != null) {
                 if (state.bounded == null) state.bounded = new BoundedBackground(background);
                 state.bounded.state = state;
                 state.bounded.content = state.styled;
                 background.setBackground(state.bounded);
+                if (!isCurrentBackground(background, state, revision)) return;
             } else {
                 state.active = false;
             }
-        } else {
-            BACKGROUNDS.remove(background);
         }
+        if (!state.active) BACKGROUNDS.remove(background);
         background.invalidate();
-        reporter.report(config.controlCenter, RuntimeApplicationPolicy.systemSurface(
-                FusionActivationStatus.FEATURE_NOTIFICATION_SURFACE, enabled, hooksAvailable,
-                enabled, true));
+        reportRow(row, config, enabled, background);
+    }
+
+    private static void reportRow(View row, FusionConfig config, boolean enabled, View background) {
+        String feature = isHeadsUp(row) ? FusionActivationStatus.FEATURE_HEADS_UP
+                : FusionActivationStatus.FEATURE_NOTIFICATION_SURFACE;
+        RuntimeApplicationPolicy.Result result = RuntimeApplicationPolicy.systemSurface(
+                feature, enabled, hooksAvailable, SystemSurfaceStyle.isApplied(background), true);
+        if (enabled && hooksAvailable && config.controlCenter.surface == ControlCenterSurface.HIGHLIGHT_GLASS)
+            result = new RuntimeApplicationPolicy.Result(feature, FusionActivationStatus.DEGRADED,
+                    SystemSurfaceStyle.notificationBlurStatus(background));
+        reporter.report(config.controlCenter, result);
     }
 
     static boolean isHeadsUp(View row) {
@@ -182,6 +221,32 @@ final class NotificationSurfaceHooks {
             applyRow(row, current.get());
         } catch (Throwable error) {
             Log.w("FusionStatusBar", "notification surface update failed", error);
+        }
+    }
+
+    private static void safelyUpdateBounds(View row) {
+        try {
+            start.accept(row.getContext());
+            FusionConfig config = current.get();
+            View background = backgroundOf(row);
+            BackgroundState state = background == null ? null : backgroundState(background);
+            WeakReference<View> recorded = ROWS.get(row);
+            boolean headsUp = isHeadsUp(row);
+            boolean enabled = config != null && (headsUp ? config.controlCenter.systemSurfaces.headsUp
+                    : config.controlCenter.systemSurfaces.notifications);
+            if (state != null && state.active && enabled && state.config == config.controlCenter
+                    && state.headsUp == headsUp && state.owner.get() == row
+                    && recorded != null && recorded.get() == background
+                    && state.bounded != null && state.styled != null && state.bounded.content == state.styled
+                    && background.getBackground() == state.bounded && SystemSurfaceStyle.isApplied(background)) {
+                // The drawable reads live geometry and native alpha on this next draw.
+                background.invalidate();
+                return;
+            }
+            applyRow(row, config);
+        } catch (Throwable error) {
+            Log.w("FusionStatusBar", "notification surface bounds update failed", error);
+            safelyApply(row);
         }
     }
 
@@ -227,6 +292,9 @@ final class NotificationSurfaceHooks {
         WeakReference<BackgroundState> reference = BACKGROUNDS.get(view);
         return reference == null ? null : reference.get();
     }
+    private static boolean isCurrentBackground(View view, BackgroundState state, long revision) {
+        return backgroundState(view) == state && state.revision == revision;
+    }
     private static int number(Object owner, String name, int fallback) {
         Object value = field(owner, name);
         return value instanceof Number number ? number.intValue() : fallback;
@@ -236,6 +304,9 @@ final class NotificationSurfaceHooks {
         WeakReference<View> owner;
         Drawable styled;
         BoundedBackground bounded;
+        ControlCenterConfig config;
+        long revision;
+        boolean headsUp;
         boolean active;
         BackgroundState(View row) { owner = new WeakReference<>(row); }
     }

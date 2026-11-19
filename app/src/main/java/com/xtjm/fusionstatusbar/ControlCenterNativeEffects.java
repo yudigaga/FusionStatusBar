@@ -25,7 +25,8 @@ final class ControlCenterNativeEffects {
     static boolean composition(String operation) {
         return operation.equals("setMiViewBlurMode") || operation.equals("setMiBackgroundBlendColors")
                 || operation.equals("setMixEffectEnabled") || operation.equals("setMiBackgroundBlurMode")
-                || operation.equals("setMiBackgroundBlurRadius");
+                || operation.equals("setMiBackgroundBlurRadius")
+                || operation.equals("setMiBackgroundBlurScaleRatio");
     }
 
     static Object[] arguments(String operation, Object[] original, boolean customDecoration,

@@ -28,7 +28,7 @@ public class NotificationGlassBoundsRegressionTest {
 
     @After public void clearMaterials() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void collapsedNotificationClipsTheCompleteGlassMaterialToActualHeightAndNativeInsets() {
+    @Test public void nativeFallbackClipsTheOriginalBackgroundToActualHeightAndNativeInsets() {
         for (boolean night : new boolean[] {false, true}) {
             Fixture fixture = new Fixture(night);
             fixture.background.mActualHeight = 64;
@@ -38,15 +38,15 @@ public class NotificationGlassBoundsRegressionTest {
                 fixture.apply();
                 Bitmap image = draw(fixture.background);
                 try {
-                    assertTrue("The fixture must contain a visible collapsed material", Color.alpha(image.getPixel(80, 30)) > 0);
-                    assertNoPixelsOutside("Collapsed glass must not draw an unclipped reflection", image,
+                    assertEquals("Unknown blur keeps the complete native body", 0xff353840, image.getPixel(80, 30));
+                    assertNoPixelsOutside("Native fallback must honor the collapsed host clips", image,
                             new Rect(0, 8, SIZE, 54));
                 } finally { image.recycle(); }
             } finally { fixture.restore(); }
         }
     }
 
-    @Test public void rtlActualWidthClipsTheReflectionTogetherWithTheNotificationBody() {
+    @Test public void nativeFallbackUsesTheRtlActualWidth() {
         for (boolean night : new boolean[] {false, true}) {
             Fixture fixture = new Fixture(night);
             fixture.background.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -56,15 +56,15 @@ public class NotificationGlassBoundsRegressionTest {
                 fixture.apply();
                 Bitmap image = draw(fixture.background);
                 try {
-                    assertTrue(Color.alpha(image.getPixel(110, 40)) > 0);
-                    assertNoPixelsOutside("RTL glass follows the native actual width", image,
+                    assertEquals(0xff353840, image.getPixel(110, 40));
+                    assertNoPixelsOutside("RTL native fallback follows the native actual width", image,
                             new Rect(70, 0, SIZE, 80));
                 } finally { image.recycle(); }
             } finally { fixture.restore(); }
         }
     }
 
-    @Test public void expansionUsesTheAnimatedCenteredBoundsForBothBodyAndReflection() {
+    @Test public void nativeFallbackUsesTheAnimatedCenteredBounds() {
         for (boolean night : new boolean[] {false, true}) {
             Fixture fixture = new Fixture(night);
             fixture.background.mActualHeight = 40;
@@ -79,14 +79,14 @@ public class NotificationGlassBoundsRegressionTest {
                 try {
                     assertTrue("Expansion intentionally uses the animated height instead of collapsed clips",
                             Color.alpha(image.getPixel(80, 70)) > 0);
-                    assertNoPixelsOutside("Animated glass must not leave a second full-width outline", image,
+                    assertNoPixelsOutside("The native fallback follows animated width and height", image,
                             new Rect(45, 0, 115, 100));
                 } finally { image.recycle(); }
             } finally { fixture.restore(); }
         }
     }
 
-    @Test public void nativeFadeAppliesToTheReflectionAndReachesZeroWithTheBody() {
+    @Test public void nativeFallbackAppliesTheOriginalFadeOnceAndRestoresDrawableState() {
         for (boolean night : new boolean[] {false, true}) {
             Fixture fixture = new Fixture(night);
             fixture.background.mActualHeight = 90;
@@ -103,22 +103,21 @@ public class NotificationGlassBoundsRegressionTest {
                     Rect contentBounds = new Rect(bounded.content.getBounds());
                     Bitmap half = draw(fixture.background);
                     try {
-                        assertTrue("Native fade must soften the complete glass edge, not leave an opaque reflection",
-                                maximumAlpha(half) <= Math.round(fullPeak * .7f) + 1);
+                        assertEquals("Fallback must apply the original alpha once", 128, maximumAlpha(half));
                     } finally { half.recycle(); }
                     assertEquals("Drawing restores the styled drawable alpha", contentAlpha, bounded.content.getAlpha());
                     assertEquals("Drawing restores the styled drawable bounds", contentBounds, bounded.content.getBounds());
                     assertEquals("Drawing never changes the native fade request", 128, fixture.background.mBackground.getAlpha());
                     fixture.background.mBackground.setAlpha(0);
                     Bitmap hidden = draw(fixture.background);
-                    try { assertEquals("A fully faded notification must not retain a glass outline", 0, maximumAlpha(hidden)); }
+                    try { assertEquals("A fully faded native background must draw nothing", 0, maximumAlpha(hidden)); }
                     finally { hidden.recycle(); }
                 } finally { full.recycle(); }
             } finally { fixture.restore(); }
         }
     }
 
-    @Test public void fullyClippedNotificationLeavesNoIndependentGlassOutline() {
+    @Test public void fullyClippedNativeFallbackDrawsNothing() {
         for (boolean night : new boolean[] {false, true}) {
             Fixture fixture = new Fixture(night);
             fixture.background.mActualHeight = 40;
@@ -127,7 +126,7 @@ public class NotificationGlassBoundsRegressionTest {
             try {
                 fixture.apply();
                 Bitmap image = draw(fixture.background);
-                try { assertEquals("Fully clipped glass must draw nothing, including its reflection", 0, maximumAlpha(image)); }
+                try { assertEquals("Fully clipped native fallback must draw nothing", 0, maximumAlpha(image)); }
                 finally { image.recycle(); }
             } finally { fixture.restore(); }
         }
@@ -141,17 +140,20 @@ public class NotificationGlassBoundsRegressionTest {
                 fixture.apply();
                 NotificationSurfaceHooks.applyRow(fixture.row, fixture.config.withControlCenter(
                         fixture.config.controlCenter.withBlur(100, 0, 100)));
-                Bitmap transparent = draw(fixture.background);
-                try { assertEquals("Zero card strength clears body and reflection together", 0, maximumAlpha(transparent)); }
-                finally { transparent.recycle(); }
+                Bitmap nativeBody = draw(fixture.background);
+                try { assertEquals("Automatic glass at zero preserves the native notification body", 255,
+                        maximumAlpha(nativeBody)); }
+                finally { nativeBody.recycle(); }
                 assertSame(fixture.row, fixture.label.getParent());
                 assertEquals("Notification title", fixture.label.getText().toString());
                 assertEquals(1f, fixture.label.getAlpha(), 0f);
+                assertEquals("The active material never recolors the host title", Color.GREEN,
+                        fixture.label.getCurrentTextColor());
                 assertEquals(20, fixture.label.getTop());
                 fixture.restore();
                 assertSame("Disabling recovers the original native background", fixture.original, fixture.background.getBackground());
                 assertSame(fixture.original, fixture.background.mBackground);
-                assertEquals("Original foreground styling restores", Color.GREEN, fixture.label.getCurrentTextColor());
+                assertEquals("The foreground stays host owned", Color.GREEN, fixture.label.getCurrentTextColor());
             } finally { fixture.restore(); }
         }
     }

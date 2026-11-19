@@ -29,7 +29,7 @@ public class ControlCenterComponentMaterialTest {
 
     @After public void clear() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void mediaAndDevicesMatchInactiveTileWithoutASecondNativeComposition() throws Exception {
+    @Test public void manualComponentsMatchInactiveTileWhileUnknownAutomaticRestoresTheirOemComposition() throws Exception {
         for (NativePanel panel : panels()) {
             installNativeMaterial(panel);
             NativePanel glyph = new NativePanel();
@@ -41,11 +41,19 @@ public class ControlCenterComponentMaterialTest {
                 if (style == ControlCenterSurface.DEFAULT) continue;
                 ControlCenterConfig settings = original.withSurface(style);
                 ControlCenterMaterials.registerRoot(panel, settings);
-                assertEquals(panel.getClass().getSimpleName(), 0, panel.viewMode);
-                assertEquals(0, panel.backgroundMode);
-                assertEquals(0, panel.radius);
-                assertFalse(panel.mix);
-                assertTrue(panel.colors.isEmpty());
+                if (style == ControlCenterSurface.HIGHLIGHT_GLASS) {
+                    assertEquals("UNKNOWN automatic material restores the component's OEM view mode", 1, panel.viewMode);
+                    assertEquals(2, panel.backgroundMode);
+                    assertEquals(90, panel.radius);
+                    assertTrue(panel.mix);
+                    assertEquals(colors(Color.WHITE), panel.colors);
+                } else {
+                    assertEquals(panel.getClass().getSimpleName(), 0, panel.viewMode);
+                    assertEquals(0, panel.backgroundMode);
+                    assertEquals(0, panel.radius);
+                    assertFalse(panel.mix);
+                    assertTrue(panel.colors.isEmpty());
+                }
 
                 QSTileItemView tile = new QSTileItemView();
                 ImageView image = new ImageView(panel.getContext());
@@ -56,8 +64,16 @@ public class ControlCenterComponentMaterialTest {
                 layout(panel);
                 Bitmap tilePixels = draw(tile);
                 Bitmap panelPixels = draw(panel);
-                assertEquals("Component background must match the inactive tile for " + style,
-                        tilePixels.getPixel(50, 50), panelPixels.getPixel(50, 50));
+                if (style == ControlCenterSurface.HIGHLIGHT_GLASS) {
+                    assertEquals("UNKNOWN retains the component's actual OEM body", 0xff9fa1a4,
+                            panelPixels.getPixel(50, 50));
+                    assertEquals("An image with no OEM body must not gain a substitute Canvas fill", Color.TRANSPARENT,
+                            tilePixels.getPixel(50, 50));
+                    assertNull(image.getBackground());
+                } else {
+                    assertEquals("Manual component background must match the inactive tile for " + style,
+                            tilePixels.getPixel(50, 50), panelPixels.getPixel(50, 50));
+                }
                 assertEquals("Inner controls retain their own color", Color.BLUE, panelPixels.getPixel(10, 10));
                 assertEquals(3, glyph.viewMode);
                 assertTrue(glyph.mix);

@@ -2,6 +2,8 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.RectF;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Gravity;
@@ -109,9 +111,30 @@ final class DualRowStatusBarLayout {
             if (state == null) {
                 iterator.remove();
             } else {
-                state.updateTelemetryText(readings);
+                state.updateTelemetryText(readings, true);
             }
         }
+    }
+
+    static boolean showsTelemetry(ViewGroup root, int type) {
+        if (root == null || type < 0 || type >= TelemetryConfig.COUNT) return false;
+        WeakReference<State> reference = STATES.get(root);
+        State state = reference == null ? null : reference.get();
+        if (state == null || !state.telemetryConfig.enabled(type)) return false;
+        View view = state.telemetryViews[type];
+        while (view != null && view != root) {
+            if (view.getVisibility() != View.VISIBLE) return false;
+            view = view.getParent() instanceof View parent ? parent : null;
+        }
+        return view == root;
+    }
+
+    static View networkReadout(View root) {
+        if (root.getTag(R.id.dual_row_layout_state) instanceof State state
+                && showsTelemetry(state.root, TelemetryConfig.NET_SPEED)) {
+            return state.telemetryViews[TelemetryConfig.NET_SPEED];
+        }
+        return null;
     }
 
     private static State install(ViewGroup root) {
@@ -269,6 +292,8 @@ final class DualRowStatusBarLayout {
         private View externalPriorityChild;
         private int externalPriorityFallbackWidth;
         private int externalPriorityExtraWidth;
+        private int lastWidthMeasureSpec;
+        private int lastHeightMeasureSpec;
         private boolean gapLogged;
         private final StatusPairView[] readoutBuffer =
                 new StatusPairView[TelemetryConfig.COUNT];
@@ -277,6 +302,11 @@ final class DualRowStatusBarLayout {
         private final long[] allocationRemainders = new long[TelemetryConfig.COUNT];
         private final int[] iconLocation = new int[2];
         private final int[] slotLocation = new int[2];
+        private final Matrix visualMatrix = new Matrix();
+        private final RectF mappedBounds = new RectF();
+        private final RectF nativeFrameBounds = new RectF();
+        private final RectF nativeChildBounds = new RectF();
+        private final RectF nativeBounds = new RectF();
 
         StatusSlotLayout(Context context, int gravity) {
             super(context);
@@ -313,24 +343,17 @@ final class DualRowStatusBarLayout {
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            int externalReservation = externalPriorityChild == null
-                    && externalPriorityFallbackWidth == 0 ? 0
-                    : oppositeRowFusionWidth(externalPriorityChild == null ? 0
-                            : externalPriorityChild.getMeasuredWidth(),
-                            externalPriorityFallbackWidth, externalPriorityExtraWidth);
+            lastWidthMeasureSpec = widthMeasureSpec;
+            lastHeightMeasureSpec = heightMeasureSpec;
+            int externalReservation = externalReservation();
             int startPadding = reserveAtStart ? externalReservation : 0;
             int endPadding = reserveAtStart ? 0 : externalReservation;
             if (getPaddingStart() != startPadding || getPaddingEnd() != endPadding) {
                 setPaddingRelative(startPadding, getPaddingTop(), endPadding, getPaddingBottom());
             }
-            int readoutCount = 0;
-            for (int index = 0; index < getChildCount(); index++) {
-                View child = getChildAt(index);
-                if (child instanceof StatusPairView readout && child.getVisibility() != GONE
-                        && readoutCount < readoutBuffer.length) {
-                    readoutBuffer[readoutCount++] = readout;
-                    ((LinearLayout.LayoutParams) child.getLayoutParams()).width = 0;
-                }
+            int readoutCount = collectReadouts();
+            for (int index = 0; index < readoutCount; index++) {
+                readoutBuffer[index].getLayoutParams().width = 0;
             }
 
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -355,33 +378,80 @@ final class DualRowStatusBarLayout {
                 nativeWidth += childWidth + params.leftMargin + params.rightMargin;
             }
 
+            allocateReadouts(readoutCount,
+                    telemetryAvailableWidth(getMeasuredWidth(), nativeWidth, 0));
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        }
+
+        private int externalReservation() {
+            return externalPriorityChild == null && externalPriorityFallbackWidth == 0 ? 0
+                    : oppositeRowFusionWidth(externalPriorityChild == null ? 0
+                            : externalPriorityChild.getMeasuredWidth(),
+                            externalPriorityFallbackWidth, externalPriorityExtraWidth);
+        }
+
+        void updateLiveSpeed(StatusPairView readout, String text, boolean autoWidth) {
+            if (!canRelayoutFixedSlot()) {
+                readout.setLines(text);
+                if (autoWidth) readout.setPreferredWidth(readout.naturalWidth());
+                return;
+            }
+            readout.setLinesForLocalLayout(text);
+            boolean widthChanged = autoWidth && readout.updatePreferredWidth(readout.naturalWidth());
+            if (!widthChanged && !readout.isLayoutRequested()) return;
+
+            forceLayout();
+            measure(lastWidthMeasureSpec, lastHeightMeasureSpec);
+            layout(getLeft(), getTop(), getRight(), getBottom());
+            invalidate();
+        }
+
+        private boolean canRelayoutFixedSlot() {
+            int width = getWidth();
+            int height = getHeight();
+            if (!isAttachedToWindow() || getWindowVisibility() != VISIBLE || !isLaidOut()
+                    || isInLayout() || width <= 0 || height <= 0
+                    || lastWidthMeasureSpec != MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)
+                    || lastHeightMeasureSpec != MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
+                    || externalReservation() != (reserveAtStart ? getPaddingStart() : getPaddingEnd())) {
+                return false;
+            }
+            for (View view = this; view != null;
+                    view = view.getParent() instanceof View parent ? parent : null) {
+                if (view.isLayoutRequested() || view.getVisibility() != VISIBLE) return false;
+            }
+            return true;
+        }
+
+        private void allocateReadouts(int readoutCount, int availableWidth) {
             for (int index = 0; index < readoutCount; index++) {
                 StatusPairView readout = readoutBuffer[index];
-                LinearLayout.LayoutParams params =
-                        (LinearLayout.LayoutParams) readout.getLayoutParams();
                 preferredWidths[index] = readout.preferredWidth()
-                        + params.leftMargin + params.rightMargin;
+                        + readout.preferredLeftMargin() + readout.preferredRightMargin();
             }
             StatusBarWidthAllocator.allocateInto(
-                    telemetryAvailableWidth(getMeasuredWidth(), nativeWidth, 0),
+                    availableWidth,
                     preferredWidths, readoutCount, allocatedWidths, allocationRemainders);
             for (int index = 0; index < readoutCount; index++) {
                 LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)
                         readoutBuffer[index].getLayoutParams();
                 int allocated = allocatedWidths[index];
-                int leftMargin = Math.min(params.leftMargin, allocated);
-                int rightMargin = Math.min(params.rightMargin,
+                StatusPairView readout = readoutBuffer[index];
+                int leftMargin = Math.min(readout.preferredLeftMargin(), allocated);
+                int rightMargin = Math.min(readout.preferredRightMargin(),
                         Math.max(0, allocated - leftMargin));
                 params.leftMargin = leftMargin;
                 params.rightMargin = rightMargin;
                 params.width = Math.max(0, allocated - leftMargin - rightMargin);
             }
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         }
 
         @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             super.onLayout(changed, left, top, right, bottom);
+            int readoutCount = collectReadouts();
+            if (readoutCount == 0) return;
+            layoutReadoutsBesideNativeContent(readoutCount);
             if (reserveAtStart || externalPriorityChild == null || !isAttachedToWindow()
                     || !externalPriorityChild.isAttachedToWindow()
                     || externalPriorityChild.getWidth() <= 0) {
@@ -418,6 +488,113 @@ final class DualRowStatusBarLayout {
                 Log.i("FusionStatusBar", "opposite row gap: iconLeft=" + iconVisibleLeft
                         + " readoutRight=" + (slotLocation[0] + readoutRight)
                         + " offset=" + offset + " inset=" + getPaddingEnd());
+            }
+        }
+
+        private int collectReadouts() {
+            int readoutCount = 0;
+            for (int index = 0; index < getChildCount() && readoutCount < readoutBuffer.length; index++) {
+                View child = getChildAt(index);
+                if (child instanceof StatusPairView readout && child.getVisibility() != GONE) {
+                    readoutBuffer[readoutCount++] = readout;
+                }
+            }
+            return readoutCount;
+        }
+
+        private void layoutReadoutsBesideNativeContent(int readoutCount) {
+            boolean nativeAtLeft = reserveAtStart != (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
+            nativeBounds.setEmpty();
+            for (int index = 0; index < getChildCount(); index++) {
+                View child = getChildAt(index);
+                if (child instanceof StatusPairView || !hasVisibleContent(child)) continue;
+                nativeChildBounds.setEmpty();
+                nativeFrameBounds.setEmpty();
+                includeNativeBounds(child, true);
+                if (child == priorityChild) {
+                    int minimumWidth = priorityReservationWidth(child.getMeasuredWidth(),
+                            priorityFallbackWidth, priorityExtraWidth);
+                    if (nativeChildBounds.isEmpty() && minimumWidth > 0) {
+                        nativeChildBounds.set(child.getLeft(), 0f,
+                                child.getLeft() + minimumWidth, 1f);
+                    } else if (nativeChildBounds.width() < minimumWidth) {
+                        if (nativeAtLeft) nativeChildBounds.right = nativeChildBounds.left + minimumWidth;
+                        else nativeChildBounds.left = nativeChildBounds.right - minimumWidth;
+                    }
+                }
+                if (nativeChildBounds.isEmpty()) continue;
+                ViewGroup.MarginLayoutParams params =
+                        (ViewGroup.MarginLayoutParams) child.getLayoutParams();
+                if (!nativeFrameBounds.isEmpty()) {
+                    // A physical margin can already cover translated pixels; union it
+                    // with the envelope instead of counting the same overhang twice.
+                    nativeChildBounds.union(nativeFrameBounds.left - params.leftMargin,
+                            nativeFrameBounds.top, nativeFrameBounds.right + params.rightMargin,
+                            nativeFrameBounds.bottom);
+                } else {
+                    nativeChildBounds.left -= params.leftMargin;
+                    nativeChildBounds.right += params.rightMargin;
+                }
+                nativeBounds.union(nativeChildBounds);
+            }
+            if (nativeBounds.isEmpty()) return;
+
+            // Host layout and property transforms can change after measurement. Keep its
+            // measured frames intact, then fit readouts against the current visual envelope.
+            int contentLeft = getPaddingLeft();
+            int contentRight = getWidth() - getPaddingRight();
+            int nativeLeft = (int) Math.floor(nativeBounds.left);
+            int nativeRight = (int) Math.ceil(nativeBounds.right);
+            int nativeWidth = Math.max(0, nativeRight - nativeLeft);
+            int shift = nativeAtLeft ? contentLeft - nativeLeft : contentRight - nativeRight;
+            if (shift != 0) {
+                for (int index = 0; index < getChildCount(); index++) {
+                    View child = getChildAt(index);
+                    if (!(child instanceof StatusPairView) && hasVisibleContent(child)) {
+                        child.offsetLeftAndRight(shift);
+                    }
+                }
+            }
+            allocateReadouts(readoutCount,
+                    Math.max(0, contentRight - contentLeft - nativeWidth));
+            int readoutWidth = 0;
+            for (int index = 0; index < readoutCount; index++) {
+                readoutWidth += allocatedWidths[index];
+            }
+            int cursor = nativeAtLeft ? contentLeft + nativeWidth
+                    : contentRight - nativeWidth - readoutWidth;
+            cursor = Math.max(contentLeft, Math.min(contentRight, cursor));
+            boolean rtl = getLayoutDirection() == LAYOUT_DIRECTION_RTL;
+            for (int position = 0; position < readoutCount; position++) {
+                StatusPairView readout = readoutBuffer[rtl ? readoutCount - position - 1 : position];
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) readout.getLayoutParams();
+                int height = readout.getMeasuredHeight();
+                int childTop = readout.getTop();
+                readout.measure(MeasureSpec.makeMeasureSpec(params.width, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                cursor += params.leftMargin;
+                readout.layout(cursor, childTop, cursor + params.width, childTop + height);
+                if (readout.getTranslationX() != 0f) readout.setTranslationX(0f);
+                cursor += params.width + params.rightMargin;
+            }
+        }
+
+        private void includeNativeBounds(View view, boolean directChild) {
+            if (view.getVisibility() != VISIBLE || view.getAlpha() <= 0.01f) return;
+            if (view.getWidth() > 0 && view.getHeight() > 0) {
+                visualMatrix.reset();
+                view.transformMatrixToGlobal(visualMatrix);
+                transformMatrixToLocal(visualMatrix);
+                mappedBounds.set(0f, 0f, view.getWidth(), view.getHeight());
+                visualMatrix.mapRect(mappedBounds);
+                nativeChildBounds.union(mappedBounds);
+                if (directChild) nativeFrameBounds.set(mappedBounds);
+            }
+            // A clipping parent already bounds every descendant by its retained frame.
+            if (view instanceof ViewGroup group && !group.getClipChildren()) {
+                for (int index = 0; index < group.getChildCount(); index++) {
+                    includeNativeBounds(group.getChildAt(index), false);
+                }
             }
         }
 
@@ -486,6 +663,18 @@ final class DualRowStatusBarLayout {
             StatusBarLayoutPlan plan = appliedPlan;
             if (plan == null || configChanged) {
                 plan = StatusBarLayoutPlan.from(config);
+            }
+            // Initial installation temporarily detaches the native children before placing them.
+            if (applied) {
+                systemChildren.removeIf(view -> {
+                    if (!NotificationHookInstaller.NETWORK_SPEED_CLASS.equals(
+                            view.getClass().getName())) return false;
+                    View ancestor = view;
+                    while (ancestor != null && ancestor != root) {
+                        ancestor = ancestor.getParent() instanceof View parent ? parent : null;
+                    }
+                    return ancestor != root;
+                });
             }
             boolean dimensionsChanged = lastMeasuredWidth != root.getMeasuredWidth()
                     || lastMeasuredHeight != root.getMeasuredHeight();
@@ -566,26 +755,35 @@ final class DualRowStatusBarLayout {
                         ? dp(settings.fixedWidth(metric))
                         : Math.max(1, view.naturalWidth());
                 view.setPreferredWidth(width);
-                LinearLayout.LayoutParams params;
-                if (view.getLayoutParams() instanceof LinearLayout.LayoutParams existing) {
-                    params = existing;
-                } else {
-                    params = new LinearLayout.LayoutParams(
-                            0, ViewGroup.LayoutParams.MATCH_PARENT);
-                }
-                params.width = 0;
-                params.height = ViewGroup.LayoutParams.MATCH_PARENT;
-                params.leftMargin = dp(settings.leftMargin(metric));
-                params.rightMargin = dp(settings.rightMargin(metric));
-                if (view.getParent() != target) {
-                    removeFromParent(view);
-                    if (side == TelemetryConfig.SIDE_RIGHT) {
-                        target.addView(view, 0, params);
+                LinearLayout.LayoutParams params =
+                        view.getLayoutParams() instanceof LinearLayout.LayoutParams existing
+                                ? existing : null;
+                int leftMargin = dp(settings.leftMargin(metric));
+                int rightMargin = dp(settings.rightMargin(metric));
+                boolean move = view.getParent() != target;
+                // The slot owns the allocated width and may clip the configured margins.
+                if (move || params == null || params.height != ViewGroup.LayoutParams.MATCH_PARENT
+                        || view.preferredLeftMargin() != leftMargin
+                        || view.preferredRightMargin() != rightMargin) {
+                    if (params == null) {
+                        params = new LinearLayout.LayoutParams(
+                                0, ViewGroup.LayoutParams.MATCH_PARENT);
+                    }
+                    params.width = 0;
+                    params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+                    params.leftMargin = leftMargin;
+                    params.rightMargin = rightMargin;
+                    if (move) {
+                        removeFromParent(view);
+                        if (side == TelemetryConfig.SIDE_RIGHT) {
+                            target.addView(view, 0, params);
+                        } else {
+                            target.addView(view, params);
+                        }
                     } else {
-                        target.addView(view, params);
+                        view.setLayoutParams(params);
                     }
                 }
-                view.setLayoutParams(params);
                 view.setTranslationY(dp(settings.verticalOffset(metric)));
                 boolean calibratedRow = plan.spanFusion
                         && plan.fusionSide == FusionConfig.SIDE_RIGHT
@@ -602,7 +800,7 @@ final class DualRowStatusBarLayout {
                     view.setLineSpacing(settings.lineSpacing(metric));
                 }
             }
-            updateTelemetryText(TelemetrySampler.latest());
+            updateTelemetryText(TelemetrySampler.latest(), false);
         }
 
         private void updateFusionReservations(FusionConfig config, StatusBarLayoutPlan plan) {
@@ -745,7 +943,7 @@ final class DualRowStatusBarLayout {
             view.setPivotY(view.getMeasuredHeight() / 2f);
         }
 
-        void updateTelemetryText(TelemetryReadings readings) {
+        void updateTelemetryText(TelemetryReadings readings, boolean liveUpdate) {
             boolean visible = TelemetrySampler.isInteractive();
             View clock = clockId == 0 ? null : root.findViewById(clockId);
             int tint = clock instanceof TextView textView
@@ -760,10 +958,14 @@ final class DualRowStatusBarLayout {
                 }
                 if (visible) {
                     view.setTint(tint);
-                    view.setLines(readings.textFor(metric, telemetryConfig,
-                            java.util.Locale.getDefault()));
-                    if (telemetryConfig.fixedWidth(metric) == 0) {
-                        view.setPreferredWidth(view.naturalWidth());
+                    String text = readings.textFor(metric, telemetryConfig, java.util.Locale.getDefault());
+                    boolean autoWidth = telemetryConfig.fixedWidth(metric) == 0;
+                    if (liveUpdate && metric == TelemetryConfig.NET_SPEED
+                            && view.getParent() instanceof StatusSlotLayout slot) {
+                        slot.updateLiveSpeed(view, text, autoWidth);
+                    } else {
+                        view.setLines(text);
+                        if (autoWidth) view.setPreferredWidth(view.naturalWidth());
                     }
                 }
             }

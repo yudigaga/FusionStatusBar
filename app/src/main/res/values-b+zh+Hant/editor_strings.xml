@@ -8,6 +8,7 @@
     <string name="editor_saved_waiting">已儲存，等待 SystemUI 套用</string>
     <string name="editor_applied">SystemUI 已套用目前版本</string>
     <string name="editor_degraded">已儲存，SystemUI 部分功能降級</string>
+    <string name="editor_glass_compatibility">高光玻璃相容模式，原生模糊未驗證</string>
     <string name="editor_waiting_mount">已儲存，等待控制中心展開後套用</string>
     <string name="editor_draft_restored">已還原未推送的草稿</string>
     <string name="editor_restore_draft">還原上次草稿</string>

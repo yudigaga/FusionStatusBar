@@ -41,6 +41,11 @@ final class TelemetryReadings {
                 && speedValid == other.speedValid;
     }
 
+    TelemetryReadings withoutSpeed() {
+        return speedValid ? new TelemetryReadings(
+                batteryCelsius, gpuCelsius, powerWatts, currentMilliamps, 0, 0, false) : this;
+    }
+
     private static boolean equal(Double left, Double right) {
         return left == null ? right == null : left.equals(right);
     }

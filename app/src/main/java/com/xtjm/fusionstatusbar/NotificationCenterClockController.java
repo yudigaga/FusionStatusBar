@@ -5,9 +5,12 @@ import android.content.res.Configuration;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.graphics.Matrix;
+import android.graphics.RectF;
 import android.text.Layout;
 import android.text.SpannableString;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.style.AlignmentSpan;
 import android.text.style.AbsoluteSizeSpan;
 import android.util.TypedValue;
@@ -23,6 +26,7 @@ import java.lang.ref.WeakReference;
 import java.util.Date;
 import java.util.Locale;
 import java.util.WeakHashMap;
+import java.util.ArrayList;
 
 /** Applies notification-center settings to the OEM big-time view without moving it. */
 final class NotificationCenterClockController {
@@ -34,6 +38,9 @@ final class NotificationCenterClockController {
     private static final WeakHashMap<ViewGroup, Boolean> HEADER_LISTENERS = new WeakHashMap<>();
     private static final WeakHashMap<ViewGroup, WeakReference<LinearLayout>> CLOCK_STACKS = new WeakHashMap<>();
     private static final WeakHashMap<View, Integer> SETTINGS_VISIBILITIES = new WeakHashMap<>();
+    private static final WeakHashMap<ViewGroup, ClockBounds> CLOCK_BOUNDS = new WeakHashMap<>();
+    private static final WeakHashMap<ViewGroup, ClipState> CLIPPING = new WeakHashMap<>();
+    private static final WeakHashMap<ViewGroup, HeightState> HEADER_HEIGHTS = new WeakHashMap<>();
     private static float lastExpansionProgress = Float.NaN;
     // The ticker retains only weak view references and an application context.
     @android.annotation.SuppressLint("StaticFieldLeak")
@@ -60,8 +67,13 @@ final class NotificationCenterClockController {
         WeakReference<ViewGroup> nativeParent = new WeakReference<>(null);
         ViewGroup.LayoutParams nativeLayoutParams;
         int nativeIndex = -1;
+        int nativeLayoutHeight;
+        int appliedLayoutHeight;
+        boolean heightApplied;
         int nativeVisibility = View.VISIBLE;
         int nativeMaxLines = Integer.MAX_VALUE;
+        int nativeMaxHeight;
+        TextUtils.TruncateAt nativeEllipsize;
         boolean nativeSingleLine;
         boolean nativeHorizontallyScrolling;
         float lastExpansionTranslation = Float.NaN;
@@ -72,6 +84,7 @@ final class NotificationCenterClockController {
         boolean centerApplied;
         boolean textModeApplied;
         boolean hiddenForCombined;
+        boolean renderingApplied;
 
         void capture(TextView clock, boolean enabled) {
             String observed = clock.getText() == null ? "" : clock.getText().toString();
@@ -89,10 +102,13 @@ final class NotificationCenterClockController {
                 if (clock.getParent() instanceof ViewGroup parent) {
                     nativeParent = new WeakReference<>(parent);
                     nativeLayoutParams = clock.getLayoutParams();
+                    nativeLayoutHeight = nativeLayoutParams.height;
                     nativeIndex = parent.indexOfChild(clock);
                 }
                 nativeVisibility = clock.getVisibility();
                 nativeMaxLines = clock.getMaxLines();
+                nativeMaxHeight = clock.getMaxHeight();
+                nativeEllipsize = clock.getEllipsize();
                 nativeSingleLine = clock.isSingleLine();
                 nativeHorizontallyScrolling = clock.isHorizontallyScrollable();
                 lastExpansionTranslation = Float.NaN;
@@ -103,10 +119,14 @@ final class NotificationCenterClockController {
                 centerApplied = false;
                 textModeApplied = false;
                 hiddenForCombined = false;
+                renderingApplied = false;
+                heightApplied = false;
             } else if (!observed.equals(renderedText)) {
                 nativeText = observed;
             }
-            if (!enabled) {
+            if (!enabled && !renderingApplied) {
+                if (!heightApplied && clock.getLayoutParams() != null)
+                    nativeLayoutHeight = clock.getLayoutParams().height;
                 nativeSizePx = clock.getTextSize();
                 if (!centerApplied) {
                     nativeTranslationX = clock.getTranslationX();
@@ -114,6 +134,8 @@ final class NotificationCenterClockController {
                 nativeTranslationY = clock.getTranslationY();
                 if (!textModeApplied) {
                     nativeMaxLines = clock.getMaxLines();
+                    nativeMaxHeight = clock.getMaxHeight();
+                    nativeEllipsize = clock.getEllipsize();
                     nativeSingleLine = clock.isSingleLine();
                     nativeHorizontallyScrolling = clock.isHorizontallyScrollable();
                 }
@@ -123,6 +145,41 @@ final class NotificationCenterClockController {
             }
         }
     }
+
+    private static final class ClockBounds {
+        int height, start, top, end, bottom, appliedEnd, appliedBottom;
+        ClockBounds(ViewGroup container) {
+            height = container.getLayoutParams().height;
+            start = container.getPaddingStart();
+            top = container.getPaddingTop();
+            end = appliedEnd = container.getPaddingEnd();
+            bottom = appliedBottom = container.getPaddingBottom();
+        }
+        void captureNativeChanges(ViewGroup container) {
+            if (container.getLayoutParams().height != ViewGroup.LayoutParams.WRAP_CONTENT)
+                height = container.getLayoutParams().height;
+            start = container.getPaddingStart();
+            top = container.getPaddingTop();
+            if (container.getPaddingEnd() != appliedEnd) end = container.getPaddingEnd();
+            if (container.getPaddingBottom() != appliedBottom) bottom = container.getPaddingBottom();
+        }
+    }
+
+    private static final class HeightState {
+        int nativeHeight, appliedHeight, nativeMinimumHeight, appliedMinimumHeight;
+        HeightState(ViewGroup header) {
+            nativeHeight = appliedHeight = header.getLayoutParams().height;
+            nativeMinimumHeight = appliedMinimumHeight = header.getMinimumHeight();
+        }
+        void captureNativeChanges(ViewGroup header) {
+            if (header.getLayoutParams().height != appliedHeight)
+                nativeHeight = header.getLayoutParams().height;
+            if (header.getMinimumHeight() != appliedMinimumHeight)
+                nativeMinimumHeight = header.getMinimumHeight();
+        }
+    }
+
+    private record ClipState(boolean children, boolean padding) { }
 
     private NotificationCenterClockController() {
     }
@@ -186,6 +243,7 @@ final class NotificationCenterClockController {
         TextView horizontalTime = findHeaderClock(
                 header, "mLandClock", "horizontal_time");
         if (TIME.view.get() != time) {
+            restorePreviousHeader(header);
             lastExpansionProgress = Float.NaN;
         }
         bind(TIME, time);
@@ -259,16 +317,16 @@ final class NotificationCenterClockController {
     static void onExpansionChanged(float progress) {
         if (Float.isNaN(progress) || progress < 0f || progress > 1f) return;
         lastExpansionProgress = progress;
+        applyExpansionVisibility();
+        NotificationClockConfig settings = config.notificationClock;
+        if (progress > 0f && settings.enabled && settings.offsetYDp != 0) {
+            applyExpandedOffset(TIME, settings.offsetYDp, progress);
+        }
         ViewGroup header = currentHeader();
         if (header != null) {
             applyIndependentRows(header, TIME.view.get(), DATE.view.get());
         }
-        applyExpansionVisibility();
-        if (progress <= 0f || progress > 1f) return;
-        NotificationClockConfig settings = config.notificationClock;
-        if (settings.enabled && settings.offsetYDp != 0) {
-            applyExpandedOffset(TIME, settings.offsetYDp, progress);
-        }
+        SystemUiHooks.refreshNotificationTopPadding();
     }
 
     private static void applyExpansionVisibility() {
@@ -333,12 +391,11 @@ final class NotificationCenterClockController {
             if (HEADER_LISTENERS.containsKey(header)) return;
             HEADER_LISTENERS.put(header, Boolean.TRUE);
         }
-        header.setClipChildren(false);
-        header.setClipToPadding(false);
         header.addOnLayoutChangeListener((view, left, top, right, bottom,
                 oldLeft, oldTop, oldRight, oldBottom) -> {
             if (view instanceof ViewGroup group) {
                 applyIndependentRows(group, TIME.view.get(), DATE.view.get());
+                SystemUiHooks.refreshNotificationTopPadding();
             }
         });
         header.post(() -> applyIndependentRows(header, TIME.view.get(), DATE.view.get()));
@@ -356,7 +413,8 @@ final class NotificationCenterClockController {
     }
 
     private static void applyIndependentRows(ViewGroup header, TextView time, TextView date) {
-        if (header == null || time == null || date == null) return;
+        if (header == null || time == null || date == null
+                || !isWithin(time, header) || !isWithin(date, header)) return;
         NotificationClockConfig settings = config.notificationClock;
         applySettingsShortcut(header, settings.hideSettings);
         if (isLandscape(header)) {
@@ -364,17 +422,21 @@ final class NotificationCenterClockController {
             // stack first, then leave all three clock views in their native single-row
             // presentation so a portrait-sized custom clock cannot clip at the top edge.
             applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, false);
+            restoreClockBounds(header, time, date);
             restoreNativeClockRows(header, time, date);
             return;
         }
         if (!settings.enabled) {
             applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, false);
+            restoreClockBounds(header, time, date);
             restoreNativeClockRows(header, time, date);
             return;
         }
         boolean hadClockStack = CLOCK_STACKS.containsKey(header);
         ViewGroup clockContainer = findClockContainer(header);
         LinearLayout clockStack = ensureSeparateClockRows(header, time, date, clockContainer);
+        applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, settings.enabled);
+        fitClockBounds(header, clockContainer, time);
         ViewGroup timeRow = directChild(time, header);
         ViewGroup dateRow = directChild(date, header);
         ViewGroup alignmentRow = clockContainer != null ? clockContainer : timeRow;
@@ -388,11 +450,205 @@ final class NotificationCenterClockController {
         if (timeRow != null) unclip(timeRow, header);
         if (dateRow != null) unclip(dateRow, header);
 
-        applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, settings.enabled);
+        // Only this notification header instance grows. Shared dimensions and the
+        // separate control-center header stay owned by their existing host contracts.
+    }
 
-        // The notification header is part of the shared shade header. Its outer height is
-        // also consumed while laying out the control-center header, so keep that dimension
-        // native and let the clock/text translations handle the visual adjustment.
+    private static void fitClockBounds(ViewGroup header, ViewGroup container, TextView time) {
+        if (time.getLayoutParams() != null
+                && time.getLayoutParams().height != ViewGroup.LayoutParams.WRAP_CONTENT) {
+            TIME.nativeLayoutHeight = time.getLayoutParams().height;
+            TIME.appliedLayoutHeight = ViewGroup.LayoutParams.WRAP_CONTENT;
+            TIME.heightApplied = true;
+        }
+        setWrapHeight(time);
+        if (container == null || container.getLayoutParams() == null) return;
+        ClockBounds original = CLOCK_BOUNDS.get(container);
+        if (original == null) {
+            original = new ClockBounds(container);
+            CLOCK_BOUNDS.put(container, original);
+        }
+        original.captureNativeChanges(container);
+        setWrapHeight(container);
+        int reserve = 0;
+        View shortcut = findHeaderView(header, "mShortCut", "notification_shade_shortcut");
+        if (shortcut != null && shortcut.getVisibility() == View.VISIBLE
+                && !isWithin(shortcut, container) && !(header instanceof LinearLayout)) {
+            // Reserve the existing target's measured width, never a chosen clock size.
+            reserve = shortcut.getMeasuredWidth();
+            if (reserve <= 0 && shortcut.getLayoutParams() != null)
+                reserve = Math.max(0, shortcut.getLayoutParams().width);
+            if (shortcut.getLayoutParams() instanceof ViewGroup.MarginLayoutParams margins)
+                reserve += Math.max(0, margins.getMarginStart()) + Math.max(0, margins.getMarginEnd());
+        }
+        int below = Math.max(0, (int) Math.ceil(time.getTranslationY()));
+        if (time.getLayoutParams() instanceof ViewGroup.MarginLayoutParams margins) {
+            int marginReserve = Math.max(0, -margins.bottomMargin);
+            if (time.getParent() instanceof LinearLayout row
+                    && row.getOrientation() == LinearLayout.HORIZONTAL
+                    && margins instanceof LinearLayout.LayoutParams params) {
+                int gravity = params.gravity >= 0 ? params.gravity : row.getGravity();
+                if ((gravity & Gravity.VERTICAL_GRAVITY_MASK) == Gravity.CENTER_VERTICAL) {
+                    // CENTER_VERTICAL subtracts bottomMargin again when placing the child.
+                    int marginHeight = margins.topMargin + margins.bottomMargin;
+                    marginReserve = Math.max(marginReserve,
+                            marginHeight / 2 - 2 * margins.bottomMargin);
+                } else if ((gravity & Gravity.VERTICAL_GRAVITY_MASK) == Gravity.BOTTOM
+                        && row.isBaselineAligned()) {
+                    // Baseline descent also contains this TextView's vertical margins.
+                    marginReserve = Math.max(marginReserve,
+                            -margins.topMargin - 2 * margins.bottomMargin);
+                }
+            }
+            below += marginReserve;
+        }
+        if (container.getPaddingStart() != original.start
+                || container.getPaddingEnd() != original.end + reserve
+                || container.getPaddingBottom() != original.bottom + below) {
+            container.setPaddingRelative(original.start, original.top,
+                    original.end + reserve, original.bottom + below);
+        }
+        original.appliedEnd = original.end + reserve;
+        original.appliedBottom = original.bottom + below;
+        fitHeaderHeight(header);
+    }
+
+    private static void fitHeaderHeight(ViewGroup header) {
+        if (header.getLayoutParams() == null
+                || (!(header instanceof LinearLayout)
+                && !(header instanceof android.widget.FrameLayout))) return;
+        HeightState original = HEADER_HEIGHTS.get(header);
+        if (original == null) {
+            original = new HeightState(header);
+            HEADER_HEIGHTS.put(header, original);
+        }
+        original.captureNativeChanges(header);
+        // Measure both native rows before a fixed height can constrain either one.
+        int minimum = Math.max(original.nativeMinimumHeight, Math.max(0, original.nativeHeight));
+        original.appliedMinimumHeight = minimum;
+        if (header.getMinimumHeight() != minimum) header.setMinimumHeight(minimum);
+        int target = original.nativeHeight > 0
+                ? ViewGroup.LayoutParams.WRAP_CONTENT : original.nativeHeight;
+        original.appliedHeight = target;
+        ViewGroup.LayoutParams params = header.getLayoutParams();
+        if (params.height != target) {
+            params.height = target;
+            header.setLayoutParams(params);
+        }
+    }
+
+    private static boolean isWithin(View view, ViewGroup ancestor) {
+        for (View current = view; current != null;
+                current = current.getParent() instanceof View parent ? parent : null) {
+            if (current == ancestor) return true;
+        }
+        return false;
+    }
+
+    static float minimumNotificationTopPadding(View stack, float nativePadding) {
+        TextView clock = TIME.view.get();
+        if (stack == null || clock == null || !config.notificationClock.enabled
+                || landscapeHeader || clock.getVisibility() != View.VISIBLE
+                || clock.getAlpha() * clock.getTransitionAlpha() <= 0.01f
+                || clock.getRootView() != stack.getRootView()
+                || clock.getLayout() == null || clock.getWidth() <= 0) return nativePadding;
+        for (View ancestor = clock; ancestor != null;
+                ancestor = ancestor.getParent() instanceof View parent ? parent : null) {
+            if (ancestor.getVisibility() != View.VISIBLE
+                    || ancestor.getAlpha() * ancestor.getTransitionAlpha() <= 0.01f)
+                return nativePadding;
+        }
+        Layout layout = clock.getLayout();
+        if (layout.getLineCount() == 0) return nativePadding;
+        float bottom = clock.getTotalPaddingTop() - clock.getScrollY()
+                + layout.getLineBottom(layout.getLineCount() - 1);
+        RectF text = new RectF(0, 0, clock.getWidth(), bottom);
+        toRoot(clock).mapRect(text);
+        Matrix inverse = new Matrix();
+        if (!toRoot(stack).invert(inverse)) return nativePadding;
+        inverse.mapRect(text);
+        return Float.isFinite(text.bottom) ? Math.max(nativePadding, text.bottom) : nativePadding;
+    }
+
+    private static Matrix toRoot(View view) {
+        Matrix matrix = new Matrix();
+        View current = view;
+        while (current.getParent() instanceof View parent) {
+            matrix.postConcat(current.getMatrix());
+            matrix.postTranslate(current.getLeft() - parent.getScrollX(),
+                    current.getTop() - parent.getScrollY());
+            current = parent;
+        }
+        return matrix;
+    }
+
+    private static void restoreClockBounds(ViewGroup header, TextView time, TextView date) {
+        if (time != null && time == TIME.view.get() && time.getLayoutParams() != null
+                && TIME.heightApplied) {
+            ViewGroup.LayoutParams params = time.getLayoutParams();
+            TIME.heightApplied = false;
+            if (params.height == TIME.appliedLayoutHeight && params.height != TIME.nativeLayoutHeight) {
+                params.height = TIME.nativeLayoutHeight;
+                time.setLayoutParams(params);
+            }
+        }
+        HeightState height = HEADER_HEIGHTS.remove(header);
+        if (height != null && header.getLayoutParams() != null
+                && header.getLayoutParams().height == height.appliedHeight
+                && header.getLayoutParams().height != height.nativeHeight) {
+            ViewGroup.LayoutParams params = header.getLayoutParams();
+            params.height = height.nativeHeight;
+            header.setLayoutParams(params);
+        }
+        if (height != null && header.getMinimumHeight() == height.appliedMinimumHeight
+                && header.getMinimumHeight() != height.nativeMinimumHeight) {
+            header.setMinimumHeight(height.nativeMinimumHeight);
+        }
+        ViewGroup container = findClockContainer(header);
+        ClockBounds original = container == null ? null : CLOCK_BOUNDS.remove(container);
+        if (original != null) {
+            ViewGroup.LayoutParams params = container.getLayoutParams();
+            if (params != null && params.height == ViewGroup.LayoutParams.WRAP_CONTENT
+                    && params.height != original.height) {
+                params.height = original.height;
+                container.setLayoutParams(params);
+            }
+            container.setPaddingRelative(container.getPaddingStart(), container.getPaddingTop(),
+                    container.getPaddingEnd() == original.appliedEnd ? original.end : container.getPaddingEnd(),
+                    container.getPaddingBottom() == original.appliedBottom
+                            ? original.bottom : container.getPaddingBottom());
+        }
+        restoreClipping(time, header);
+        restoreClipping(date, header);
+    }
+
+    private static void restorePreviousHeader(ViewGroup next) {
+        TextView time = TIME.view.get(), date = DATE.view.get();
+        if (time == null || date == null) return;
+        for (ViewGroup previous : new ArrayList<>(HEADER_LISTENERS.keySet())) {
+            if (previous == next || !isWithin(time, previous)) continue;
+            applyCombinedTextMode(time, HORIZONTAL_TIME.view.get(), date, false);
+            restoreNativeRendering(TIME, time);
+            restoreNativeRendering(DATE, date);
+            TextView horizontal = HORIZONTAL_TIME.view.get();
+            if (horizontal != null && isWithin(horizontal, previous))
+                restoreNativeRendering(HORIZONTAL_TIME, horizontal);
+            restoreClockBounds(previous, time, date);
+            restoreNativeClockRows(previous, time, date);
+        }
+    }
+
+    private static void restoreClipping(View view, ViewGroup stop) {
+        ViewParent parent = view == null ? null : view.getParent();
+        while (parent instanceof ViewGroup group) {
+            ClipState state = CLIPPING.remove(group);
+            if (state != null) {
+                group.setClipChildren(state.children);
+                group.setClipToPadding(state.padding);
+            }
+            if (group == stop) break;
+            parent = group.getParent();
+        }
     }
 
     private static void applyTimeCenter(ClockState state, TextView time, ViewGroup row,
@@ -407,8 +663,9 @@ final class NotificationCenterClockController {
         if (row == null || row.getWidth() <= 0 || time.getWidth() <= 0) return;
         float left = leftWithin(time, row);
         if (Float.isNaN(left)) return;
-        float target = state.nativeTranslationX
-                + (row.getWidth() - time.getWidth()) / 2f - left;
+        float target = state.nativeTranslationX + row.getPaddingLeft()
+                + (row.getWidth() - row.getPaddingLeft() - row.getPaddingRight()
+                        - time.getWidth()) / 2f - left;
         if (Math.abs(time.getTranslationX() - target) > 0.5f) {
             time.setTranslationX(target);
         }
@@ -427,8 +684,9 @@ final class NotificationCenterClockController {
         if (row == null || row.getWidth() <= 0 || date.getWidth() <= 0) return;
         float left = leftWithin(date, row);
         if (Float.isNaN(left)) return;
-        float target = state.nativeTranslationX
-                + (row.getWidth() - date.getWidth()) / 2f - left;
+        float target = state.nativeTranslationX + row.getPaddingLeft()
+                + (row.getWidth() - row.getPaddingLeft() - row.getPaddingRight()
+                        - date.getWidth()) / 2f - left;
         if (Math.abs(date.getTranslationX() - target) > 0.5f) {
             date.setTranslationX(target);
         }
@@ -456,16 +714,19 @@ final class NotificationCenterClockController {
         if (combined) {
             if (!state.textModeApplied) {
                 view.setSingleLine(false);
-                view.setMaxLines(2);
+                view.setMaxLines(Integer.MAX_VALUE);
                 view.setHorizontallyScrolling(false);
+                view.setEllipsize(null);
                 state.textModeApplied = true;
             }
             return;
         }
         if (state.textModeApplied) {
             view.setSingleLine(state.nativeSingleLine);
-            view.setMaxLines(state.nativeMaxLines);
+            if (state.nativeMaxLines >= 0) view.setMaxLines(state.nativeMaxLines);
+            else if (state.nativeMaxHeight >= 0) view.setMaxHeight(state.nativeMaxHeight);
             view.setHorizontallyScrolling(state.nativeHorizontallyScrolling);
+            view.setEllipsize(state.nativeEllipsize);
             state.textModeApplied = false;
         }
     }
@@ -602,6 +863,8 @@ final class NotificationCenterClockController {
     private static void unclip(View view, ViewGroup stop) {
         ViewParent parent = view.getParent();
         while (parent instanceof ViewGroup group) {
+            if (!CLIPPING.containsKey(group))
+                CLIPPING.put(group, new ClipState(group.getClipChildren(), group.getClipToPadding()));
             group.setClipChildren(false);
             group.setClipToPadding(false);
             if (group == stop) break;
@@ -677,8 +940,10 @@ final class NotificationCenterClockController {
             state.renderedDateSizeSp = -1;
             state.renderedTimeCentered = false;
             state.renderedDateCentered = false;
+            state.renderingApplied = false;
             return;
         }
+        state.renderingApplied = true;
         int sizeSp = compactHorizontal ? 0 : settings.sizeSp;
         if (!systemOwnsGeometry && sizeSp > 0) {
             float targetSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
@@ -741,6 +1006,7 @@ final class NotificationCenterClockController {
     }
 
     private static void restoreNativeRendering(ClockState state, TextView clock) {
+        state.renderingApplied = false;
         if (state.nativeText != null && !state.nativeText.contentEquals(clock.getText())) {
             clock.setText(state.nativeText);
         }

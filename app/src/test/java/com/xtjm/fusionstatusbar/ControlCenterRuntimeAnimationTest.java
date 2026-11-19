@@ -1,6 +1,8 @@
 package com.xtjm.fusionstatusbar;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.os.Looper;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -20,6 +22,8 @@ import org.robolectric.Shadows;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.LooperMode;
+import org.robolectric.shadows.ShadowLog;
+import org.robolectric.util.ReflectionHelpers;
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -59,6 +63,9 @@ public class ControlCenterRuntimeAnimationTest {
         grid = new ControlCenterRuntimeGrid.GridView(activity.get(), 4, 8, 24, 0, 4);
         invoke("mount", new Class<?>[] {android.view.ViewGroup.class, ControlCenterRuntimeGrid.GridView.class,
                 ArrayList.class}, host, grid, new ArrayList<>());
+        // Manual layout/draw below bypasses ViewRoot's window visibility traversal.
+        Object attachInfo = ReflectionHelpers.getField(grid, "mAttachInfo");
+        ReflectionHelpers.setField(attachInfo, "mWindowVisibility", View.VISIBLE);
     }
 
     @After public void cleanup() throws Exception {
@@ -113,6 +120,121 @@ public class ControlCenterRuntimeAnimationTest {
 
         assertEquals("The mounted carrier must reserve all rows before the native edit item",
                 grid.renderedHeight(), host.getLayoutParams().height);
+    }
+
+    @Test public void carrierSnapshotsCaptureFirstDrawAndSettleOnceForTheSameGrid() throws Exception {
+        ShadowLog.clear();
+        holder.frame(0.4f, 0.8f, 64f);
+        host.getLayoutParams().height = 64;
+        host.setLayoutParams(host.getLayoutParams());
+        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
+                ControlCenterRuntimeGrid.GridView.class}, host, grid);
+        layoutCarrier();
+        assertEquals(64, host.getHeight());
+        drawGrid();
+        drawGrid();
+        assertEquals(1, carrierSnapshotCount("first_draw"));
+        assertEquals(0, carrierSnapshotCount("settled"));
+
+        holder.frame(1f, 1f, 0f);
+        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
+                ControlCenterRuntimeGrid.GridView.class}, host, grid);
+        assertEquals(grid.renderedHeight(), host.getLayoutParams().height);
+        assertEquals(64, host.getHeight());
+        assertEquals("Pinning requests a later layout", 0, carrierSnapshotCount("settled"));
+        drawGrid();
+        assertEquals("A draw with the old carrier dimensions is still premature",
+                0, carrierSnapshotCount("settled"));
+        layoutCarrier();
+        assertEquals(grid.renderedHeight(), host.getHeight());
+        assertTrue("The test window is shown", grid.isShown());
+        assertEquals(View.VISIBLE, grid.getWindowVisibility());
+        assertTrue("The completed grid is inside the window", grid.getGlobalVisibleRect(new android.graphics.Rect()));
+        View region = (View) grid.getParent();
+        View viewport = (View) region.getParent();
+        assertEquals(grid.renderedHeight(), viewport.getLayoutParams().height);
+        assertEquals(grid.renderedHeight(), viewport.getMeasuredHeight());
+        assertEquals(grid.renderedHeight(), viewport.getHeight());
+        assertEquals(grid.renderedHeight(), region.getMeasuredHeight());
+        assertEquals(grid.renderedHeight(), region.getHeight());
+        assertEquals(grid.contentHeight(), grid.getMeasuredHeight());
+        assertEquals(grid.contentHeight(), grid.getHeight());
+        assertFalse("Carrier layout pending", host.isLayoutRequested());
+        assertFalse("Viewport layout pending", viewport.isLayoutRequested());
+        assertFalse("Region layout pending", region.isLayoutRequested());
+        assertFalse("Grid layout pending", grid.isLayoutRequested());
+        assertEquals("Finishing layout does not establish a draw", 0, carrierSnapshotCount("settled"));
+        drawGrid();
+        drawGrid();
+        assertEquals(1, carrierSnapshotCount("settled"));
+        assertEquals(1, carrierSnapshotCount("first_draw"));
+        assertEquals(0, carrierSnapshotCount("settle_timeout"));
+        assertEquals(1f, host.getAlpha(), 0f);
+    }
+
+    @Test public void clippedCarrierDoesNotCountAsASettledDrawing() throws Exception {
+        ShadowLog.clear();
+        layoutCarrier();
+        assertTrue(grid.getGlobalVisibleRect(new android.graphics.Rect()));
+        host.setTranslationX(100_000f);
+        assertFalse(grid.getGlobalVisibleRect(new android.graphics.Rect()));
+        drawGrid();
+        drawGrid();
+        assertEquals(1, carrierSnapshotCount("first_draw"));
+        assertEquals(0, carrierSnapshotCount("settled"));
+        invoke("unbind", new Class<?>[0]);
+        assertEquals(1, carrierSnapshotCount("settle_unobserved"));
+    }
+
+    @Test public void transparentAncestorDefersSettledSnapshotUntilTheGridIsShown() throws Exception {
+        ShadowLog.clear();
+        layoutCarrier();
+        View ancestor = (View) host.getParent();
+        ancestor.setAlpha(0f);
+        assertTrue(grid.isShown());
+        assertTrue(grid.getGlobalVisibleRect(new android.graphics.Rect()));
+        drawGrid();
+        drawGrid();
+        assertEquals(0, carrierSnapshotCount("settled"));
+        ancestor.setAlpha(1f);
+        drawGrid();
+        assertEquals(1, carrierSnapshotCount("settled"));
+    }
+
+    @Test public void carrierTimeoutDoesNotRescheduleOrChangeNativeTransform() throws Exception {
+        holder.frame(0.4f, 0.8f, 64f);
+        invoke("enforceOuterHeight", new Class<?>[] {android.view.ViewGroup.class,
+                ControlCenterRuntimeGrid.GridView.class}, host, grid);
+        layoutCarrier();
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3_500));
+        assertEquals(1, carrierSnapshotCount("settle_timeout"));
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3_500));
+        assertEquals(1, carrierSnapshotCount("settle_timeout"));
+        assertEquals(0.4f, host.getAlpha(), 0f);
+        assertEquals(0.8f, host.getScaleX(), 0f);
+        assertEquals(64f, host.getTranslationY(), 0f);
+    }
+
+    private void layoutCarrier() {
+        View decor = activity.get().getWindow().getDecorView();
+        decor.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY));
+        decor.layout(0, 0, 400, 800);
+    }
+
+    private void drawGrid() {
+        Bitmap image = Bitmap.createBitmap(400, 800, Bitmap.Config.ARGB_8888);
+        try { grid.draw(new Canvas(image)); }
+        finally { image.recycle(); }
+    }
+
+    private long carrierSnapshotCount(String stage) {
+        String identity = "gridId=" + Integer.toHexString(System.identityHashCode(grid));
+        return ShadowLog.getLogsForTag("FusionStatusBar").stream()
+                .filter(log -> log.msg.contains("runtime grid carrier snapshot stage=" + stage + " ")
+                        && log.msg.contains(identity) && log.msg.contains("viewportVisibleRect=")
+                        && log.msg.contains("carrierVisibleRect=") && log.msg.contains("gridVisibleRect="))
+                .count();
     }
 
     @Test public void collapseFramesDoNotFightNativeHeightUpdates() throws Exception {

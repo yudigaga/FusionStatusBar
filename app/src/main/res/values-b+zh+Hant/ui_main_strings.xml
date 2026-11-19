@@ -180,4 +180,6 @@
     <string name="ui_main_fbab901503" formatted="false">"直接允許應用程式間啟動；需在 LSPosed 勾選系統（system / system_server）並重新啟動手機"</string>
     <string name="ui_main_fd69741299" formatted="false">"狀態列時間、農曆、星期和天氣"</string>
     <string name="ui_main_fed31d5ca1" formatted="false">"實際版面參考  "</string>
+    <string name="ui_main_icon_visibility_customization">自訂圖示顯示</string>
+    <string name="ui_main_icon_visibility_customization_summary">分別設定系統狀態與互聯裝置</string>
 </resources>

@@ -26,7 +26,7 @@ public class ControlCenterGlassBorderInteractionTest {
 
     @After public void clear() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void sameRuntimeGlassAndBorderConfigurationRendersIdenticallyInEitherCreationOrder() {
+    @Test public void sameRuntimeManualGlassAndBorderRendersIdenticallyInEitherCreationOrder() {
         QSCardItemView glassFirst = card(context(false));
         QSCardItemView borderFirst = card(context(false));
         ControlCenterConfig both = settings(true, 4);
@@ -56,7 +56,7 @@ public class ControlCenterGlassBorderInteractionTest {
         } finally { first.recycle(); second.recycle(); }
     }
 
-    @Test public void nativeMaterialKeepsDirectionalReflectionAndRestoresGlassWhenBorderIsRemoved() {
+    @Test public void manualMaterialKeepsDirectionalReflectionAndRestoresGlassWhenBorderIsRemoved() {
         for (boolean night : new boolean[] {false, true}) {
             for (int width = 1; width <= 4; width++) {
                 QSCardItemView card = card(context(night));
@@ -90,7 +90,7 @@ public class ControlCenterGlassBorderInteractionTest {
         }
     }
 
-    @Test public void applyingGlassAfterBorderAndChangingThemeKeepAVisibleNonuniformRim() {
+    @Test public void applyingManualGlassAfterBorderKeepsAVisibleRimAcrossThemes() {
         QSCardItemView card = card(context(false));
         ControlCenterConfig borderOnly = settings(true, 4).withSurface(ControlCenterSurface.DEFAULT);
         ControlCenterMaterials.registerRoot(card, borderOnly);
@@ -103,7 +103,7 @@ public class ControlCenterGlassBorderInteractionTest {
             Bitmap night = draw(card);
             try {
                 assertTrue("Night glass retains a directional reflection", edgeRange(night) > 4);
-                assertFalse("System theme changes must still update the consuming material", day.sameAs(night));
+                assertTrue("Manual SOFT_GLASS retains its chosen profile across system themes", day.sameAs(night));
                 assertEquals(Color.BLUE, night.getPixel(80, 50));
             } finally { night.recycle(); }
             setNight(card, false);
@@ -141,7 +141,7 @@ public class ControlCenterGlassBorderInteractionTest {
     }
 
     private static ControlCenterConfig settings(boolean border, int width) {
-        return ControlCenterConfig.defaults().withEnabled(true).withSurface(ControlCenterSurface.HIGHLIGHT_GLASS)
+        return ControlCenterConfig.defaults().withEnabled(true).withSurface(ControlCenterSurface.SOFT_GLASS)
                 .withGlobalBorder(border, width).withBlur(100, 100, 100);
     }
 

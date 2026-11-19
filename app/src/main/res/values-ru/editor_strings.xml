@@ -8,6 +8,7 @@
     <string name="editor_saved_waiting">Сохранено, ожидается применение в SystemUI</string>
     <string name="editor_applied">SystemUI применил текущую версию</string>
     <string name="editor_degraded">Сохранено, часть функций SystemUI работает в ограниченном режиме</string>
+    <string name="editor_glass_compatibility">Глянцевое стекло в режиме совместимости. Нативное размытие не подтверждено.</string>
     <string name="editor_waiting_mount">Сохранено, будет применено после открытия центра управления</string>
     <string name="editor_draft_restored">Неотправленный черновик восстановлен</string>
     <string name="editor_restore_draft">Восстановить последний черновик</string>

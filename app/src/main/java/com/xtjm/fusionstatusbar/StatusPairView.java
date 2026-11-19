@@ -17,6 +17,30 @@ final class StatusPairView extends LinearLayout {
     private String lastText = "";
     private int tint = Color.WHITE;
     private int preferredWidth;
+    private int preferredLeftMargin;
+    private int preferredRightMargin;
+    private boolean layingOutLiveTextLocally;
+
+    @Override public void requestLayout() {
+        if (layingOutLiveTextLocally) {
+            forceLayout();
+        } else {
+            super.requestLayout();
+        }
+    }
+
+    @Override public void setLayoutParams(android.view.ViewGroup.LayoutParams params) {
+        // Configuration owns preferred spacing; measurement only owns its temporary budget.
+        if (params instanceof android.view.ViewGroup.MarginLayoutParams margins) {
+            preferredLeftMargin = margins.leftMargin;
+            preferredRightMargin = margins.rightMargin;
+        }
+        super.setLayoutParams(params);
+    }
+
+    int preferredLeftMargin() { return preferredLeftMargin; }
+    int preferredRightMargin() { return preferredRightMargin; }
+
 
     StatusPairView(Context context) {
         super(context);
@@ -49,14 +73,26 @@ final class StatusPairView extends LinearLayout {
         if (value.equals(lastText)) return;
         lastText = value;
         int divider = value.indexOf('\n');
-        first.setText(divider < 0 ? value : value.substring(0, divider));
+        String firstLine = divider < 0 ? value : value.substring(0, divider);
+        if (!TextUtils.equals(firstLine, first.getText())) first.setText(firstLine);
         if (divider < 0) {
             if (second.getVisibility() != GONE) second.setVisibility(GONE);
         } else {
-            second.setText(value.substring(divider + 1));
+            String secondLine = value.substring(divider + 1);
+            if (!TextUtils.equals(secondLine, second.getText())) second.setText(secondLine);
             if (second.getVisibility() != VISIBLE) second.setVisibility(VISIBLE);
         }
         setContentDescription(value.replace('\n', ' '));
+    }
+
+    void setLinesForLocalLayout(String text) {
+        // A zero-width TextView requests layout even when its host slot has fixed bounds.
+        layingOutLiveTextLocally = true;
+        try {
+            setLines(text);
+        } finally {
+            layingOutLiveTextLocally = false;
+        }
     }
 
     void setTint(int color) {
@@ -102,10 +138,14 @@ final class StatusPairView extends LinearLayout {
     }
 
     void setPreferredWidth(int width) {
+        if (updatePreferredWidth(width)) requestLayout();
+    }
+
+    boolean updatePreferredWidth(int width) {
         int value = Math.max(0, width);
-        if (preferredWidth == value) return;
+        if (preferredWidth == value) return false;
         preferredWidth = value;
-        requestLayout();
+        return true;
     }
 
     int preferredWidth() {

@@ -33,7 +33,7 @@ final class ControlCenterMaterialSession {
             if (nativeBackground != null) nativeBackground.setCallback(componentBackground);
         }
         componentBackground.configure(item.shape, item.cornerRadius, false,
-                config.resolveSurface(view.getContext()), true, false, config.cardBlur);
+                config, true, false, config.cardBlur);
     }
 
     void applyCardBackground(ControlCenterLayoutPlan.Item item) {
@@ -87,12 +87,21 @@ final class ControlCenterMaterialSession {
         view.invalidateOutline();
     }
 
-    void restoreComponentBackground() {
+    void restoreComponentBackground(ControlCenterConfig config) {
         View view = owner();
         ControlCenterMaterials.TileSurfaceDrawable current = componentBackground;
         if (current != null) {
-            if (view != null && view.getBackground() == current) view.setBackground(current.nativeDrawable());
-            else current.restoreNativeCallback();
+            if (view != null && view.getBackground() == current) {
+                Drawable original = current.nativeDrawable();
+                view.setBackground(original);
+                componentBackground = null;
+                if (original != null && view.getBackground() == original) {
+                    String role = view.getClass().getSimpleName().equals("MediaPlayerPanel") ? "media" : "device_center";
+                    ControlCenterMaterials.traceRestoredDrawable(role, view,
+                            config == null ? 0 : config.cardBlur);
+                }
+                return;
+            } else current.restoreNativeCallback();
         }
         componentBackground = null;
     }
@@ -121,14 +130,14 @@ final class ControlCenterMaterialSession {
         View view = owner();
         ControlCenterMaterials.TileSurfaceDrawable current = componentBackground;
         if (view == null || current == null) return;
-        if (ControlCenterMaterials.surface(config, ControlCenterNativeMode.isEditing(view))
+        if (ControlCenterMaterials.surface(config, ControlCenterMaterials.Layer.CARD, ControlCenterNativeMode.isEditing(view))
                 == ControlCenterSurface.DEFAULT) {
-            restoreComponentBackground();
-        } else current.refresh(config.resolveSurface(view.getContext()));
+            restoreComponentBackground(config);
+        } else current.refresh(config);
     }
 
     void release() {
-        restoreComponentBackground();
+        restoreComponentBackground(null);
         restoreCardBackground();
         restoreShapeClip();
     }

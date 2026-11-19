@@ -132,6 +132,7 @@ public class FusionIconView extends View {
     }
 
     void setDisplayConfig(FusionConfig config) {
+        if (displayConfig == config) return;
         displayConfig = config == null ? FusionConfig.defaults() : config;
         contentLayout = FusionIconGeometry.contentLayout(
                 displayConfig.fusionContent, displayConfig.strokeScale, showWifi);

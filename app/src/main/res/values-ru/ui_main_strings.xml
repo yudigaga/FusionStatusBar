@@ -180,4 +180,6 @@
     <string name="ui_main_fbab901503" formatted="false">"Разрешать запуск приложений друг из друга без запроса. Включите «Система» (system / system_server) в LSPosed и перезагрузите телефон"</string>
     <string name="ui_main_fd69741299" formatted="false">"Время, китайский лунный календарь, день недели и погода в строке состояния"</string>
     <string name="ui_main_fed31d5ca1" formatted="false">"Образец текущего расположения  "</string>
+    <string name="ui_main_icon_visibility_customization">Настройка значков</string>
+    <string name="ui_main_icon_visibility_customization_summary">Настройте системные статусы и подключённые устройства</string>
 </resources>

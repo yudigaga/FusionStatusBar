@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 2,
+  "versionName": "0.5.34",
+  "versionCode": 248,
+  "packageName": "io.github.yudigaga.fusionstatusbar",
+  "namespace": "com.xtjm.fusionstatusbar",
+  "buildMode": "local_snapshot_signed",
+  "sourceCommit": null,
+  "sourceRef": null,
+  "sourceTags": [],
+  "sourceDirty": null,
+  "sourceDirectory": "fusion-feedback-20261118-05",
+  "sourceArchiveSha256": "57e4c2c6db5fdc321390c01a088b30a65580a893f4f07507a053f9ad0e24e15a",
+  "sourceIndexSha256": "b4e671082cc8eb32969d0cf36bc23578dacd6e62e8386c596d7faed77ec7eb30",
+  "sourcePatchSha256": null,
+  "sourceSnapshot": "source.zip",
+  "variants": {
+    "release": {
+      "apk": "fusion-statusbar-v0.5.34-release.apk",
+      "apkSha256": "937fda3d49a5973d2a5bafd3c6920194aa362f91a4c61a761a620cff748f86ae",
+      "apkSize": 3954605,
+      "debuggable": false,
+      "signing": "official",
+      "signingCertificateSha256": "ccfaf42f8f14bb36973aeb971572fcc956a256196f68ff088340dfa7eca96fe2",
+      "zipAlignment": "passed",
+      "tests": {
+        "status": "not_rerun",
+        "priorVersion": "0.5.33",
+        "priorEvidence": "validation-v0.5.33.json"
+      },
+      "lint": {
+        "scope": "lintVitalRelease",
+        "result": "passed",
+        "report": "lint-vital-release.txt",
+        "fullLint": "not_run"
+      },
+      "minified": true,
+      "engine": "R8",
+      "r8Version": "8.13.19",
+      "mappingId": "367faca61624c7339f2ca4891094c20b022896b25fe7a976d25809a291765be0",
+      "mappingPath": "mapping/release/mapping.txt",
+      "mappingSha256": "9dce7d0de7af2dce0da1c07b42393cd62ba407d1d8c5b7a53fd089621a2c965f",
+      "r8Artifacts": {
+        "mapping": {
+          "path": "mapping/release/mapping.txt",
+          "sha256": "9dce7d0de7af2dce0da1c07b42393cd62ba407d1d8c5b7a53fd089621a2c965f",
+          "size": 34172684
+        },
+        "configuration": {
+          "path": "mapping/release/configuration.txt",
+          "sha256": "745f462aa3e0ea0ad9cc6c4ea198692c4de9b08a4ca8f074f65218edacbdeb6a",
+          "size": 49369
+        },
+        "seeds": {
+          "path": "mapping/release/seeds.txt",
+          "sha256": "6cb2956fab7435216d7266d355deee0cfcb6e84f9d41a324fb08d6104584eb27",
+          "size": 88972
+        },
+        "usage": {
+          "path": "mapping/release/usage.txt",
+          "sha256": "fe6b4b61730d416f39cf5eab04665810ee2f16dcee64a027739f954a6d532c7d",
+          "size": 3236835
+        }
+      },
+      "xposedEntryPoints": [
+        "com.xtjm.fusionstatusbar.FusionModule"
+      ]
+    }
+  },
+  "toolchain": {
+    "jdk": "openjdk 21.0.12.1 2026-08-18 LTS",
+    "gradle": "8.13",
+    "agp": "8.13.2",
+    "compileSdk": 36,
+    "targetSdk": 35,
+    "buildTools": "36.0.0",
+    "dependencyLocks": [
+      {
+        "path": "app/gradle.lockfile",
+        "sha256": "f6ef1537703be449923ac0eb16d007569ffcfb714bbe31cac052c53bfb61a73a"
+      }
+    ]
+  },
+  "createdUtc": "2026-11-19T14:34:30.9821065Z",
+  "validationInput": "assemble_release_run",
+  "buildLog": "assemble-release-0.5.34.log",
+  "installation": "not_performed",
+  "systemUiInjection": "not_performed",
+  "romValidation": "not_performed",
+  "publication": "local_only"
+}

@@ -2,6 +2,7 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import java.util.Arrays;
 
 /** Immutable settings for three two-line status-bar readouts. */
 final class TelemetryConfig {
@@ -90,6 +91,24 @@ final class TelemetryConfig {
     static TelemetryConfig defaults() {
         return new TelemetryConfig(new boolean[COUNT], new int[] {1, 3, 2},
                 true, false, false, 10);
+    }
+
+    boolean sameAs(TelemetryConfig other) {
+        return this == other || other != null
+                && dualSpeed == other.dualSpeed
+                && currentInMilliamps == other.currentInMilliamps
+                && currentPositive == other.currentPositive
+                && textSizeSp == other.textSizeSp
+                && Arrays.equals(enabled, other.enabled)
+                && Arrays.equals(positions, other.positions)
+                && Arrays.equals(groupTextSizeSp, other.groupTextSizeSp)
+                && Arrays.equals(alignment, other.alignment)
+                && Arrays.equals(fixedWidthDp, other.fixedWidthDp)
+                && Arrays.equals(leftMarginDp, other.leftMarginDp)
+                && Arrays.equals(rightMarginDp, other.rightMarginDp)
+                && Arrays.equals(verticalOffsetDp, other.verticalOffsetDp)
+                && Arrays.equals(bold, other.bold)
+                && Arrays.equals(lineSpacingDp, other.lineSpacingDp);
     }
 
     boolean enabled(int group) {

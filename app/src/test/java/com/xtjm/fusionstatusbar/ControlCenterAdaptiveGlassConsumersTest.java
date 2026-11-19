@@ -45,7 +45,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
                 ControlCenterSurface.SOFT_GLASS.color, surfaceColor(dark));
     }
 
-    @Test public void runtimeGridRefreshesExistingComponentColorWhenTheThemeChanges() {
+    @Test public void runtimeGridRetainsOemComponentColorAcrossAutomaticThemeChanges() {
         Context context = context(false);
         ControlCenterRuntimeGrid.GridView grid = new ControlCenterRuntimeGrid.GridView(context, 4, 8, 12, 0, 2);
         MediaPlayerPanel panel = new MediaPlayerPanel(context);
@@ -57,13 +57,16 @@ public class ControlCenterAdaptiveGlassConsumersTest {
                 0, 0, 2, 2), -1);
         grid.applyMaterials(adaptive());
         render(grid, 400, 240).recycle();
-        assertCenter(panel, ControlCenterSurface.HIGHLIGHT_GLASS.color);
+        assertSame(background, panel.getBackground());
+        assertCenter(panel, Color.GRAY);
         changeTheme(grid, true);
         render(grid, 400, 240).recycle();
-        assertCenter(panel, ControlCenterSurface.SOFT_GLASS.color);
+        assertSame(background, panel.getBackground());
+        assertCenter(panel, Color.GRAY);
         changeTheme(grid, false);
         render(grid, 400, 240).recycle();
-        assertCenter(panel, ControlCenterSurface.HIGHLIGHT_GLASS.color);
+        assertSame(background, panel.getBackground());
+        assertCenter(panel, Color.GRAY);
         grid.releaseMaterials();
     }
 
@@ -95,7 +98,8 @@ public class ControlCenterAdaptiveGlassConsumersTest {
         } finally { SystemSurfaceStyle.restore(surface); }
     }
 
-    @Test public void systemSurfacesRefreshContentAndTintOnTheNextFrameAndRestoreOriginals() {
+    // Generic menu content retains its existing tint contract. Notifications never call applyContent.
+    @Test public void menuSurfacesRefreshContentAndTintOnTheNextFrameAndRestoreOriginals() {
         Context context = context(false);
         FrameLayout root = new FrameLayout(context);
         Drawable original = new android.graphics.drawable.ColorDrawable(Color.RED);

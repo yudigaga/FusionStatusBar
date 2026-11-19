@@ -23,7 +23,7 @@ import static org.junit.Assert.*;
 public class ControlCenterFallbackOpacityRegressionTest {
     @After public void clear() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void nativeTileWithoutImageViewDoesNotInventOpaqueFillAtZeroStrength() {
+    @Test public void nativeTileWithoutImageViewKeepsZeroAndManualOpacityWithoutInventingAnUnknownAutomaticBody() {
         Context context = RuntimeEnvironment.getApplication();
         for (ControlCenterSurface style : ControlCenterSurface.values()) {
             QSTileItemView tile = new QSTileItemView(context);
@@ -36,11 +36,41 @@ public class ControlCenterFallbackOpacityRegressionTest {
                     ControlCenterConfig changed = settings(strength).withSurface(style);
                     ControlCenterMaterials.refresh(changed);
                     grid.updateDecorations(changed);
-                    assertPixels(grid, tile, style == ControlCenterSurface.CLEAR
+                    assertPixels(grid, tile, style == ControlCenterSurface.CLEAR || style == ControlCenterSurface.HIGHLIGHT_GLASS
                             ? 0 : Math.round(255f * strength / 100));
                 }
             } finally { grid.releaseMaterials(); }
         }
+    }
+
+    @Test public void unknownAutomaticNoImageTileRestoresLatestOemRequestsWithoutInventingCanvasFill() throws Exception {
+        Context context = RuntimeEnvironment.getApplication();
+        QSTileItemView tile = new QSTileItemView(context);
+        Drawable original = tile.getBackground();
+        ControlCenterConfig nativeStyle = ControlCenterConfig.defaults().withEnabled(true);
+        record(tile, "setMiViewBlurMode", 1, nativeStyle);
+        record(tile, "setMiBackgroundBlurMode", 2, nativeStyle);
+        record(tile, "setMiBackgroundBlurRadius", 180, nativeStyle);
+        ControlCenterRuntimeGrid.GridView grid = grid(context, tile);
+        ControlCenterConfig zero = settings(0).withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
+        try {
+            grid.applyMaterials(zero); layout(grid); assertPixels(grid, tile, 0);
+            assertEquals(0, tile.viewMode); assertEquals(0, tile.backgroundMode); assertEquals(0, tile.radius);
+            record(tile, "setMiViewBlurMode", 2, zero);
+            record(tile, "setMiBackgroundBlurMode", 3, zero);
+            record(tile, "setMiBackgroundBlurRadius", 240, zero);
+            for (int strength : new int[] {40, 100}) {
+                ControlCenterConfig changed = settings(strength).withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
+                ControlCenterMaterials.refresh(changed); grid.updateDecorations(changed); assertPixels(grid, tile, 0);
+                assertSame("UNKNOWN returns ownership to the original transparent host background", original, tile.getBackground());
+                assertEquals("The latest OEM view-mode request replays independently of Canvas pixels", 2, tile.viewMode);
+                assertEquals(3, tile.backgroundMode); assertEquals(240, tile.radius);
+            }
+            ControlCenterConfig disabled = zero.withEnabled(false);
+            ControlCenterMaterials.refresh(disabled); grid.updateDecorations(disabled); assertPixels(grid, tile, 0);
+            assertSame(original, tile.getBackground());
+            assertEquals(2, tile.viewMode); assertEquals(3, tile.backgroundMode); assertEquals(240, tile.radius);
+        } finally { grid.releaseMaterials(); }
     }
 
     @Test public void retainedCustomFallbackTracksMaterialOnlyChangesAndRestoresPositiveStrength() {
@@ -85,6 +115,11 @@ public class ControlCenterFallbackOpacityRegressionTest {
     private static ControlCenterConfig settings(int strength) {
         return ControlCenterConfig.defaults().withEnabled(true)
                 .withSurface(ControlCenterSurface.LIGHT).withBlur(0, strength, strength);
+    }
+
+    private static void record(View owner, String operation, int requested, ControlCenterConfig config) throws Exception {
+        Object[] arguments = ControlCenterMaterials.nativeArguments(owner, operation, new Object[] {requested}, config, false);
+        ControlCenterMaterials.invoke(owner, operation, arguments);
     }
 
     private static ControlCenterRuntimeGrid.GridView grid(Context context, View tile) {
@@ -132,7 +167,13 @@ public class ControlCenterFallbackOpacityRegressionTest {
     }
 
     public static final class QSTileItemView extends CustomTileView {
+        int viewMode, backgroundMode, radius;
         QSTileItemView(Context context) { super(context); }
+        public int getMiBackgroundBlurMode() { return backgroundMode; }
+        public int getMiBackgroundBlurRadius() { return radius; }
+        public void setMiViewBlurMode(int value) { viewMode = value; }
+        public void setMiBackgroundBlurMode(int value) { backgroundMode = value; }
+        public void setMiBackgroundBlurRadius(int value) { radius = value; }
     }
 
     private static final class Invalidations implements Drawable.Callback {

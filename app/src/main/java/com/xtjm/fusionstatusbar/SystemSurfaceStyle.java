@@ -40,24 +40,49 @@ final class SystemSurfaceStyle {
     }
 
     static void apply(View view, ControlCenterConfig config, boolean enabled, boolean track) {
+        apply(view, config, enabled, track, false);
+    }
+
+    static void applyNotification(View view, ControlCenterConfig config, boolean enabled) {
+        apply(view, config, enabled, false, true);
+    }
+
+    private static void apply(View view, ControlCenterConfig config, boolean enabled,
+            boolean track, boolean notification) {
         if (view == null) return;
         if (!enabled) { restore(view); return; }
         State state = SURFACES.get(view);
         if (state == null) {
-            state = new State(view);
+            state = new State(view, notification);
             SURFACES.put(view, state);
-        } else if (!ownsBackground(view.getBackground(), state.material.get())) {
-            state.background = view.getBackground();
+        } else {
+            state.notification = notification;
+            if (!ownsBackground(view.getBackground(), state.material.get())) captureHostBackground(view, state);
         }
+        long revision = ++state.revision;
         state.config = config;
         state.track = track;
+        state.notification = notification;
+        if (notification && !ownsBackground(view.getBackground(), state.material.get())
+                && HostDrawableGraph.inspect(view.getBackground()) == HostDrawableGraph.Result.UNKNOWN) {
+            // Decline ownership without erasing an external host container we cannot enumerate.
+            restore(view);
+            return;
+        }
+        Drawable original = originalBackground(view, state);
+        if (notification && original == null && (!state.hostBackgroundKnown || notificationFallback(state))) {
+            // Unknown custom drawing needs the host's onDraw, not an invented gray fill.
+            restore(view);
+            return;
+        }
         SurfaceDrawable drawable = state.drawable();
-        drawable.configure(state.background == null ? nativeBackground(view) : state.background,
-                config, strength(state), view);
+        drawable.configure(original, config, strength(state), view, notificationFallback(state),
+                state.nativeBackgroundSource, notification);
         if (!ownsBackground(view.getBackground(), drawable)) {
             int left = view.getPaddingLeft(), top = view.getPaddingTop();
             int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
             view.setBackground(drawable);
+            if (SURFACES.get(view) != state || state.revision != revision) return;
             view.setPadding(left, top, right, bottom);
         }
         // This background is also wrapped by NotificationSurfaceHooks. Keep its
@@ -65,6 +90,7 @@ final class SystemSurfaceStyle {
         ControlCenterSoftGlass.apply(view, false, 0);
         if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) watchTheme(view);
         else releaseTheme(view);
+        if (SURFACES.get(view) != state || state.revision != revision) return;
         updateNative(view, state);
         view.invalidate();
     }
@@ -74,6 +100,11 @@ final class SystemSurfaceStyle {
     }
 
     static boolean isApplied(View view) { return SURFACES.containsKey(view); }
+
+    static boolean drawsNotificationBackground(View view) {
+        State state = SURFACES.get(view);
+        return state != null && (!notificationFallback(state) || originalBackground(view, state) != null);
+    }
 
     static boolean usesNativeBackground(Drawable drawable) {
         return drawable instanceof SurfaceDrawable surface && surface.nativeContent();
@@ -88,19 +119,43 @@ final class SystemSurfaceStyle {
                         && bounded.content == material);
     }
 
+    private static void captureHostBackground(View view, State state) {
+        Drawable background = view.getBackground();
+        if (!usableHostBackground(background, state.notification)) return;
+        state.background = background;
+        state.hostBackgroundKnown = true;
+        state.nativeBackgroundSource = background == null || background == nativeBackground(view);
+    }
+
+    private static boolean usableHostBackground(Drawable drawable, boolean notification) {
+        HostDrawableGraph.Result result = HostDrawableGraph.inspect(drawable);
+        return result == HostDrawableGraph.Result.SAFE
+                || !notification && result == HostDrawableGraph.Result.UNKNOWN;
+    }
+
     static void restore(View view) {
         if (view == null) return;
         State state = SURFACES.remove(view);
         if (state == null) return;
+        Drawable external = view.getBackground();
+        boolean preserveExternal = state.notification && !ownsBackground(external, state.material.get())
+                && HostDrawableGraph.inspect(external) == HostDrawableGraph.Result.UNKNOWN;
+        if (!ownsBackground(view.getBackground(), state.material.get())) {
+            captureHostBackground(view, state);
+        }
         ControlCenterSoftGlass.apply(view, false, 0);
         releaseTheme(view);
         int left = view.getPaddingLeft(), top = view.getPaddingTop();
         int right = view.getPaddingRight(), bottom = view.getPaddingBottom();
-        view.setBackground(state.background);
+        Drawable original = originalBackground(view, state);
+        view.setBackground(preserveExternal ? external : state.background == null ? null : original);
+        if (SURFACES.containsKey(view)) return;
         view.setPadding(left, top, right, bottom);
         guarded(() -> {
-            for (Map.Entry<String, Object[]> entry : state.nativeRequests.entrySet())
+            for (Map.Entry<String, Object[]> entry : state.nativeRequests.entrySet()) {
+                if (SURFACES.containsKey(view)) break;
                 invoke(view, entry.getKey(), entry.getValue());
+            }
         });
         view.invalidate();
     }
@@ -170,41 +225,51 @@ final class SystemSurfaceStyle {
         if (window == null) return;
         WindowState state = WINDOWS.get(window);
         if (!enabled) {
-            if (state != null) {
-                WindowManager.LayoutParams attributes = window.getAttributes();
-                attributes.setBlurBehindRadius(state.radius);
-                attributes.flags = (attributes.flags & ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                        | state.blurFlag;
-                window.setAttributes(attributes);
-                WindowState original = state;
-                if (original.backgroundRadius != null) guarded(() -> window.setBackgroundBlurRadius(original.backgroundRadius));
-                WINDOWS.remove(window);
+            if (state != null && state.active) {
+                state.active = false;
+                if (state.observer != null) state.observer.close();
+                try { state.write(window, false); }
+                finally {
+                    if (WINDOWS.get(window) == state) WINDOWS.remove(window);
+                }
             }
             return;
         }
-        if (state == null) {
-            WindowManager.LayoutParams attributes = window.getAttributes();
-            state = new WindowState(attributes.getBlurBehindRadius(),
-                    attributes.flags & WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+        if (state == null || !state.active) {
+            state = new WindowState(window, state);
             WINDOWS.put(window, state);
         }
-        WindowManager.LayoutParams attributes = window.getAttributes();
         state.amount = config.backgroundBlur;
-        int radius = Math.round(state.radius * config.backgroundBlur / 100f);
-        attributes.setBlurBehindRadius(radius);
-        if (radius == 0) attributes.flags &= ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
-        else attributes.flags |= state.blurFlag;
-        window.setAttributes(attributes);
-        WindowState current = state;
-        if (current.backgroundRadius != null) guarded(() -> window.setBackgroundBlurRadius(
-                Math.round(current.backgroundRadius * config.backgroundBlur / 100f)));
+        state.surface = config.surface;
+        if (state.observer == null && !state.observing) state.observe(window.getDecorView());
+        state.write(window, true);
     }
 
     static int windowRadius(Window window, int requested) {
         WindowState state = WINDOWS.get(window);
-        if (state == null || APPLYING.get()) return requested;
+        if (state == null || !state.active || APPLYING.get()) return requested;
         state.backgroundRadius = requested;
-        return Math.round(requested * state.amount / 100f);
+        return state.scaled(requested);
+    }
+
+    /** Capture host requests before transforming a copy; internal writes must never become raw. */
+    static WindowManager.LayoutParams windowAttributes(Window window, WindowManager.LayoutParams requested) {
+        WindowState state = WINDOWS.get(window);
+        if (state == null || !state.active || requested == null || APPLYING.get()) return requested;
+        int requestedRadius = requested.getBlurBehindRadius();
+        int requestedFlag = requested.flags & WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+        // Hosts also round-trip current attributes when changing unrelated fields.
+        if (requestedRadius != state.lastAppliedRadius) state.radius = requestedRadius;
+        if (requestedFlag != state.lastAppliedFlag) state.blurFlag = requestedFlag;
+        return state.attributes(requested, true);
+    }
+
+    static void windowFlags(Window window, int flags, int mask) {
+        WindowState state = WINDOWS.get(window);
+        if (state == null || !state.active || APPLYING.get()
+                || (mask & WindowManager.LayoutParams.FLAG_BLUR_BEHIND) == 0) return;
+        state.blurFlag = flags & WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+        state.lastAppliedFlag = state.blurFlag;
     }
 
     /** Invoked by the existing OEM View effect hooks, before the platform receives the request. */
@@ -223,11 +288,14 @@ final class SystemSurfaceStyle {
         }
         State state = SURFACES.get(view);
         if (state == null) return arguments;
+        if (operation.equals("setMiBackgroundBlurRadius") || operation.equals("setMiBackgroundBlurMode")
+                || operation.equals("setMiViewBlurMode")) state.oemRequestObserved = true;
         state.nativeRequests.put(operation, copy(arguments));
         return transform(state, operation, arguments);
     }
 
     private static Object[] transform(State state, String operation, Object[] arguments) {
+        if (notificationFallback(state)) return arguments;
         int amount = strength(state);
         boolean custom = state.config.surface != ControlCenterSurface.DEFAULT;
         if (state.config.surface == ControlCenterSurface.CLEAR) amount = 0;
@@ -247,13 +315,42 @@ final class SystemSurfaceStyle {
 
     private static void updateNative(View view, State state) {
         guarded(() -> {
-            for (Map.Entry<String, Object[]> entry : state.nativeRequests.entrySet())
+            for (Map.Entry<String, Object[]> entry : state.nativeRequests.entrySet()) {
+                if (SURFACES.get(view) != state) break;
                 invoke(view, entry.getKey(), transform(state, entry.getKey(), entry.getValue()));
+            }
         });
     }
 
     private static int strength(State state) {
         return state.track ? state.config.tileBlur : state.config.cardBlur;
+    }
+
+    private static boolean notificationFallback(State state) {
+        // OEM setters/getters do not establish compositor availability. Public window blur
+        // capability cannot establish it either. Keep the native baseline while unknown.
+        // Automatic notification glass keeps the host's readable body even at configured zero.
+        return state.notification && state.config.surface == ControlCenterSurface.HIGHLIGHT_GLASS;
+    }
+
+    static String notificationBlurStatus(View view) {
+        State state = SURFACES.get(view);
+        return "oem_private_hooks_" + (state != null && state.oemRequestObserved ? "observed" : "unknown")
+                + "_request_" + (state != null && state.oemRequestObserved ? "observed" : "unknown")
+                + "_availability_unknown_native_fallback";
+    }
+
+    private static Drawable originalBackground(View view, State state) {
+        if (!usableHostBackground(state.background, state.notification)) {
+            state.background = null;
+            state.hostBackgroundKnown = false;
+            state.nativeBackgroundSource = true;
+        }
+        Drawable nativeDrawable = nativeBackground(view);
+        if (state.notification && state.nativeBackgroundSource)
+            return HostDrawableGraph.isSafe(nativeDrawable) ? nativeDrawable : state.background;
+        if (state.background != null) return state.background;
+        return usableHostBackground(nativeDrawable, state.notification) ? nativeDrawable : null;
     }
 
     private static Object[] copy(Object[] arguments) {
@@ -344,7 +441,7 @@ final class SystemSurfaceStyle {
             nightMode = nextMode;
             densityDpi = configuration.densityDpi;
             State state = SURFACES.get(view);
-            if (state != null) apply(view, state.config, true, state.track);
+            if (state != null) apply(view, state.config, true, state.track, state.notification);
             if (contentConfig != null) content(view, contentConfig, true, 0, new int[1]);
             return true;
         }
@@ -358,7 +455,9 @@ final class SystemSurfaceStyle {
         WeakReference<SurfaceDrawable> material = new WeakReference<>(null);
         final Map<String, Object[]> nativeRequests = new LinkedHashMap<>();
         ControlCenterConfig config;
-        boolean track;
+        long revision;
+        boolean track, notification, oemRequestObserved, hostBackgroundKnown;
+        boolean nativeBackgroundSource = true;
         SurfaceDrawable drawable() {
             SurfaceDrawable drawable = material.get();
             if (drawable == null) {
@@ -367,8 +466,9 @@ final class SystemSurfaceStyle {
             }
             return drawable;
         }
-        State(View view) {
-            background = view.getBackground();
+        State(View view, boolean notification) {
+            this.notification = notification;
+            captureHostBackground(view, this);
             for (String name : new String[] {"MiViewBlurMode", "MiBackgroundBlurMode",
                     "MiBackgroundBlurRadius", "MiBackgroundBlurScaleRatio"}) {
                 Object value = invoke(view, "get" + name);
@@ -379,10 +479,73 @@ final class SystemSurfaceStyle {
 
     private record TextState(ColorStateList colors, float size) { }
     private static final class WindowState {
-        final int radius, blurFlag;
+        final WeakReference<Window> window;
+        int radius, blurFlag, lastAppliedRadius, lastAppliedFlag;
         Integer backgroundRadius;
         int amount = 100;
-        WindowState(int radius, int blurFlag) { this.radius = radius; this.blurFlag = blurFlag; }
+        boolean active = true, observing;
+        ControlCenterSurface surface;
+        PublicWindowBlurObserver observer;
+        PublicWindowBlurObserver.Availability availability = PublicWindowBlurObserver.Availability.UNKNOWN;
+
+        WindowState(Window window, WindowState predecessor) {
+            this.window = new WeakReference<>(window);
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            radius = attributes.getBlurBehindRadius();
+            blurFlag = attributes.flags & WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+            lastAppliedRadius = radius;
+            lastAppliedFlag = blurFlag;
+            // A reentrant reopen replaces restoration before its background setter can run.
+            if (predecessor != null && !predecessor.active)
+                backgroundRadius = predecessor.backgroundRadius;
+        }
+
+        void observe(View decor) {
+            // The initial callback can synchronously dispatch host Window.Callback methods.
+            observing = true;
+            try {
+                observer = new PublicWindowBlurObserver(decor, value -> {
+                    Window owner = window.get();
+                    if (!active || owner == null || WINDOWS.get(owner) != this) return;
+                    availability = value;
+                    write(owner, true);
+                });
+                if (!active) observer.close();
+            } finally {
+                observing = false;
+            }
+        }
+
+        boolean suspended() {
+            return surface == ControlCenterSurface.HIGHLIGHT_GLASS && amount > 0
+                    && availability != PublicWindowBlurObserver.Availability.TRUE;
+        }
+
+        int scaled(int requested) {
+            return suspended() ? requested : Math.round(requested * amount / 100f);
+        }
+
+        WindowManager.LayoutParams attributes(WindowManager.LayoutParams current, boolean enabled) {
+            WindowManager.LayoutParams result = new WindowManager.LayoutParams();
+            result.copyFrom(current);
+            int applied = enabled ? scaled(radius) : radius;
+            result.setBlurBehindRadius(applied);
+            int flag = enabled && !suspended() && applied == 0 ? 0 : blurFlag;
+            result.flags = (result.flags & ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND) | flag;
+            lastAppliedRadius = applied;
+            lastAppliedFlag = flag;
+            return result;
+        }
+
+        void write(Window owner, boolean enabled) {
+            if (WINDOWS.get(owner) != this || enabled && !active) return;
+            guarded(() -> {
+                owner.setAttributes(attributes(owner.getAttributes(), enabled));
+                if (WINDOWS.get(owner) != this || enabled && !active) return;
+                if (backgroundRadius != null)
+                    owner.setBackgroundBlurRadius(enabled ? scaled(backgroundRadius) : backgroundRadius);
+            });
+        }
     }
 
     private static final class BackdropState {
@@ -406,37 +569,60 @@ final class SystemSurfaceStyle {
         private WeakReference<View> owner = new WeakReference<>(null);
         private float density;
         private int strength, alpha = 255;
+        private boolean notificationFallback, followNativeBackground, notification;
         private ColorFilter colorFilter;
         private ControlCenterSoftGlass.GlassDrawable reflection;
 
-        void configure(Drawable original, ControlCenterConfig config, int strength, View view) {
+        void configure(Drawable original, ControlCenterConfig config, int strength, View view,
+                boolean notificationFallback, boolean nativeBackgroundSource, boolean notification) {
             this.original = original;
             this.config = config;
             this.strength = strength;
+            this.notificationFallback = notificationFallback;
+            this.followNativeBackground = notificationFallback && nativeBackgroundSource;
+            this.notification = notification;
             this.owner = new WeakReference<>(view);
             this.density = view.getResources().getDisplayMetrics().density;
-            if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS) {
+            if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS && !notificationFallback) {
                 if (reflection == null) reflection = new ControlCenterSoftGlass.GlassDrawable(view);
                 reflection.configureBackground(view, strength, config.surface);
             } else reflection = null;
             invalidateSelf();
         }
 
-        boolean nativeContent() { return config.surface == ControlCenterSurface.DEFAULT && original != null; }
+        boolean nativeContent() {
+            return (notificationFallback || config.surface == ControlCenterSurface.DEFAULT) && original != null;
+        }
 
         @Override public void draw(Canvas canvas) {
             bounds.set(getBounds());
             if (bounds.isEmpty()) return;
             View view = owner.get();
             if (view != null) density = view.getResources().getDisplayMetrics().density;
-            ControlCenterSurface surface = view == null ? config.surface : config.surface.resolve(view.getContext());
+            if (followNativeBackground && view != null) {
+                Drawable latest = nativeBackground(view);
+                if (latest == null) return;
+                if (HostDrawableGraph.isSafe(latest)) original = latest;
+            }
+            if (!usableHostBackground(original, notification)) {
+                // A previously accepted host container may have been mutated in place.
+                State state = view == null ? null : SURFACES.get(view);
+                if (state != null && state.material.get() == this) restore(view);
+                return;
+            }
+            ControlCenterSurface requested = notificationFallback ? ControlCenterSurface.DEFAULT : config.surface;
+            ControlCenterSurface surface = view == null ? requested : requested.resolve(view.getContext());
             float radius = Math.min(config.cornerRadius * density, Math.min(bounds.width(), bounds.height()) / 2f);
-            float opacity = alpha / 255f * strength / 100f;
+            float opacity = alpha / 255f * (notificationFallback ? 1f : strength / 100f);
+            boolean drawNative = nativeContent();
+            float borderOpacity = alpha / 255f;
+            // Native content already carries its host fade; only our extra border needs it again.
+            if (notificationFallback && drawNative) borderOpacity *= original.getAlpha() / 255f;
             path.reset();
             path.addRoundRect(bounds, radius, radius, Path.Direction.CW);
             int save = canvas.save();
             canvas.clipPath(path);
-            if (nativeContent()) {
+            if (drawNative) {
                 originalBounds.set(original.getBounds());
                 int previousAlpha = original.getAlpha();
                 original.setBounds(getBounds());
@@ -458,7 +644,7 @@ final class SystemSurfaceStyle {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(stroke);
                 paint.setColor(ControlCenterMaterials.color(surface.neutralForeground() == 0xff202124
-                        ? 0x66000000 : 0x80ffffff, Math.round(alpha / 255f * 100)));
+                        ? 0x66000000 : 0x80ffffff, Math.round(borderOpacity * 100)));
                 canvas.drawRoundRect(bounds, Math.max(0, radius - stroke / 2f),
                         Math.max(0, radius - stroke / 2f), paint);
             }

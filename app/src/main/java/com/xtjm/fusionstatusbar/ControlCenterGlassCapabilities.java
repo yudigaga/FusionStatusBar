@@ -43,9 +43,11 @@ final class ControlCenterGlassCapabilities {
             if (REPORTED.put(owner.getClass(), Boolean.TRUE) != null) return;
         }
         Snapshot snapshot = inspect(owner.getClass());
-        Log.i("FusionStatusBar", "Highlight glass compatibility owner=" + owner.getClass().getSimpleName()
-                + " backend=canvas_compat fullNativeGlass=false MiGlassAPIs=" + snapshot.available()
+        SystemUiHooks.runtimeGridLog(Log.INFO,
+                "Highlight glass API inventory owner=" + owner.getClass().getSimpleName()
+                + " privateBlurAvailability=unverified MiGlassAPIs=" + snapshot.available()
                 + "/" + MODERN_APIS.length + " missing=" + snapshot.missing()
-                + "; host Bionics parameters and compositor rendering are not validated");
+                + " revision=" + SystemUiHooks.runtimeDiagnosticRevision()
+                + " host Bionics parameters and compositor rendering are not validated", null);
     }
 }

@@ -1,0 +1,12 @@
+{
+  "page": "https://www.usgs.gov/media/images/managed-forest-landscape",
+  "imageUrl": "https://d9-wret.s3.us-west-2.amazonaws.com/assets/palladium/production/s3fs-public/thumbnails/image/managed%20landscape%201.jpeg",
+  "credit": "Ed Arnett, Cooperative Forest Ecosystem Research Program",
+  "license": "Public Domain (USGS media details)",
+  "accessedDate": "2026-11-17",
+  "path": "app/src/test/resources/notification-readability/high-frequency-photo.jpg",
+  "sha256": "47462f6e61177317dccfa9561280fe179544a1a3d0c3434cc517a822db547700",
+  "bytes": 768091,
+  "transformations": "none; original downloaded bytes",
+  "purpose": "Real textured forest photograph fixture, not a compositor blur simulation"
+}

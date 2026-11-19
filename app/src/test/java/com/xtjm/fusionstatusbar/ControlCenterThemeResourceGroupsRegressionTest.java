@@ -40,7 +40,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
 
     @After public void clearMaterials() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void aLatePluginResourceChangeRefreshesBodyAndRimWhileItsWindowAlreadyStaysDay() {
+    @Test public void aLatePluginResourceChangeKeepsUnknownAutomaticOemBodyWhileItsWindowStaysDay() {
         ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).setup().visible();
         try {
             Activity activity = controller.get();
@@ -98,7 +98,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
             render(pending).recycle();
             assertFalse(pending.isAttachedToWindow());
             register(pending);
-            assertEquals(ControlCenterSurface.SOFT_GLASS.color,
+            assertEquals(0xff353840,
                     ((GradientDrawable) pending.getBackground()).getColor().getDefaultColor());
 
             setNight(plugin.getResources(), false);
@@ -115,7 +115,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
         } finally { controller.pause().stop().destroy(); }
     }
 
-    @Test public void rootPreDrawInvalidatesTheAttachedGridGlassBeforeAnyDisplayListRedraw() throws Exception {
+    @Test public void rootPreDrawKeepsUnknownAutomaticGridDecorationFreeOfGlassAcrossResourceChanges() throws Exception {
         ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).setup().visible();
         ControlCenterRuntimeGrid.GridView grid = null;
         Drawable glass = null;
@@ -146,26 +146,15 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
             finally { recorded.recycle(); }
             window.getViewTreeObserver().dispatchOnPreDraw();
             glass = decorationGlass(grid);
-            Shader night = rimShader(glass);
-            assertNotNull("The first draw records a real night decoration shader", night);
-            previous = glass.getCallback();
-            Invalidations invalidations = new Invalidations(previous);
-            glass.setCallback(invalidations);
+            assertNull("UNKNOWN private blur must not install an automatic night reflection", glass);
 
             setNight(window.getResources(), false);
             setNight(plugin.getResources(), false);
             window.getViewTreeObserver().dispatchOnPreDraw();
-            // A cached HWUI display list can skip Drawable.draw entirely. The theme
-            // observer must invalidate and update the existing decoration beforehand.
-            assertNotSame("Root pre-draw must switch the grid shader before any subsequent draw", night,
-                    rimShader(glass));
-            assertEquals("A mode change requests one decoration display-list refresh", 1,
-                    invalidations.count);
-            Shader day = rimShader(glass);
+            assertNull("Changing a public window or plugin theme cannot authorize a private glass material",
+                    decorationGlass(grid));
             for (int frame = 0; frame < 30; frame++) window.getViewTreeObserver().dispatchOnPreDraw();
-            assertSame(day, rimShader(glass));
-            assertEquals("Stable root frames must not repeatedly invalidate the cached decoration", 1,
-                    invalidations.count);
+            assertNull("Stable fallback frames retain the absence of an automatic glass shader", decorationGlass(grid));
         } finally {
             if (glass != null) glass.setCallback(previous);
             if (grid != null) grid.releaseMaterials();
@@ -180,7 +169,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
             Method current = ControlCenterSoftGlass.class.getDeclaredMethod("current", View.class);
             current.setAccessible(true);
             Object state = current.invoke(null, view);
-            assertNotNull("The grid decoration must own a live glass overlay", state);
+            if (state == null) return null;
             Field drawable = state.getClass().getDeclaredField("drawable");
             drawable.setAccessible(true);
             return (Drawable) drawable.get(state);

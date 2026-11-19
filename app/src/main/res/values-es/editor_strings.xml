@@ -9,6 +9,7 @@
     <string name="editor_saved_waiting">Guardado; esperando a que SystemUI lo aplique</string>
     <string name="editor_applied">SystemUI ha aplicado esta versión</string>
     <string name="editor_degraded">Guardado; algunas funciones de SystemUI están limitadas</string>
+    <string name="editor_glass_compatibility">Cristal brillante en modo compatible. Desenfoque nativo sin verificar.</string>
     <string name="editor_waiting_mount">Guardado; abre el centro de control para aplicarlo</string>
     <string name="editor_draft_restored">Borrador sin aplicar restaurado</string>
     <string name="editor_restore_draft">Restaurar el último borrador</string>

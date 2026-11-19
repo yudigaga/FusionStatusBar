@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Collections;
 import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,7 +49,9 @@ public class NotificationHookInstallerTest {
         assertTrue(registrar.contains("NetworkSpeedView#setVisibilityByController",
                 SpeedFixture.class.getDeclaredMethod("setVisibilityByController", boolean.class)));
         assertTrue(result.missingClasses.isEmpty());
-        assertTrue(result.missingMembers.isEmpty());
+        assertEquals(Collections.singletonList(
+                NotificationHookInstaller.NETWORK_SPEED_CLASS + "#isIconVisible"),
+                result.missingMembers);
 
         NotificationHookInstaller.Result repeated = installer.install(getClass().getClassLoader());
         assertEquals(11, repeated.installed);
@@ -102,6 +105,128 @@ public class NotificationHookInstallerTest {
                 new Key("NotificationStackScrollLayout#onLayout", failed)));
         assertEquals(11, registrar.handles.size());
         assertTrue(registrar.contains("NotificationStackScrollLayout#onLayout", failed));
+    }
+
+    @Test public void nativeVisibilityUpdateIsPreferredWithoutAlsoHookingTheController()
+            throws Exception {
+        Resolver resolver = completeResolver();
+        resolver.classes.put(NotificationHookInstaller.NETWORK_SPEED_CLASS, SpeedUpdateFixture.class);
+        Registrar registrar = new Registrar();
+
+        NotificationHookInstaller.Result result = installer(resolver, registrar)
+                .install(getClass().getClassLoader());
+
+        assertEquals(11, result.installed);
+        assertTrue(registrar.contains("NetworkSpeedView#updateVisibility",
+                SpeedUpdateFixture.class.getDeclaredMethod("updateVisibility")));
+        assertFalse(registrar.contains("NetworkSpeedView#setVisibilityByController",
+                SpeedUpdateFixture.class.getDeclaredMethod("setVisibilityByController", boolean.class)));
+        assertEquals(Collections.singletonList(
+                NotificationHookInstaller.NETWORK_SPEED_CLASS + "#isIconVisible"),
+                result.missingMembers);
+    }
+
+    @Test public void wrongVisibilityUpdateOverloadFallsBackToTheController() throws Exception {
+        Resolver resolver = completeResolver();
+        resolver.classes.put(NotificationHookInstaller.NETWORK_SPEED_CLASS,
+                WrongSpeedUpdateFixture.class);
+        Registrar registrar = new Registrar();
+
+        NotificationHookInstaller.Result result = installer(resolver, registrar)
+                .install(getClass().getClassLoader());
+
+        assertEquals(11, result.installed);
+        assertTrue(registrar.contains("NetworkSpeedView#setVisibilityByController",
+                WrongSpeedUpdateFixture.class.getDeclaredMethod("setVisibilityByController", boolean.class)));
+        assertFalse(registrar.contains("NetworkSpeedView#updateVisibility",
+                WrongSpeedUpdateFixture.class.getDeclaredMethod("updateVisibility", boolean.class)));
+        assertEquals(Collections.singletonList(
+                NotificationHookInstaller.NETWORK_SPEED_CLASS + "#isIconVisible"),
+                result.missingMembers);
+    }
+
+    @Test public void failedPreferredVisibilityHookRetriesWithoutInstallingBothEntrypoints()
+            throws Exception {
+        Resolver resolver = completeResolver();
+        resolver.classes.put(NotificationHookInstaller.NETWORK_SPEED_CLASS, SpeedUpdateFixture.class);
+        Registrar registrar = new Registrar();
+        Method preferred = SpeedUpdateFixture.class.getDeclaredMethod("updateVisibility");
+        registrar.failOnce.add(new Key("NetworkSpeedView#updateVisibility", preferred));
+        NotificationHookInstaller installer = installer(resolver, registrar);
+
+        NotificationHookInstaller.Result first = installer.install(getClass().getClassLoader());
+        NotificationHookInstaller.Result retry = installer.install(getClass().getClassLoader());
+
+        assertEquals(10, first.installed);
+        assertTrue(first.missingMembers.contains(
+                NotificationHookInstaller.NETWORK_SPEED_CLASS + "#updateVisibility"));
+        assertEquals(11, retry.installed);
+        assertEquals(11, registrar.handles.size());
+        assertTrue(registrar.contains("NetworkSpeedView#updateVisibility", preferred));
+        assertFalse(registrar.contains("NetworkSpeedView#setVisibilityByController",
+                SpeedUpdateFixture.class.getDeclaredMethod("setVisibilityByController", boolean.class)));
+    }
+
+    @Test public void declaredBooleanSpeedQueryInstallsAndRepeatedInstallKeepsOneHandle()
+            throws Exception {
+        Resolver resolver = completeResolver();
+        resolver.classes.put(NotificationHookInstaller.NETWORK_SPEED_CLASS, SpeedQueryFixture.class);
+        Registrar registrar = new Registrar();
+        NotificationHookInstaller installer = installer(resolver, registrar);
+        Method query = SpeedQueryFixture.class.getDeclaredMethod("isIconVisible");
+
+        NotificationHookInstaller.Result first = installer.install(getClass().getClassLoader());
+        NotificationHookInstaller.Result repeated = installer.install(getClass().getClassLoader());
+
+        assertEquals(12, first.installed);
+        assertTrue(first.missingMembers.toString(), first.missingMembers.isEmpty());
+        assertTrue(registrar.contains("NetworkSpeedView#isIconVisible", query));
+        assertEquals(12, repeated.installed);
+        assertEquals(12, registrar.handles.size());
+    }
+
+    @Test public void failedSpeedQueryRetriesWithoutDuplicatingTheVisibilityHook() throws Exception {
+        Resolver resolver = completeResolver();
+        resolver.classes.put(NotificationHookInstaller.NETWORK_SPEED_CLASS, SpeedQueryFixture.class);
+        Registrar registrar = new Registrar();
+        Method query = SpeedQueryFixture.class.getDeclaredMethod("isIconVisible");
+        registrar.failOnce.add(new Key("NetworkSpeedView#isIconVisible", query));
+        NotificationHookInstaller installer = installer(resolver, registrar);
+
+        NotificationHookInstaller.Result first = installer.install(getClass().getClassLoader());
+        NotificationHookInstaller.Result retry = installer.install(getClass().getClassLoader());
+
+        assertEquals(11, first.installed);
+        assertEquals(Collections.singletonList(
+                NotificationHookInstaller.NETWORK_SPEED_CLASS + "#isIconVisible"), first.missingMembers);
+        assertEquals(12, retry.installed);
+        assertTrue(retry.missingMembers.toString(), retry.missingMembers.isEmpty());
+        assertEquals(Integer.valueOf(2), registrar.calls.get(
+                new Key("NetworkSpeedView#isIconVisible", query)));
+        assertEquals(12, registrar.handles.size());
+        assertTrue(registrar.contains("NetworkSpeedView#setVisibilityByController",
+                SpeedQueryFixture.class.getDeclaredMethod("setVisibilityByController", boolean.class)));
+    }
+
+    @Test public void unsupportedSpeedQuerySignaturesKeepLegacyVisibilityHook() throws Exception {
+        for (Class<?> fixture : new Class<?>[] {WrongQueryReturnFixture.class,
+                WrongQueryParameterFixture.class, InheritedQueryFixture.class, StaticQueryFixture.class}) {
+            Resolver resolver = completeResolver();
+            resolver.classes.put(NotificationHookInstaller.NETWORK_SPEED_CLASS, fixture);
+            Registrar registrar = new Registrar();
+
+            NotificationHookInstaller.Result result = installer(resolver, registrar)
+                    .install(getClass().getClassLoader());
+
+            assertEquals(fixture.getSimpleName(), 11, result.installed);
+            assertEquals(Collections.singletonList(
+                    NotificationHookInstaller.NETWORK_SPEED_CLASS + "#isIconVisible"),
+                    result.missingMembers);
+            assertTrue(registrar.contains("NetworkSpeedView#setVisibilityByController",
+                    fixture.getDeclaredMethod("setVisibilityByController", boolean.class)));
+            assertFalse(registrar.handles.stream().anyMatch(
+                    key -> key.id.equals("NetworkSpeedView#isIconVisible")));
+        }
     }
 
     private static NotificationHookInstaller installer(Resolver resolver, Registrar registrar) {
@@ -195,6 +320,34 @@ public class NotificationHookInstallerTest {
         void onLayout(boolean changed, int l, int t, int r, int b) { }
     }
     public static class Ambient { float mTopPadding; }
+    public static class SpeedQueryFixture {
+        void setVisibilityByController(boolean visible) { }
+        boolean isIconVisible() { return true; }
+    }
+    public static class WrongQueryReturnFixture {
+        void setVisibilityByController(boolean visible) { }
+        Boolean isIconVisible() { return Boolean.TRUE; }
+    }
+    public static class WrongQueryParameterFixture {
+        void setVisibilityByController(boolean visible) { }
+        boolean isIconVisible(boolean unused) { return true; }
+    }
+    public static class QueryParent { boolean isIconVisible() { return true; } }
+    public static class InheritedQueryFixture extends QueryParent {
+        void setVisibilityByController(boolean visible) { }
+    }
+    public static class StaticQueryFixture {
+        void setVisibilityByController(boolean visible) { }
+        static boolean isIconVisible() { return true; }
+    }
     public static class SpeedFixture { void setVisibilityByController(boolean visible) { } }
     public static class WrongSpeedFixture { void setVisibilityByController(int visible) { } }
+    public static class SpeedUpdateFixture {
+        void updateVisibility() { }
+        void setVisibilityByController(boolean visible) { }
+    }
+    public static class WrongSpeedUpdateFixture {
+        void updateVisibility(boolean visible) { }
+        void setVisibilityByController(boolean visible) { }
+    }
 }

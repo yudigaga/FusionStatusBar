@@ -9,6 +9,7 @@
     <string name="editor_saved_waiting">保存しました。SystemUI への反映を待っています</string>
     <string name="editor_applied">SystemUI に現在のバージョンが反映されました</string>
     <string name="editor_degraded">保存しました。SystemUI の一部機能は縮退動作しています</string>
+    <string name="editor_glass_compatibility">ハイライトガラスは互換モードです。ネイティブのぼかしは未確認です。</string>
     <string name="editor_waiting_mount">保存しました。コントロールセンターを開くと適用されます</string>
     <string name="editor_draft_restored">未反映の下書きを復元しました</string>
     <string name="editor_restore_draft">前回の下書きを復元</string>

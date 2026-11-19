@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowLog;
 import miui.systemui.controlcenter.panel.main.qs.QSListController;
 import miui.systemui.controlcenter.panel.main.recyclerview.MainPanelListItem;
 import static org.junit.Assert.*;
@@ -73,6 +74,34 @@ public class ControlCenterRuntimeAvailabilityTest {
         assertEquals(List.of("wifi"), installed().stream().map(i -> i.firstSpec).toList());
         assertEquals(2, ControlCenterLayoutPlan.decode(saved).regular.items.size());
         assertEquals(saved, settings.layoutPlan);
+    }
+
+    @Test public void clearLogsRestoredMapOnlyWhenItReplacesTheProxy() {
+        var settings = config(List.of(tile()));
+        Object nativeRecord = adapter.contentMap.get(adapter.qsListController).get(0);
+        assertTrue(apply(settings));
+        ShadowLog.clear();
+        ControlCenterRuntimeGrid.clear(adapter, false);
+        assertSame(nativeRecord, adapter.contentMap.get(adapter.qsListController).get(0));
+        assertEquals(1, mapRestoreCount("RESTORED"));
+        assertEquals(0, mapRestoreCount("SUPERSEDED"));
+    }
+
+    @Test public void clearReportsSupersededWhenNativeDistributionAlreadyReplacedTheProxy() {
+        assertTrue(apply(config(List.of(tile()))));
+        adapter.redistribute(true);
+        ShadowLog.clear();
+        ControlCenterRuntimeGrid.clear(adapter, false);
+        assertTrue(adapter.contentMap.containsKey(adapter.componentOwner));
+        assertEquals(0, mapRestoreCount("RESTORED"));
+        assertEquals(1, mapRestoreCount("SUPERSEDED"));
+    }
+
+    private long mapRestoreCount(String result) {
+        return ShadowLog.getLogsForTag("FusionStatusBar").stream()
+                .filter(log -> log.msg.startsWith("runtime grid native panel map ")
+                        && log.msg.contains("outcome=" + result + " "))
+                .count();
     }
 
     @Test public void hiddenUnsupportedComponentCannotAbortVisibleLayout() {

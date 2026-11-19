@@ -25,7 +25,7 @@ public final class SlotFilter {
         String name = slot.toLowerCase(Locale.ROOT);
         return containsAny(name, "bluetooth_handsfree_battery",
                 "bluetooth_battery", "headset", "wireless_headset",
-                "location", "privacy", "vpn", "hotspot", "mute", "zen",
+                "location", "privacy", "vpn", "hotspot",
                 "alarm", "roaming", "nfc", "phone", "tablet", "pc",
                 "tv", "car", "speaker", "glasses", "camera");
     }

@@ -2,6 +2,8 @@ package com.xtjm.fusionstatusbar;
 
 /** Shared capability-to-status decisions; installed handles remain the source of capability. */
 final class RuntimeApplicationPolicy {
+    static final String GLASS_COMPATIBILITY_SUFFIX = "_canvas_compatibility_private_blur_unverified";
+
     record Result(String feature, String state, String reason) { }
 
     private RuntimeApplicationPolicy() { }
@@ -34,6 +36,15 @@ final class RuntimeApplicationPolicy {
             return controlCenter(FusionActivationStatus.DEGRADED, "required_control_center_hooks_unavailable");
         }
         return controlCenter(FusionActivationStatus.WAITING, "control_center_mount_pending");
+    }
+
+    static Result controlCenterMaterial(ControlCenterConfig config, String state, String reason) {
+        if (config.enabled && config.surface == ControlCenterSurface.HIGHLIGHT_GLASS
+                && (config.backgroundBlur > 0 || config.cardBlur > 0 || config.tileBlur > 0)
+                && FusionActivationStatus.APPLIED.equals(state))
+            return controlCenter(FusionActivationStatus.DEGRADED,
+                    reason + GLASS_COMPATIBILITY_SUFFIX);
+        return controlCenter(state, reason);
     }
 
     static Result systemSurface(String feature, boolean enabled, boolean adapterAvailable,

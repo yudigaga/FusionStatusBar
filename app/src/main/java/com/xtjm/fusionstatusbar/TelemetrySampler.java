@@ -82,12 +82,13 @@ final class TelemetrySampler {
             Context application = context.getApplicationContext();
             appContext = application != null ? application : context;
         }
+        boolean settingsChanged = !config.sameAs(next);
         long now = SystemClock.uptimeMillis();
-        if (config != next || now - lastInteractiveCheck >= 1_000L) {
+        if (settingsChanged || now - lastInteractiveCheck >= 1_000L) {
             lastInteractiveCheck = now;
             updateInteractive(queryInteractive());
         }
-        if (config == next && (polling != null) == (next.anyEnabled() && interactive)) return;
+        if (!settingsChanged && (polling != null) == (next.anyEnabled() && interactive)) return;
         config = next;
         generation++;
         if (!next.anyEnabled()) {
@@ -140,6 +141,7 @@ final class TelemetrySampler {
         if (interactive != active) {
             interactive = active;
             generation++;
+            if (active) latest = latest.withoutSpeed();
             reconcilePolling();
             DualRowStatusBarLayout.updateTelemetry(latest);
         }

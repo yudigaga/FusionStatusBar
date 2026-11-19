@@ -50,6 +50,10 @@ public final class SystemUiHooks {
     private static final String KEYGUARD_STATUS_BAR_CLASS = StatusBarHookInstaller.KEYGUARD_CLASS;
     private static final String CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS =
             "com.android.systemui.controlcenter.phone.widget.ControlCenterFakeStatusIcons";
+    private static final String SOUND_POLICY_CLASS =
+            "com.android.systemui.statusbar.phone.MiuiPhoneStatusBarPolicy";
+    private static final String STATUS_BAR_ICON_OBSERVER_CLASS =
+            "com.android.systemui.statusbar.policy.StatusBarIconObserver";
     private static final String CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock";
     private static final String NOTIFICATION_HEADER_CLASS = NotificationHookInstaller.HEADER_CLASS;
     private static final String NOTIFICATION_EXPAND_CLASS = NotificationHookInstaller.EXPAND_CLASS;
@@ -72,7 +76,6 @@ public final class SystemUiHooks {
     private static final String PLUGIN_CLASS_LOADER_FACTORY_CLASS =
             "com.android.systemui.shared.plugins.PluginInstance$Factory$$ExternalSyntheticLambda0";
     private static final String TAG = "FusionStatusBar";
-    private static final AtomicBoolean BATTERY_READY = new AtomicBoolean(false);
     private static final AtomicBoolean MEASURE_FAILED = new AtomicBoolean(false);
     private static final AtomicBoolean SLOTS_LOGGED = new AtomicBoolean(false);
     private static final AtomicBoolean TINT_LOGGED = new AtomicBoolean(false);
@@ -96,6 +99,9 @@ public final class SystemUiHooks {
     private static final Set<String> CONTROL_CENTER_COMPONENTS_LOGGED =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+    private static final StatusBarSoundDiagnostics SOUND_DIAGNOSTICS =
+            new StatusBarSoundDiagnostics(MAIN_HANDLER, message -> log(Log.INFO, message, null));
+    private static final Map<Object, String> SYSTEM_ICON_BASE_BLOCK_LISTS = new WeakHashMap<>();
     private static final ControlCenterPluginCapabilities CONTROL_CENTER_PLUGIN_CAPABILITIES =
             new ControlCenterPluginCapabilities(MAIN_HANDLER::postDelayed);
     private static final BoundedHookRetry INSTALLATION_RETRY = new BoundedHookRetry(
@@ -106,6 +112,8 @@ public final class SystemUiHooks {
             new RuntimeHookRegistry<>();
     private static final ThreadLocal<Boolean> CONTAINER_GUARD = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> BATTERY_CONTAINER_GUARD = new ThreadLocal<>();
+    private static final ThreadLocal<ViewGroup> BATTERY_UPDATING = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> MODULE_IGNORED_ADD = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> NOTIFICATION_PADDING_REFRESH = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> CONTROL_CENTER_RAW_HOST_READ = new ThreadLocal<>();
     private static XposedModule module;
@@ -131,20 +139,27 @@ public final class SystemUiHooks {
             new java.util.HashMap<>();
     private static WeakReference<View> notificationStackRef = new WeakReference<>(null);
     private static float nativeNotificationTopPadding;
+    private static float appliedNotificationTopPadding = Float.NaN;
     private static volatile StatusBarLayoutPlan currentPlan =
             StatusBarLayoutPlan.from(currentConfig);
     private static volatile RuntimeConfigLifecycle configLifecycle;
     private static WeakReference<ViewGroup> currentStatusRoot = new WeakReference<>(null);
     private static WeakReference<ViewGroup> currentKeyguardStatusRoot = new WeakReference<>(null);
     private static final Map<View, Integer> NATIVE_SPEED_VISIBILITY = new WeakHashMap<>();
+    private static final Map<ViewGroup, BatteryReplacement> BATTERY_REPLACEMENTS =
+            new WeakHashMap<>();
+    private static final Map<View, ConcealedIcon> CONCEALED_ICONS = new WeakHashMap<>();
+    private static final Map<ViewGroup, IgnoredSlotEdits> IGNORED_SLOT_EDITS = new WeakHashMap<>();
+    private static final Map<ViewGroup, NativeIconAlignment> NATIVE_ICON_ALIGNMENTS =
+            new WeakHashMap<>();
+    private static final Map<ViewGroup, String> VOLUME_PRIORITY_LOGGED = new WeakHashMap<>();
     private static final Map<ViewGroup, Boolean> NATIVE_ICON_LAYOUT_LOGGED = new WeakHashMap<>();
     private static final Map<Class<?>, Method> SLOT_METHOD_CACHE = new WeakHashMap<>();
     private static final Map<Class<?>, Field> IGNORED_SLOT_FIELD_CACHE = new WeakHashMap<>();
     private static final int[] ICON_LOCATION = new int[2];
     private static final int[] STATUS_LOCATION = new int[2];
     private static final int[] CONTAINER_LOCATION = new int[2];
-    private static WeakReference<View> nativeSpeedRef = new WeakReference<>(null);
-    private static WeakReference<ViewGroup> nativeSpeedRoot = new WeakReference<>(null);
+    private static final Map<ViewGroup, NativeSpeedCache> NATIVE_SPEED_ROOTS = new WeakHashMap<>();
     private static WeakReference<Object> controlCenterHostRef = new WeakReference<>(null);
     private static WeakReference<Object> controlCenterCompactRef = new WeakReference<>(null);
     private static WeakReference<Object> controlCenterDistributorRef = new WeakReference<>(null);
@@ -173,7 +188,10 @@ public final class SystemUiHooks {
             new WeakHashMap<>();
     private static final ControlCenterPreviewCapture PREVIEW_CAPTURE = new ControlCenterPreviewCapture(
             MAIN_HANDLER, () -> controlCenterPreviewRootRef.get(), SystemUiHooks::serializeControlCenterLayout);
-    private static long nativeSpeedScanAt;
+    private static final class NativeSpeedCache {
+        final List<WeakReference<View>> views = new ArrayList<>();
+        long scannedAt;
+    }
     private static final LatestRootRefreshScheduler<ViewGroup> STATUS_BAR_REFRESH =
             new LatestRootRefreshScheduler<>(MAIN_HANDLER::post,
                     SystemUiHooks::reapplyStatusBarViews);
@@ -183,6 +201,10 @@ public final class SystemUiHooks {
     private static final Map<String, Long> RECENT_DIAGNOSTICS = new java.util.LinkedHashMap<>();
 
     private SystemUiHooks() {
+    }
+
+    static long runtimeDiagnosticRevision() {
+        return currentConfig.revision;
     }
 
     public static synchronized void install(XposedModule source, ClassLoader classLoader) {
@@ -217,6 +239,8 @@ public final class SystemUiHooks {
         batteryClass = statusBarTargets.battery;
         batteryContainerClass = statusBarTargets.batteryContainer;
         StatusBarHookInstaller.Result statusBar = statusBarInstaller.install(statusBarTargets);
+        installSystemIconVisibilityHooks(classLoader);
+        installSoundDiagnostics(classLoader);
         for (String missingMethod : statusBar.missingMethods) {
             log(Log.ERROR, "method missing " + missingMethod, null);
         }
@@ -259,6 +283,88 @@ public final class SystemUiHooks {
                 + " layout=" + layoutHooks + " controlCenter=" + controlCenterHooks, null);
         INSTALLATION_RETRY.scheduleIfNeeded(HANDLES::hasFailures,
                 () -> install(source, classLoader));
+    }
+
+    private static void installSystemIconVisibilityHooks(ClassLoader classLoader) {
+        Class<?> observer = findClassQuiet(STATUS_BAR_ICON_OBSERVER_CLASS, classLoader);
+        Method load = observer == null ? null : findMethod(observer, "loadStatusBarIcon",
+                new Class<?>[0]);
+        if (load == null || load.getReturnType() != String.class) {
+            log(Log.WARN, "system icon visibility policy unavailable", null);
+            return;
+        }
+        hookMethod("StatusBarIconObserver#loadStatusBarIcon", load, chain -> {
+            String nativeSlots = (String) chain.proceed();
+            Object target = chain.getThisObject();
+            synchronized (SYSTEM_ICON_BASE_BLOCK_LISTS) {
+                SYSTEM_ICON_BASE_BLOCK_LISTS.put(target, nativeSlots);
+            }
+            return SystemIconVisibilityPolicy.apply(nativeSlots,
+                    currentConfig.systemIconVisibilityMask);
+        });
+        log(Log.INFO, "system icon visibility policy installed", null);
+    }
+
+    private static void refreshSystemIconVisibility() {
+        Map<Object, String> snapshots;
+        synchronized (SYSTEM_ICON_BASE_BLOCK_LISTS) {
+            snapshots = new WeakHashMap<>(SYSTEM_ICON_BASE_BLOCK_LISTS);
+        }
+        int updated = 0;
+        for (Map.Entry<Object, String> entry : snapshots.entrySet()) {
+            Object observer = entry.getKey();
+            Object flow = safeField(observer, "statusBarIconShow");
+            if (flow == null) continue;
+            String slots = SystemIconVisibilityPolicy.apply(entry.getValue(),
+                    currentConfig.systemIconVisibilityMask);
+            try {
+                Method update = findMethod(flow.getClass(), "updateState",
+                        new Class<?>[] {Object.class, Object.class});
+                if (update == null) update = findMethod(flow.getClass(), "setValue",
+                        new Class<?>[] {Object.class});
+                if (update == null) continue;
+                if (update.getParameterCount() == 2) update.invoke(flow, null, slots);
+                else update.invoke(flow, slots);
+                updated++;
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+                log(Log.WARN, "system icon visibility refresh failed", error);
+            }
+        }
+        log(Log.INFO, "system icon visibility refreshed observers=" + updated, null);
+    }
+
+    private static Object safeField(Object target, String name) {
+        if (target == null) return null;
+        try {
+            Field found = findField(target.getClass(), name);
+            return found == null ? null : found.get(target);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static void installSoundDiagnostics(ClassLoader classLoader) {
+        Class<?> policy = findClassQuiet(SOUND_POLICY_CLASS, classLoader);
+        Method update;
+        try {
+            update = policy == null ? null : findMethod(policy, "updateVolumeZen", new Class<?>[0]);
+        } catch (RuntimeException | LinkageError error) {
+            log(Log.WARN, "status-bar sound policy probe failed", error);
+            return;
+        }
+        if (update == null) {
+            log(Log.INFO, "status-bar sound policy callback unavailable", null);
+            return;
+        }
+        hookMethod("MiuiPhoneStatusBarPolicy#updateVolumeZen", update, chain -> {
+            Object result = chain.proceed();
+            try {
+                SOUND_DIAGNOSTICS.policyUpdated(chain.getThisObject(), runtimeDiagnosticRevision());
+            } catch (RuntimeException | LinkageError error) {
+                log(Log.WARN, "status-bar sound policy sample failed", error);
+            }
+            return result;
+        });
     }
 
     private static int hookPluginClassLoaderFactory() {
@@ -436,6 +542,7 @@ public final class SystemUiHooks {
             case CONTAINER_MEASURE -> chain -> containerPass(chain, true);
             case CONTAINER_LAYOUT -> chain -> containerPass(chain, false);
             case AFTER_SET_IGNORED -> SystemUiHooks::afterSetIgnored;
+            case AFTER_ADD_IGNORED -> SystemUiHooks::afterAddIgnored;
             case AFTER_VIEW_ADDED -> SystemUiHooks::afterViewAdded;
             case BATTERY_CONTAINER_MEASURE -> chain -> batteryContainerPass(chain, true);
             case BATTERY_CONTAINER_LAYOUT -> chain -> batteryContainerPass(chain, false);
@@ -620,12 +727,37 @@ public final class SystemUiHooks {
         int nativeCount = 0;
         int effectCount = 0;
         try {
-            hookMethod("system-surface-window-blur", android.view.Window.class.getDeclaredMethod(
-                    "setBackgroundBlurRadius", int.class), chain -> {
+            // PhoneWindow consumes its own argument after calling the empty Window method.
+            Class<?> blurOwner;
+            try { blurOwner = Class.forName("com.android.internal.policy.PhoneWindow"); }
+            catch (ClassNotFoundException ignored) { blurOwner = android.view.Window.class; }
+            Method backgroundBlur;
+            try { backgroundBlur = blurOwner.getDeclaredMethod("setBackgroundBlurRadius", int.class); }
+            catch (NoSuchMethodException ignored) {
+                backgroundBlur = android.view.Window.class.getDeclaredMethod("setBackgroundBlurRadius", int.class);
+            }
+            hookMethod("system-surface-window-blur", backgroundBlur, chain -> {
                 Object[] args = chain.getArgs().toArray();
                 args[0] = SystemSurfaceStyle.windowRadius((android.view.Window) chain.getThisObject(),
                         (Integer) args[0]);
                 return chain.proceed(args);
+            });
+        } catch (NoSuchMethodException ignored) { }
+        try {
+            hookMethod("system-surface-window-attributes", android.view.Window.class.getDeclaredMethod(
+                    "setAttributes", android.view.WindowManager.LayoutParams.class), chain -> {
+                Object[] args = chain.getArgs().toArray();
+                args[0] = SystemSurfaceStyle.windowAttributes((android.view.Window) chain.getThisObject(),
+                        (android.view.WindowManager.LayoutParams) args[0]);
+                return chain.proceed(args);
+            });
+        } catch (NoSuchMethodException ignored) { }
+        try {
+            hookMethod("system-surface-window-flags", android.view.Window.class.getDeclaredMethod(
+                    "setFlags", int.class, int.class), chain -> {
+                SystemSurfaceStyle.windowFlags((android.view.Window) chain.getThisObject(),
+                        (Integer) chain.getArgs().get(0), (Integer) chain.getArgs().get(1));
+                return chain.proceed();
             });
         } catch (NoSuchMethodException ignored) { }
         for (String name : new String[] {"setMiBackgroundBlurRadius", "setMiViewBlurMode", "setMiBackgroundBlurMode",
@@ -2586,6 +2718,8 @@ public final class SystemUiHooks {
         Object result = chain.proceed();
         if (chain.getThisObject() instanceof ViewGroup root && isKeyguardStatusBar(root)) {
             applyKeyguardStatusBar(root);
+            syncNativeSpeed(root, true);
+            trackSoundContainer(root);
         }
         return result;
     }
@@ -2618,6 +2752,9 @@ public final class SystemUiHooks {
 
     private static void applyKeyguardStatusBar(ViewGroup root) {
         try {
+            if (currentKeyguardStatusRoot.get() != root) {
+                releaseNativeSpeedRoot(currentKeyguardStatusRoot.get());
+            }
             currentKeyguardStatusRoot = new WeakReference<>(root);
             ensureConfigObserver(root.getContext());
             View battery = findSystemView(root, "battery");
@@ -2630,16 +2767,12 @@ public final class SystemUiHooks {
                     layoutIcon(group);
                 }
             }
-            View statusIcons = findSystemView(root, "statusIcons");
-            if (signalsSuppressed() && statusIcons instanceof ViewGroup group) {
-                restoreVisibleSlots(group);
-                addMissingSlots(group);
-                hideSignalChildren(group);
-            }
+            syncOriginalSignals(root);
             if (findSystemView(root, "phone_status_bar_left_container") != null
                     && findSystemView(root, "system_icon_area") != null) {
                 DualRowStatusBarLayout.apply(root, currentConfig);
             }
+            syncNativeSpeed(root);
         } catch (Throwable error) {
             log(Log.WARN, "keyguard status-bar refresh failed", error);
         }
@@ -2664,6 +2797,8 @@ public final class SystemUiHooks {
             if (chain.getThisObject() instanceof ViewGroup root) {
                 ensureConfigObserver(root.getContext());
                 applyRootPlacement(root);
+                syncNativeSpeed(root, true);
+                trackSoundContainer(root);
                 log(Log.INFO, "phone status-bar attached; initial placement applied", null);
             }
         } catch (Throwable error) {
@@ -2817,7 +2952,13 @@ public final class SystemUiHooks {
         BATTERY_CONTAINER_GUARD.set(Boolean.TRUE);
         try {
             Object result = chain.proceed();
-            if (!measure && currentPlan.doubleRow) {
+            if (measure) {
+                try {
+                    restorePhoneIconPadding(container, (Integer) chain.getArg(0));
+                } catch (RuntimeException | LinkageError error) {
+                    log(Log.WARN, "phone status icon padding correction failed", error);
+                }
+            } else if (currentPlan.doubleRow) {
                 alignNativeStatusIcons(container);
             }
             return result;
@@ -2826,15 +2967,60 @@ public final class SystemUiHooks {
         }
     }
 
+    private static void restorePhoneIconPadding(ViewGroup container, int widthSpec) {
+        int padding = container.getPaddingLeft() + container.getPaddingRight();
+        ViewGroup.LayoutParams params = container.getLayoutParams();
+        int mode = View.MeasureSpec.getMode(widthSpec);
+        if (padding <= 0 || mode == View.MeasureSpec.EXACTLY
+                || params == null || params.width != ViewGroup.LayoutParams.WRAP_CONTENT
+                || !BATTERY_CONTAINER_CLASS.equals(container.getClass().getName())
+                || !isViewNamed(container, "system_icons") || !container.isAttachedToWindow()) {
+            return;
+        }
+        View phone = container;
+        while (phone != null && !isPhoneStatusBar(phone)) {
+            phone = phone.getParent() instanceof View parent ? parent : null;
+        }
+        if (phone == null || phone.getTag(R.id.dual_row_layout_state) == null
+                || !Boolean.FALSE.equals(safeField(container, "mIsHideBattery"))
+                || !(safeField(container, "mPrivacyState") instanceof Enum<?> privacy)
+                || !"COMPLETE_HIDE_PRIVACY".equals(privacy.name())) {
+            return;
+        }
+        View status = findSystemView(container, "statusIcons");
+        View battery = findSystemView(container, "battery");
+        if (status == null || status.getParent() != container || status.getVisibility() != View.VISIBLE
+                || !CONTAINER_CLASS.equals(status.getClass().getName())
+                || battery == null || battery.getParent() != container
+                || battery.getVisibility() != View.VISIBLE
+                || !(invokeValue(status, "getIslandTranslationX") instanceof Number islandX)
+                || islandX.intValue() > 0) {
+            return;
+        }
+        int iconWidth = status.getMeasuredWidth();
+        int measured = container.getMeasuredWidth();
+        int paddedWidth = measured + padding;
+        // This host sums the children during measure but subtracts its padding during layout.
+        if (iconWidth <= status.getPaddingLeft() + status.getPaddingRight()
+                || measured != iconWidth + battery.getMeasuredWidth()
+                || (mode == View.MeasureSpec.AT_MOST
+                        && paddedWidth > View.MeasureSpec.getSize(widthSpec))) {
+            return;
+        }
+        overwriteMeasured(container, paddedWidth | (container.getMeasuredWidthAndState()
+                & View.MEASURED_STATE_MASK), container.getMeasuredHeightAndState());
+    }
+
     private static void alignNativeStatusIcons(ViewGroup container) {
-        View battery = directChild(container, batteryClass);
-        Class<?> statusClass = findClass(CONTAINER_CLASS);
-        ViewGroup statusIcons = statusClass == null
-                ? null : findDescendant(container, statusClass);
+        View battery = findSystemView(container, "battery");
+        View status = findSystemView(container, "statusIcons");
+        if (!(status instanceof ViewGroup statusIcons) || statusIconHost(statusIcons) != container) {
+            return;
+        }
         FusionIconView fusionIcon = battery instanceof ViewGroup batteryGroup
                 ? findIcon(batteryGroup) : null;
-        if (battery == null || statusIcons == null || fusionIcon == null
-                || statusIcons.getWidth() <= 0 || fusionIcon.getWidth() <= 0) {
+        if (fusionIcon == null || statusIconHost(battery) != container
+                || statusIcons.getWidth() <= 0 || !batteryReplacementReady(battery)) {
             return;
         }
         unclipAncestors(statusIcons, container);
@@ -2861,7 +3047,13 @@ public final class SystemUiHooks {
                 Math.max(containerLeft, containerRight - width), desiredLeft));
         int shift = desiredLeft - STATUS_LOCATION[0];
         if (shift != 0) {
-            statusIcons.setTranslationX(statusIcons.getTranslationX() + shift);
+            float current = statusIcons.getTranslationX();
+            NativeIconAlignment previous = NATIVE_ICON_ALIGNMENTS.get(statusIcons);
+            float original = previous != null && current == previous.applied
+                    ? previous.original : current;
+            float applied = current + shift;
+            NATIVE_ICON_ALIGNMENTS.put(statusIcons, new NativeIconAlignment(original, applied));
+            statusIcons.setTranslationX(applied);
         }
         if (!NATIVE_ICON_LAYOUT_LOGGED.containsKey(container)) {
             NATIVE_ICON_LAYOUT_LOGGED.put(container, Boolean.TRUE);
@@ -2875,23 +3067,13 @@ public final class SystemUiHooks {
         }
     }
 
-    private static ViewGroup findDescendant(ViewGroup root, Class<?> type) {
-        if (root == null || type == null) {
-            return null;
+    private record NativeIconAlignment(float original, float applied) { }
+
+    private static void restoreNativeIconAlignment(ViewGroup statusIcons) {
+        NativeIconAlignment alignment = NATIVE_ICON_ALIGNMENTS.remove(statusIcons);
+        if (alignment != null && statusIcons.getTranslationX() == alignment.applied) {
+            statusIcons.setTranslationX(alignment.original);
         }
-        if (type.isInstance(root)) {
-            return root;
-        }
-        for (int index = 0; index < root.getChildCount(); index++) {
-            View child = root.getChildAt(index);
-            if (child instanceof ViewGroup group) {
-                ViewGroup found = findDescendant(group, type);
-                if (found != null) {
-                    return found;
-                }
-            }
-        }
-        return null;
     }
 
     private static void unclipAncestors(View view, ViewGroup stopAt) {
@@ -2941,6 +3123,13 @@ public final class SystemUiHooks {
 
     private static void applyLoadedConfig(FusionConfig loaded) {
         RuntimeConfigDiff changes = RuntimeConfigDiff.between(configApplied ? currentConfig : null, loaded);
+        boolean systemIconVisibilityChanged = !configApplied
+                || currentConfig.systemIconVisibilityMask != loaded.systemIconVisibilityMask;
+        int spacingSlots = FusionConfig.ICON_VOLUME | FusionConfig.ICON_ZEN
+                | FusionConfig.ICON_ALARM | FusionConfig.ICON_NETWORK_SPEED;
+        boolean spacingSlotsChanged =
+                ((currentConfig.systemIconVisibilityMask ^ loaded.systemIconVisibilityMask)
+                        & spacingSlots) != 0;
         ControlCenterConfig previousControlCenter = currentConfig.controlCenter;
         boolean controlCenterChanged = changes.controlCenter();
         boolean layoutPlanChanged = previousControlCenter == null
@@ -2972,6 +3161,11 @@ public final class SystemUiHooks {
         }
         currentConfig = loaded;
         configApplied = true;
+        if (systemIconVisibilityChanged) {
+            refreshSystemIconVisibility();
+            SOUND_DIAGNOSTICS.iconMaskChanged(
+                    loaded.systemIconVisibilityMask, loaded.revision, spacingSlotsChanged);
+        }
         if (changes.controlCenterHeader) {
             int failures = ControlCenterHeaderVisibility.refresh(loaded.controlCenter);
             if (failures > 0) log(Log.WARN,
@@ -3126,7 +3320,7 @@ public final class SystemUiHooks {
     static void reportControlCenterApplication(ControlCenterConfig settings, String state, String reason) {
         if (settings == currentConfig.controlCenter && (!FusionActivationStatus.APPLIED.equals(state)
                 || !settings.enabled || !reportMissingControlCenterCapability()))
-            reportFeature(FusionActivationStatus.FEATURE_CONTROL_CENTER, state, reason);
+            reportFeature(RuntimeApplicationPolicy.controlCenterMaterial(settings, state, reason));
     }
 
     private static void redistributeNativeControlCenterPanels() {
@@ -3366,23 +3560,16 @@ public final class SystemUiHooks {
         try {
             if (isNotificationShadeStack(stack)) {
                 View known = notificationStackRef.get();
-                int offsetDp = currentConfig.notificationClock.listOffsetYDp;
                 if (known != stack) {
                     notificationStackRef = new WeakReference<>(stack);
                     nativeNotificationTopPadding = padding;
-                } else if (offsetDp != 0
-                        && Math.abs(padding - (nativeNotificationTopPadding
-                                + dp(stack, offsetDp))) < 0.5f) {
-                    return chain.proceed(args);
-                } else {
+                    appliedNotificationTopPadding = Float.NaN;
+                } else if (!Float.isFinite(appliedNotificationTopPadding)
+                        || Math.abs(padding - appliedNotificationTopPadding) >= 0.5f) {
                     nativeNotificationTopPadding = padding;
                 }
-                if (offsetDp != 0) {
-                    args[0] = padding + dp(stack, offsetDp);
-                    if (NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
-                        log(Log.INFO, "notification list top padding adjusted dp=" + offsetDp, null);
-                    }
-                }
+                appliedNotificationTopPadding = notificationListPadding(stack);
+                args[0] = appliedNotificationTopPadding;
             }
         } catch (Throwable error) {
             if (NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
@@ -3403,13 +3590,14 @@ public final class SystemUiHooks {
             if (known != stack) {
                 notificationStackRef = new WeakReference<>(stack);
                 nativeNotificationTopPadding = readNotificationTopPadding(stack);
+                appliedNotificationTopPadding = Float.NaN;
             }
-            if (currentConfig.notificationClock.listOffsetYDp != 0
-                    && notificationTopPaddingMethod != null) {
+            float desired = notificationListPadding(stack);
+            if (notificationTopPaddingMethod != null
+                    && Math.abs(readNotificationTopPadding(stack) - desired) >= 0.5f) {
                 NOTIFICATION_PADDING_REFRESH.set(Boolean.TRUE);
-                notificationTopPaddingMethod.invoke(stack,
-                        nativeNotificationTopPadding
-                                + dp(stack, currentConfig.notificationClock.listOffsetYDp), false);
+                appliedNotificationTopPadding = desired;
+                notificationTopPaddingMethod.invoke(stack, desired, false);
                 if (NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
                     log(Log.INFO, "notification list layout offset applied dp="
                             + currentConfig.notificationClock.listOffsetYDp, null);
@@ -3423,22 +3611,28 @@ public final class SystemUiHooks {
         return result;
     }
 
-    private static void refreshNotificationTopPadding() {
+    static void refreshNotificationTopPadding() {
         View stack = notificationStackRef.get();
         if (stack == null || !stack.isAttachedToWindow() || notificationTopPaddingMethod == null) {
             return;
         }
         try {
-            int offsetDp = isNotificationShadeStack(stack)
-                    ? currentConfig.notificationClock.listOffsetYDp : 0;
+            float desired = isNotificationShadeStack(stack)
+                    ? notificationListPadding(stack) : nativeNotificationTopPadding;
+            if (Math.abs(readNotificationTopPadding(stack) - desired) < 0.5f) return;
             NOTIFICATION_PADDING_REFRESH.set(Boolean.TRUE);
-            notificationTopPaddingMethod.invoke(stack,
-                    nativeNotificationTopPadding + dp(stack, offsetDp), false);
+            appliedNotificationTopPadding = desired;
+            notificationTopPaddingMethod.invoke(stack, desired, false);
         } catch (Throwable error) {
             log(Log.WARN, "notification list padding refresh failed", error);
         } finally {
             NOTIFICATION_PADDING_REFRESH.remove();
         }
+    }
+
+    private static float notificationListPadding(View stack) {
+        return (float) Math.ceil(NotificationCenterClockController.minimumNotificationTopPadding(stack,
+                nativeNotificationTopPadding + dp(stack, currentConfig.notificationClock.listOffsetYDp)));
     }
 
     /** Returns false for the shared notification stack while it is owned by Control Center. */
@@ -3479,17 +3673,34 @@ public final class SystemUiHooks {
     }
 
     private static Object afterNativeSpeedVisibility(XposedInterface.Chain chain) throws Throwable {
-        Object result = chain.proceed();
+        View speed = chain.getThisObject() instanceof View view ? view : null;
+        Integer previous = speed == null ? null : NATIVE_SPEED_VISIBILITY.get(speed);
+        // Host setters can return early when their controller value is unchanged.
+        // Let them observe their own visibility, never our temporary GONE override.
+        if (previous != null) speed.setVisibility(previous);
         try {
-            if (chain.getThisObject() instanceof View speed
-                    && currentConfig.telemetry.enabled(TelemetryConfig.NET_SPEED)
-                    && isDescendantOf(speed, currentStatusRoot.get())) {
-                NATIVE_SPEED_VISIBILITY.put(speed, speed.getVisibility());
-                speed.setVisibility(View.GONE);
+            return chain.proceed();
+        } finally {
+            try {
+                ViewGroup root = speed == null ? null : nativeSpeedReplacementRoot(speed);
+                if (root != null) {
+                    NATIVE_SPEED_VISIBILITY.put(speed, speed.getVisibility());
+                    hideNativeSpeed(root, speed);
+                } else if (speed != null) {
+                    NATIVE_SPEED_VISIBILITY.remove(speed);
+                }
+            } catch (Throwable error) {
+                log(Log.WARN, "native network speed hide failed", error);
             }
-        } catch (Throwable error) {
-            log(Log.WARN, "native network speed hide failed", error);
         }
+    }
+
+    private static Object afterNativeSpeedIconVisible(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        if (!Boolean.TRUE.equals(result)) return result;
+        // The host measures eligible slots even when their View is temporarily GONE.
+        if (chain.getThisObject() instanceof View speed
+                && nativeSpeedReplacementRoot(speed) != null) return false;
         return result;
     }
 
@@ -3541,6 +3752,7 @@ public final class SystemUiHooks {
             case TOP_PADDING -> SystemUiHooks::adjustNotificationTopPadding;
             case STACK_LAYOUT -> SystemUiHooks::afterNotificationStackLayout;
             case SPEED_VISIBILITY -> SystemUiHooks::afterNativeSpeedVisibility;
+            case SPEED_ICON_VISIBLE -> SystemUiHooks::afterNativeSpeedIconVisible;
         };
     }
 
@@ -3611,104 +3823,200 @@ public final class SystemUiHooks {
     }
 
     private static boolean isStatusIconContainer(ViewGroup container) {
-        if (!isViewNamed(container, "statusIcons")) {
-            return false;
-        }
-        ViewParent parent = container.getParent();
-        while (parent instanceof View view) {
-            if (isViewNamed(view, "system_icons")) {
-                return true;
-            }
-            if (KEYGUARD_STATUS_BAR_CLASS.equals(view.getClass().getName())) {
-                return true;
-            }
-            if (CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(view.getClass().getName())) {
-                return true;
-            }
-            parent = view.getParent();
-        }
-        return false;
+        return isViewNamed(container, "statusIcons") && statusIconHost(container) != null;
     }
 
     private static boolean isStatusBarBattery(View battery) {
-        if (battery == null || !isViewNamed(battery, "battery")) {
-            return false;
-        }
-        ViewParent parent = battery.getParent();
-        while (parent instanceof View view) {
-            if (isViewNamed(view, "system_icons")
-                    || (batteryContainerClass != null && batteryContainerClass.isInstance(view))
-                    || KEYGUARD_STATUS_BAR_CLASS.equals(view.getClass().getName())) {
-                return true;
+        return batteryClass != null && batteryClass.isInstance(battery)
+                && isViewNamed(battery, "battery") && statusIconHost(battery) != null;
+    }
+
+    private static ViewGroup statusIconHost(View child) {
+        for (ViewParent parent = child.getParent(); parent instanceof ViewGroup view;
+                parent = view.getParent()) {
+            if ((batteryContainerClass != null && batteryContainerClass.isInstance(view))
+                    || isStatusBatteryContainer(view)
+                    || isKeyguardStatusBar(view)
+                    || CONTROL_CENTER_FAKE_STATUS_ICONS_CLASS.equals(view.getClass().getName())) {
+                return view;
             }
-            parent = view.getParent();
         }
-        return false;
+        return null;
+    }
+
+    private static void trackSoundContainer(View root) {
+        if (root == null) return;
+        View view = isViewNamed(root, "statusIcons") ? root : findSystemView(root, "statusIcons");
+        if (!(view instanceof ViewGroup container)) return;
+        String surface = FusionIconPlacement.isControlCenterHosted(container)
+                ? "control-center" : "phone";
+        for (ViewParent parent = container.getParent(); parent instanceof View ancestor;
+                parent = ancestor.getParent()) {
+            if (isKeyguardStatusBar(ancestor)) {
+                surface = "keyguard";
+                break;
+            }
+        }
+        SOUND_DIAGNOSTICS.track(container, surface, runtimeDiagnosticRevision());
     }
 
     private static void applyRootPlacement(ViewGroup root) {
         if (root == null) {
             return;
         }
+        if (currentStatusRoot.get() != root) releaseNativeSpeedRoot(currentStatusRoot.get());
         currentStatusRoot = new WeakReference<>(root);
         DualRowStatusBarLayout.apply(root, currentConfig);
         syncNativeSpeed(root);
         View battery = findSystemView(root, "battery");
-        hideNativeBatteryArtifacts(root, battery);
-        suppressOriginalSignals(root);
+        syncNativeBatteryArtifacts(root, battery);
+        syncOriginalSignals(root);
         if (battery != null) {
+            if (battery instanceof ViewGroup group && !batteryReplacementReady(battery)) {
+                syncBatteryChildren(group);
+            }
             ensureFusionIcon(battery);
         }
     }
 
     private static void syncNativeSpeed(ViewGroup root) {
-        View speed = nativeSpeedRef.get();
-        ViewGroup knownRoot = nativeSpeedRoot.get();
-        long now = SystemClock.uptimeMillis();
-        if (knownRoot == root && speed == null
-                && now - nativeSpeedScanAt < 5_000L) {
-            return;
-        }
-        if (knownRoot != root || speed == null || !isDescendantOf(speed, root)) {
-            speed = findNativeSpeed(root);
-            nativeSpeedRoot = new WeakReference<>(root);
-            nativeSpeedRef = new WeakReference<>(speed);
-            nativeSpeedScanAt = now;
-        }
-        if (speed == null) return;
-        if (currentConfig.telemetry.enabled(TelemetryConfig.NET_SPEED)) {
-            if (!NATIVE_SPEED_VISIBILITY.containsKey(speed)) {
-                NATIVE_SPEED_VISIBILITY.put(speed, speed.getVisibility());
-            }
-            if (speed.getVisibility() != View.GONE) speed.setVisibility(View.GONE);
-        } else {
-            Integer original = NATIVE_SPEED_VISIBILITY.remove(speed);
-            if (original != null && speed.getVisibility() != original) {
-                speed.setVisibility(original);
-            }
-        }
+        syncNativeSpeed(root, false);
     }
 
-    private static View findNativeSpeed(View node) {
-        if (NETWORK_SPEED_CLASS.equals(node.getClass().getName())) return node;
-        if (node instanceof ViewGroup group) {
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View found = findNativeSpeed(group.getChildAt(i));
-                if (found != null) return found;
+    private static ViewGroup nativeSpeedReplacementRoot(View speed) {
+        return nativeSpeedReplacementRoot(speed, null);
+    }
+
+    private static ViewGroup nativeSpeedReplacementRoot(View speed, ViewGroup releasingRoot) {
+        if (!currentConfig.telemetry.enabled(TelemetryConfig.NET_SPEED)) return null;
+        for (ViewGroup root : new ViewGroup[] {
+                currentStatusRoot.get(), currentKeyguardStatusRoot.get()}) {
+            if (root != null && root != releasingRoot && isDescendantOf(speed, root)
+                    && DualRowStatusBarLayout.showsTelemetry(root, TelemetryConfig.NET_SPEED)) {
+                return root;
             }
         }
         return null;
     }
 
-    private static void suppressOriginalSignals(View root) {
-        if (!signalsSuppressed()) {
+    private static void syncNativeSpeed(ViewGroup root, boolean rediscover) {
+        if (root == null) return;
+        if (!DualRowStatusBarLayout.showsTelemetry(root, TelemetryConfig.NET_SPEED)) {
+            releaseNativeSpeedRoot(root);
             return;
         }
+        NativeSpeedCache cache = NATIVE_SPEED_ROOTS.get(root);
+        if (cache == null) {
+            cache = new NativeSpeedCache();
+            NATIVE_SPEED_ROOTS.put(root, cache);
+            rediscover = true;
+        }
+        long now = SystemClock.uptimeMillis();
+        for (WeakReference<View> reference : cache.views) {
+            if (reference.get() == null || !isDescendantOf(reference.get(), root)) {
+                restoreNativeSpeed(reference.get(), root);
+                rediscover = true;
+            }
+        }
+        if (rediscover || now - cache.scannedAt >= 5_000L) {
+            cache.views.clear();
+            collectNativeSpeeds(root, cache.views);
+            cache.scannedAt = now;
+        }
+        for (WeakReference<View> reference : cache.views) {
+            View speed = reference.get();
+            if (speed == null) continue;
+            if (!NATIVE_SPEED_VISIBILITY.containsKey(speed)) {
+                NATIVE_SPEED_VISIBILITY.put(speed, speed.getVisibility());
+            }
+            if (speed.getVisibility() != View.GONE) speed.setVisibility(View.GONE);
+        }
+    }
+
+    private static void releaseNativeSpeedRoot(ViewGroup root) {
+        if (root == null) return;
+        NativeSpeedCache cache = NATIVE_SPEED_ROOTS.remove(root);
+        if (cache != null) for (WeakReference<View> reference : cache.views) {
+            restoreNativeSpeed(reference.get(), root);
+        }
+        restoreNativeSpeeds(root);
+    }
+
+    private static void hideNativeSpeed(ViewGroup root, View speed) {
+        if (!NATIVE_SPEED_VISIBILITY.containsKey(speed))
+            NATIVE_SPEED_VISIBILITY.put(speed, speed.getVisibility());
+        NativeSpeedCache cache = NATIVE_SPEED_ROOTS.get(root);
+        if (cache == null) {
+            cache = new NativeSpeedCache();
+            NATIVE_SPEED_ROOTS.put(root, cache);
+        }
+        boolean known = false;
+        for (WeakReference<View> reference : cache.views) known |= reference.get() == speed;
+        if (!known) cache.views.add(new WeakReference<>(speed));
+        if (speed.getVisibility() != View.GONE) speed.setVisibility(View.GONE);
+    }
+
+    private static void restoreNativeSpeed(View speed, ViewGroup releasingRoot) {
+        ViewGroup replacement = speed == null ? null : nativeSpeedReplacementRoot(speed, releasingRoot);
+        if (replacement != null) {
+            hideNativeSpeed(replacement, speed);
+            return;
+        }
+        Integer visibility = speed == null ? null : NATIVE_SPEED_VISIBILITY.remove(speed);
+        if (visibility != null && speed.getVisibility() != visibility) speed.setVisibility(visibility);
+    }
+
+    private static void restoreNativeSpeeds(ViewGroup root) {
+        var iterator = NATIVE_SPEED_VISIBILITY.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<View, Integer> entry = iterator.next();
+            View speed = entry.getKey();
+            if (speed != null && isDescendantOf(speed, root)) {
+                ViewGroup replacement = nativeSpeedReplacementRoot(speed, root);
+                if (replacement != null) {
+                    hideNativeSpeed(replacement, speed);
+                    continue;
+                }
+                int visibility = entry.getValue();
+                iterator.remove();
+                if (speed.getVisibility() != visibility) speed.setVisibility(visibility);
+            }
+        }
+    }
+
+    private static void collectNativeSpeeds(View node, List<WeakReference<View>> speeds) {
+        if (NETWORK_SPEED_CLASS.equals(node.getClass().getName())) {
+            speeds.add(new WeakReference<>(node));
+        }
+        if (node instanceof ViewGroup group) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                collectNativeSpeeds(group.getChildAt(i), speeds);
+            }
+        }
+    }
+
+    private static void syncOriginalSignals(View root) {
         View view = findSystemView(root, "statusIcons");
-        if (view instanceof ViewGroup group) {
-            restoreVisibleSlots(group);
-            addMissingSlots(group);
-            hideSignalChildren(group);
+        if (view instanceof ViewGroup group && isStatusIconContainer(group)) {
+            syncSignalContainer(group, true);
+        }
+    }
+
+    private static void syncSignalContainer(ViewGroup container, boolean updateIgnored) {
+        ViewGroup host = statusIconHost(container);
+        View battery = host == null ? null : findSystemView(host, "battery");
+        boolean ready = battery != null && statusIconHost(battery) == host
+                && batteryReplacementReady(battery);
+        if (!ready || !currentPlan.doubleRow) restoreNativeIconAlignment(container);
+        if (ready) {
+            restoreVisibleSlots(container);
+            if (updateIgnored) addMissingSlots(container);
+            hideSignalChildren(container);
+            return;
+        }
+        restoreIgnoredSlots(container);
+        for (int i = 0; i < container.getChildCount(); i++) {
+            restoreConcealedIcon(container.getChildAt(i));
         }
     }
 
@@ -3718,10 +4026,16 @@ public final class SystemUiHooks {
             return;
         }
         try {
-            @SuppressWarnings("unchecked")
-            List<Object> mutable = (List<Object>) ignored;
-            mutable.removeIf(value -> value instanceof String
-                    && SlotFilter.shouldForceShow((String) value));
+            var entries = ignored.iterator();
+            while (entries.hasNext()) {
+                if (!(entries.next() instanceof String slot) || !SlotFilter.shouldForceShow(slot)
+                        || SystemIconVisibilityPolicy.isHidden(slot, currentConfig.systemIconVisibilityMask)) {
+                    continue;
+                }
+                entries.remove();
+                IGNORED_SLOT_EDITS.computeIfAbsent(container, key -> new IgnoredSlotEdits())
+                        .removed.add(slot);
+            }
         } catch (UnsupportedOperationException ignoredError) {
             log(Log.WARN, "ignored slot list is immutable", null);
         } catch (Throwable error) {
@@ -3729,20 +4043,22 @@ public final class SystemUiHooks {
         }
     }
 
-    private static void hideNativeBatteryArtifacts(View root, View battery) {
-        if (!signalsSuppressed()) {
-            return;
-        }
+    private static void syncNativeBatteryArtifacts(View root, View battery) {
+        ViewGroup host = batteryReplacementReady(battery) ? statusIconHost(battery) : null;
         for (String name : new String[] {
                 "battery_indicator", "battery_view", "battery_meter_view",
                 "battery_meter_composable_view", "battery_remaining_icon"}) {
             View candidate = findSystemView(root, name);
-            if (candidate == null || candidate == battery || isDescendantOf(candidate, battery)) {
+            if (candidate == null || candidate == battery || isDescendantOf(candidate, battery)
+                    || isDescendantOf(battery, candidate)) {
                 continue;
             }
-            candidate.setAlpha(0f);
-            candidate.setVisibility(View.GONE);
-            candidate.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            ViewGroup artifactHost = statusIconHost(candidate);
+            if (host != null && (artifactHost == null || artifactHost == host)) {
+                concealIcon(candidate, true);
+            } else {
+                restoreConcealedIcon(candidate);
+            }
         }
     }
 
@@ -4021,12 +4337,13 @@ public final class SystemUiHooks {
     private static Object batteryMeasure(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
         try {
-            if (!(chain.getThisObject() instanceof ViewGroup battery)
-                    || !isStatusBarBattery(battery)) {
+            if (!(chain.getThisObject() instanceof ViewGroup battery)) {
                 return result;
             }
+            ViewGroup host = isStatusBarBattery(battery) ? statusIconHost(battery) : null;
             FusionIconView icon = findIcon(battery);
-            if (icon == null) {
+            if (host == null || icon == null) {
+                clearBatteryReplacement(battery);
                 return result;
             }
             int heightSpec = (Integer) chain.getArg(1);
@@ -4040,17 +4357,14 @@ public final class SystemUiHooks {
             }
             int width = icon.getMeasuredWidth() + battery.getPaddingLeft() + battery.getPaddingRight();
             int height = icon.getMeasuredHeight() + battery.getPaddingTop() + battery.getPaddingBottom();
-            if (width <= 0 || height <= 0) {
+            if (icon.getMeasuredWidth() <= 0 || icon.getMeasuredHeight() <= 0
+                    || !overwriteMeasured(battery, width, height)) {
+                clearBatteryReplacement(battery);
                 return result;
             }
-            if (overwriteMeasured(battery, width, height)) {
-                markReady(battery);
-                if (BATTERY_READY.get()) {
-                    hideBatteryChildren(battery);
-                }
-                if (!FusionIconPlacement.isControlCenterHosted(battery)) {
-                    expandBatteryContainer(battery);
-                }
+            rememberMeasuredReplacement(battery, icon, host);
+            if (!FusionIconPlacement.isControlCenterHosted(battery)) {
+                expandBatteryContainer(battery);
             }
         } catch (Throwable error) {
             log(Log.ERROR, "battery measure hook failed", error);
@@ -4061,12 +4375,11 @@ public final class SystemUiHooks {
     private static Object batteryLayout(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
         try {
-            if (chain.getThisObject() instanceof ViewGroup battery
-                    && isStatusBarBattery(battery)) {
-                layoutIcon(battery);
-                if (BATTERY_READY.get()) {
-                    hideBatteryChildren(battery);
+            if (chain.getThisObject() instanceof ViewGroup battery) {
+                if (isStatusBarBattery(battery) && battery.getWidth() > 0 && battery.getHeight() > 0) {
+                    layoutIcon(battery);
                 }
+                updateBatteryReplacement(battery);
             }
         } catch (Throwable error) {
             log(Log.ERROR, "battery layout hook failed", error);
@@ -4082,9 +4395,6 @@ public final class SystemUiHooks {
                 ensureConfigObserver(battery.getContext());
                 ensureIcon(battery);
                 applyTint(battery);
-                if (BATTERY_READY.get()) {
-                    hideBatteryChildren(battery);
-                }
             }
         } catch (Throwable error) {
             log(Log.ERROR, "battery inflate hook failed", error);
@@ -4099,10 +4409,8 @@ public final class SystemUiHooks {
                     && isStatusBarBattery(battery)) {
                 ensureIcon(battery);
                 applyTint(battery);
-                if (BATTERY_READY.get()) {
-                    hideBatteryChildren(battery);
-                    conceal(battery);
-                }
+                trackSoundContainer(statusIconHost(battery));
+                conceal(battery);
             }
         } catch (Throwable error) {
             log(Log.ERROR, "battery attach hook failed", error);
@@ -4111,19 +4419,25 @@ public final class SystemUiHooks {
     }
 
     private static Object afterUpdate(XposedInterface.Chain chain) throws Throwable {
-        Object result = chain.proceed();
-        try {
-            if (chain.getThisObject() instanceof ViewGroup battery
-                    && isStatusBarBattery(battery)) {
-                if (BATTERY_READY.get()) {
-                    conceal(battery);
-                    applyTint(battery);
-                }
-            }
-        } catch (Throwable error) {
-            log(Log.ERROR, "battery update hook failed", error);
+        if (!(chain.getThisObject() instanceof ViewGroup battery)
+                || !isStatusBarBattery(battery) || BATTERY_UPDATING.get() == battery) {
+            return chain.proceed();
         }
-        return result;
+        ViewGroup previous = BATTERY_UPDATING.get();
+        BATTERY_UPDATING.set(battery);
+        try {
+            restoreBatteryChildren(battery);
+            return chain.proceed();
+        } finally {
+            if (previous == null) BATTERY_UPDATING.remove();
+            else BATTERY_UPDATING.set(previous);
+            try {
+                conceal(battery);
+                if (batteryReplacementReady(battery)) applyTint(battery);
+            } catch (Throwable error) {
+                log(Log.ERROR, "battery update hook failed", error);
+            }
+        }
     }
 
     private static Object afterTint(XposedInterface.Chain chain) throws Throwable {
@@ -4141,15 +4455,20 @@ public final class SystemUiHooks {
 
     private static Object interceptChildVisibility(XposedInterface.Chain chain) throws Throwable {
         View child = chain.getArg(1) instanceof View ? (View) chain.getArg(1) : null;
-        if (BATTERY_READY.get() && childOfBattery(child)) {
-            hideBatteryChild(child);
+        if (!(child instanceof FusionIconView) && childOfBattery(child)
+                && batteryReplacementReady((View) child.getParent())) {
+            concealIcon(child, true);
+            // These OEM helpers set, or animate towards, the same two terminal states.
+            boolean shown = switch (chain.getExecutable().getName()) {
+                case "showView", "animateShowView" -> true;
+                default -> false;
+            };
+            ConcealedIcon original = CONCEALED_ICONS.computeIfAbsent(child, key -> new ConcealedIcon());
+            original.visibility = shown ? View.VISIBLE : View.GONE;
+            original.alpha = shown ? 1f : 0f;
             return null;
         }
         return chain.proceed();
-    }
-
-    private static boolean signalsSuppressed() {
-        return BATTERY_READY.get() && !MEASURE_FAILED.get();
     }
 
     private static Object containerPass(XposedInterface.Chain chain, boolean measure) throws Throwable {
@@ -4162,30 +4481,192 @@ public final class SystemUiHooks {
         }
         CONTAINER_GUARD.set(Boolean.TRUE);
         try {
-            if (signalsSuppressed()) {
-                hideSignalChildren(container);
-                if (measure) {
-                    addMissingSlots(container);
-                }
-            }
+            syncSignalContainer(container, measure);
             Object result = chain.proceed();
-            if (signalsSuppressed()) {
-                restoreVisibleSlots(container);
-                hideSignalChildren(container);
-            }
+            syncSignalContainer(container, false);
+            if (!measure) prioritizeVolumeIcon(container);
             return result;
         } finally {
             CONTAINER_GUARD.set(Boolean.FALSE);
         }
     }
 
+    private static void prioritizeVolumeIcon(ViewGroup container) {
+        if ((currentConfig.systemIconVisibilityMask & FusionConfig.ICON_VOLUME) == 0
+                || !container.isAttachedToWindow() || !container.isShown()
+                || container.getWidth() <= 0 || isControlCenterFakeBatteryArea(container)
+                || !belongsToPhoneStatusBar(container)) return;
+        List<?> ignored = ignoredSlots(container);
+        int stateTag = container.getResources().getIdentifier(
+                "status_bar_view_state_tag", "id", "com.android.systemui");
+        if (stateTag == 0) return;
+        for (int index = 0; index < container.getChildCount(); index++) {
+            View volume = container.getChildAt(index);
+            if (!"volume".equals(slotOf(volume))
+                    || !Boolean.TRUE.equals(invokeBoolean(volume, "isIconVisible"))
+                    || Boolean.TRUE.equals(invokeBoolean(volume, "isIconBlocked"))
+                    || ignored != null && ignored.contains("volume")) continue;
+            Object state = volume.getTag(stateTag);
+            if (!Boolean.TRUE.equals(safeField(state, "hiddenBySpace"))
+                    || safeField(state, "inIslandState") instanceof Number islandState
+                    && islandState.intValue() == 10) continue;
+            int iconWidth = volume.getWidth() > 0 ? volume.getWidth() : volume.getMeasuredWidth();
+            int target = freeVolumePosition(container, volume, iconWidth);
+            if (iconWidth <= 0 || target < 0) {
+                logVolumePriorityOnce(container, "no_free_space width=" + iconWidth
+                        + " containerWidth=" + container.getWidth());
+                continue;
+            }
+            try {
+                Field hiddenBySpace = findField(state.getClass(), "hiddenBySpace");
+                Field visibleState = findField(state.getClass(), "visibleState");
+                Field translationX = findField(state.getClass(), "translationX");
+                Field layoutTranslationX = findField(state.getClass(), "layoutTranslationX");
+                if (hiddenBySpace == null || hiddenBySpace.getType() != boolean.class
+                        || visibleState == null || visibleState.getType() != int.class
+                        || translationX == null || translationX.getType() != float.class
+                        || layoutTranslationX == null || layoutTranslationX.getType() != float.class) {
+                    throw new NoSuchFieldException("incompatible volume icon state");
+                }
+                boolean oldHiddenBySpace = hiddenBySpace.getBoolean(state);
+                int oldVisibleState = visibleState.getInt(state);
+                float oldTranslationX = translationX.getFloat(state);
+                float oldLayoutTranslationX = layoutTranslationX.getFloat(state);
+                float oldViewTranslationX = volume.getTranslationX();
+                int oldViewVisibility = volume.getVisibility();
+                Method apply = findMethod(state.getClass(), "applyToView",
+                        new Class<?>[] {View.class, boolean.class});
+                Method setVisible = findMethod(volume.getClass(), "setVisibleState",
+                        new Class<?>[] {int.class, boolean.class});
+                if (setVisible == null) {
+                    setVisible = findMethod(volume.getClass(), "setVisibleState",
+                            new Class<?>[] {int.class});
+                }
+                try {
+                    visibleState.setInt(state, 0);
+                    translationX.setFloat(state, (float) target - volume.getLeft());
+                    layoutTranslationX.setFloat(state, (float) target);
+                    hiddenBySpace.setBoolean(state, false);
+                    if (apply != null) apply.invoke(state, volume, false);
+                    if (setVisible != null) {
+                        if (setVisible.getParameterTypes().length == 2) setVisible.invoke(volume, 0, false);
+                        else setVisible.invoke(volume, 0);
+                    }
+                    volume.setTranslationX((float) target - volume.getLeft());
+                    volume.setVisibility(View.VISIBLE);
+                } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+                    try { hiddenBySpace.setBoolean(state, oldHiddenBySpace); }
+                    catch (ReflectiveOperationException | RuntimeException | LinkageError rollbackError) {
+                        log(Log.WARN, "status-bar volume hidden-state rollback failed", rollbackError);
+                    }
+                    try { visibleState.setInt(state, oldVisibleState); }
+                    catch (ReflectiveOperationException | RuntimeException | LinkageError rollbackError) {
+                        log(Log.WARN, "status-bar volume visible-state rollback failed", rollbackError);
+                    }
+                    try { translationX.setFloat(state, oldTranslationX); }
+                    catch (ReflectiveOperationException | RuntimeException | LinkageError rollbackError) {
+                        log(Log.WARN, "status-bar volume translation rollback failed", rollbackError);
+                    }
+                    try { layoutTranslationX.setFloat(state, oldLayoutTranslationX); }
+                    catch (ReflectiveOperationException | RuntimeException | LinkageError rollbackError) {
+                        log(Log.WARN, "status-bar volume layout rollback failed", rollbackError);
+                    }
+                    if (apply != null) {
+                        try { apply.invoke(state, volume, false); }
+                        catch (ReflectiveOperationException | RuntimeException | LinkageError rollbackError) {
+                            log(Log.WARN, "status-bar volume state-view rollback failed", rollbackError);
+                        }
+                    }
+                    if (setVisible != null) {
+                        try {
+                            if (setVisible.getParameterTypes().length == 2)
+                                setVisible.invoke(volume, oldVisibleState, false);
+                            else setVisible.invoke(volume, oldVisibleState);
+                        } catch (ReflectiveOperationException | RuntimeException | LinkageError rollbackError) {
+                            log(Log.WARN, "status-bar volume drawable rollback failed", rollbackError);
+                        }
+                    }
+                    volume.setTranslationX(oldViewTranslationX);
+                    volume.setVisibility(oldViewVisibility);
+                    throw error;
+                }
+                logVolumePriorityOnce(container, "shown x=" + target + " width=" + iconWidth
+                        + " containerWidth=" + container.getWidth());
+            } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+                log(Log.WARN, "status-bar volume priority failed", error);
+            }
+            return;
+        }
+    }
+
+    private static int freeVolumePosition(ViewGroup container, View volume, int iconWidth) {
+        int start = container.getPaddingStart();
+        int end = container.getWidth() - container.getPaddingEnd();
+        if (iconWidth > end - start) return -1;
+        int first = start;
+        int last = end - iconWidth;
+        int step = container.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? -1 : 1;
+        for (int target = step > 0 ? first : last;
+                step > 0 ? target <= last : target >= first; target += step) {
+            boolean overlaps = false;
+            for (int index = 0; index < container.getChildCount(); index++) {
+                View other = container.getChildAt(index);
+                if (other == volume || other.getVisibility() != View.VISIBLE
+                        || other.getAlpha() <= 0f
+                        || !Boolean.TRUE.equals(invokeBoolean(other, "isIconVisible"))
+                        || Boolean.TRUE.equals(invokeBoolean(other, "isIconBlocked"))
+                        || Integer.valueOf(2).equals(invokeValue(other, "getVisibleState"))) continue;
+                int left = other.getLeft() + Math.round(other.getTranslationX());
+                int right = left + other.getWidth();
+                if (target < right && target + iconWidth > left) {
+                    overlaps = true;
+                    break;
+                }
+            }
+            if (!overlaps) return target;
+        }
+        return -1;
+    }
+
+    private static boolean belongsToPhoneStatusBar(ViewGroup container) {
+        ViewGroup phone = currentStatusRoot.get();
+        ViewGroup keyguard = currentKeyguardStatusRoot.get();
+        return phone != null && isDescendantOf(container, phone)
+                || keyguard != null && isDescendantOf(container, keyguard);
+    }
+
+    private static Object invokeValue(Object target, String name) {
+        if (target == null) return null;
+        Method method = findMethod(target.getClass(), name, new Class<?>[0]);
+        if (method == null) return null;
+        try {
+            return method.invoke(target);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static Boolean invokeBoolean(Object target, String name) {
+        Object value = invokeValue(target, name);
+        return value instanceof Boolean result ? result : null;
+    }
+
+    private static void logVolumePriorityOnce(ViewGroup container, String result) {
+        synchronized (VOLUME_PRIORITY_LOGGED) {
+            if (result.equals(VOLUME_PRIORITY_LOGGED.put(container, result))) return;
+        }
+        log(Log.INFO, "status-bar volume priority " + result, null);
+    }
+
     private static Object afterSetIgnored(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
         try {
-            if (signalsSuppressed() && chain.getThisObject() instanceof ViewGroup container
+            if (chain.getThisObject() instanceof ViewGroup container
                     && isStatusIconContainer(container)) {
-                restoreVisibleSlots(container);
-                addMissingSlots(container);
+                // The host replaced the entire ignored-slot list.
+                IGNORED_SLOT_EDITS.remove(container);
+                syncSignalContainer(container, true);
+                trackSoundContainer(container);
             }
         } catch (Throwable error) {
             log(Log.ERROR, "ignored slot restore failed", error);
@@ -4196,14 +4677,24 @@ public final class SystemUiHooks {
     private static Object afterViewAdded(XposedInterface.Chain chain) throws Throwable {
         Object result = chain.proceed();
         try {
-            if (signalsSuppressed() && chain.getThisObject() instanceof ViewGroup container
+            if (chain.getThisObject() instanceof ViewGroup container
                     && isStatusIconContainer(container)) {
-                restoreVisibleSlots(container);
-                addMissingSlots(container);
-                hideSignalChildren(container);
+                syncSignalContainer(container, true);
+                trackSoundContainer(container);
             }
         } catch (Throwable error) {
             log(Log.ERROR, "icon add hook failed", error);
+        }
+        return result;
+    }
+
+    private static Object afterAddIgnored(XposedInterface.Chain chain) throws Throwable {
+        Object result = chain.proceed();
+        if (!Boolean.TRUE.equals(MODULE_IGNORED_ADD.get())
+                && chain.getThisObject() instanceof ViewGroup container
+                && chain.getArg(0) instanceof List<?> slots) {
+            IgnoredSlotEdits edits = IGNORED_SLOT_EDITS.get(container);
+            if (edits != null) edits.added.removeAll(slots);
         }
         return result;
     }
@@ -4290,50 +4781,103 @@ public final class SystemUiHooks {
     }
 
     private static void conceal(ViewGroup battery) {
-        if (!BATTERY_READY.get()) {
-            return;
+        syncBatteryChildren(battery);
+        if (batteryReplacementReady(battery)) {
+            battery.post(() -> syncBatteryChildren(battery));
         }
-        hideBatteryChildren(battery);
-        battery.post(() -> hideBatteryChildren(battery));
     }
 
-    private static void hideBatteryChildren(ViewGroup battery) {
+    private static void syncBatteryChildren(ViewGroup battery) {
+        boolean ready = batteryReplacementReady(battery);
         int count = battery.getChildCount();
         for (int i = 0; i < count; i++) {
             View child = battery.getChildAt(i);
-            if (child instanceof FusionIconView) {
-                if (child.getVisibility() != View.VISIBLE) {
-                    child.setVisibility(View.VISIBLE);
-                }
-                child.setAlpha(1f);
-                continue;
-            }
-            hideBatteryChild(child);
+            if (child instanceof FusionIconView) continue;
+            if (ready) concealIcon(child, true);
+            else restoreConcealedIcon(child);
         }
     }
 
-    private static void hideBatteryChild(View child) {
-        if (child == null) {
-            return;
+    private static void restoreBatteryChildren(ViewGroup battery) {
+        for (int i = 0; i < battery.getChildCount(); i++) {
+            restoreConcealedIcon(battery.getChildAt(i));
         }
-        if (child.getVisibility() != View.GONE) {
+    }
+
+    private static final class ConcealedIcon {
+        Integer visibility;
+        Float alpha;
+        Integer accessibility;
+    }
+
+    private static void concealIcon(View child, boolean suppressAccessibility) {
+        int visibility = child.getVisibility();
+        float alpha = child.getAlpha();
+        int accessibility = child.getImportantForAccessibility();
+        boolean changeAccessibility = suppressAccessibility
+                && accessibility != View.IMPORTANT_FOR_ACCESSIBILITY_NO;
+        if (visibility == View.GONE && alpha == 0f && !changeAccessibility) return;
+        ConcealedIcon original = CONCEALED_ICONS.computeIfAbsent(child, key -> new ConcealedIcon());
+        if (visibility != View.GONE) {
+            original.visibility = visibility;
             child.setVisibility(View.GONE);
         }
-        child.setAlpha(0f);
-        child.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        if (alpha != 0f) {
+            original.alpha = alpha;
+            child.setAlpha(0f);
+        }
+        if (changeAccessibility) {
+            original.accessibility = accessibility;
+            child.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+    }
+
+    private static void restoreConcealedIcon(View child) {
+        ConcealedIcon original = CONCEALED_ICONS.remove(child);
+        if (original == null) return;
+        if (original.visibility != null && child.getVisibility() == View.GONE) {
+            child.setVisibility(original.visibility);
+        }
+        if (original.alpha != null && child.getAlpha() == 0f) {
+            child.setAlpha(original.alpha);
+        }
+        if (original.accessibility != null
+                && child.getImportantForAccessibility() == View.IMPORTANT_FOR_ACCESSIBILITY_NO) {
+            child.setImportantForAccessibility(original.accessibility);
+        }
     }
 
     private static void hideSignalChildren(ViewGroup container) {
         int count = container.getChildCount();
         for (int i = 0; i < count; i++) {
             View child = container.getChildAt(i);
-            if (!SlotFilter.shouldHide(slotOf(child))) {
-                continue;
+            if (SlotFilter.shouldHide(slotOf(child))) concealIcon(child, false);
+            else restoreConcealedIcon(child);
+        }
+    }
+
+    private static final class IgnoredSlotEdits {
+        final Set<String> added = new LinkedHashSet<>();
+        final Set<String> removed = new LinkedHashSet<>();
+    }
+
+    private static void restoreIgnoredSlots(ViewGroup container) {
+        IgnoredSlotEdits edits = IGNORED_SLOT_EDITS.remove(container);
+        if (edits == null) return;
+        List<?> current = ignoredSlots(container);
+        if (current == null) return;
+        try {
+            current.removeAll(edits.added);
+            List<String> missing = new ArrayList<>();
+            for (String slot : edits.removed) {
+                if (!current.contains(slot)) missing.add(slot);
             }
-            child.setAlpha(0f);
-            if (child.getVisibility() != View.GONE) {
-                child.setVisibility(View.GONE);
+            if (!missing.isEmpty()) {
+                addModuleIgnoredSlots(container, missing);
             }
+            container.requestLayout();
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            log(Log.WARN, "restore original ignored slots failed", error);
         }
     }
 
@@ -4359,10 +4903,26 @@ public final class SystemUiHooks {
             return;
         }
         try {
-            Method method = container.getClass().getMethod("addIgnoredSlots", List.class);
-            method.invoke(container, missing);
+            addModuleIgnoredSlots(container, missing);
+            List<?> actual = ignoredSlots(container);
+            if (actual == null) return;
+            missing.removeIf(slot -> !actual.contains(slot));
+            if (!missing.isEmpty()) {
+                IGNORED_SLOT_EDITS.computeIfAbsent(container, key -> new IgnoredSlotEdits())
+                        .added.addAll(missing);
+            }
         } catch (Throwable error) {
             log(Log.ERROR, "addIgnoredSlots failed", error);
+        }
+    }
+
+    private static void addModuleIgnoredSlots(ViewGroup container, List<String> slots)
+            throws ReflectiveOperationException {
+        MODULE_IGNORED_ADD.set(Boolean.TRUE);
+        try {
+            container.getClass().getMethod("addIgnoredSlots", List.class).invoke(container, slots);
+        } finally {
+            MODULE_IGNORED_ADD.remove();
         }
     }
 
@@ -4413,18 +4973,99 @@ public final class SystemUiHooks {
         return null;
     }
 
-    private static void markReady(View battery) {
-        if (!BATTERY_READY.compareAndSet(false, true)) {
-            return;
+    private static final class BatteryReplacement implements View.OnAttachStateChangeListener {
+        final WeakReference<ViewGroup> battery;
+        final WeakReference<FusionIconView> icon;
+        final WeakReference<ViewGroup> host;
+        boolean laidOut;
+
+        BatteryReplacement(ViewGroup battery, FusionIconView icon, ViewGroup host) {
+            this.battery = new WeakReference<>(battery);
+            this.icon = new WeakReference<>(icon);
+            this.host = new WeakReference<>(host);
         }
-        log(Log.INFO, "fused icon sized; original signal and battery icons suppressed", null);
-        battery.post(() -> {
-            View root = battery;
-            while (root.getParent() instanceof View parent) {
-                root = parent;
+
+        @Override public void onViewAttachedToWindow(View view) { }
+
+        @Override public void onViewDetachedFromWindow(View view) {
+            ViewGroup owner = battery.get();
+            if (owner != null && BATTERY_REPLACEMENTS.get(owner) == this) {
+                clearBatteryReplacement(owner);
             }
-            root.requestLayout();
-        });
+        }
+    }
+
+    private static void rememberMeasuredReplacement(ViewGroup battery, FusionIconView icon,
+            ViewGroup host) {
+        BatteryReplacement old = BATTERY_REPLACEMENTS.get(battery);
+        if (old != null && old.icon.get() == icon && old.host.get() == host) return;
+        if (old != null) clearBatteryReplacement(battery);
+        BatteryReplacement replacement = new BatteryReplacement(battery, icon, host);
+        BATTERY_REPLACEMENTS.put(battery, replacement);
+        icon.addOnAttachStateChangeListener(replacement);
+    }
+
+    private static boolean batteryReplacementReady(View candidate) {
+        if (!(candidate instanceof ViewGroup battery) || MEASURE_FAILED.get()) return false;
+        BatteryReplacement replacement = BATTERY_REPLACEMENTS.get(battery);
+        return replacement != null && replacement.laidOut
+                && hasReplacementBounds(battery, replacement);
+    }
+
+    private static boolean hasReplacementBounds(ViewGroup battery, BatteryReplacement replacement) {
+        FusionIconView icon = replacement.icon.get();
+        ViewGroup host = replacement.host.get();
+        return host != null && host == statusIconHost(battery)
+                && icon != null && icon.getParent() == battery
+                && battery.getWidth() > 0 && battery.getHeight() > 0
+                && icon.getWidth() > 0 && icon.getHeight() > 0
+                && icon.getMeasuredWidth() > 0 && icon.getMeasuredHeight() > 0
+                && visibleBelowHost(icon, host);
+    }
+
+    private static boolean visibleBelowHost(View view, ViewGroup host) {
+        for (View current = view; current != host;
+                current = current.getParent() instanceof View parent ? parent : null) {
+            if (current == null || current.getVisibility() != View.VISIBLE
+                    || current.getAlpha() <= 0f) return false;
+        }
+        return true;
+    }
+
+    private static void updateBatteryReplacement(ViewGroup battery) {
+        BatteryReplacement replacement = BATTERY_REPLACEMENTS.get(battery);
+        if (replacement != null) {
+            boolean laidOut = !MEASURE_FAILED.get() && hasReplacementBounds(battery, replacement);
+            if (replacement.laidOut != laidOut) {
+                replacement.laidOut = laidOut;
+                syncReplacementHost(replacement.host.get());
+            }
+        }
+        syncBatteryChildren(battery);
+    }
+
+    private static void clearBatteryReplacement(ViewGroup battery) {
+        BatteryReplacement replacement = BATTERY_REPLACEMENTS.remove(battery);
+        if (replacement == null) return;
+        FusionIconView icon = replacement.icon.get();
+        if (icon != null) icon.removeOnAttachStateChangeListener(replacement);
+        syncBatteryChildren(battery);
+        if (replacement.laidOut) syncReplacementHost(replacement.host.get());
+    }
+
+    private static void syncReplacementHost(ViewGroup host) {
+        if (host == null) return;
+        syncOriginalSignals(host);
+        View root = host;
+        for (View view = host; view != null;
+                view = view.getParent() instanceof View parent ? parent : null) {
+            if (view == currentStatusRoot.get() || isPhoneStatusBar(view) || isKeyguardStatusBar(view)) {
+                root = view;
+                break;
+            }
+        }
+        syncNativeBatteryArtifacts(root, findSystemView(host, "battery"));
+        root.post(root::requestLayout);
     }
 
     private static boolean overwriteMeasured(View view, int width, int height) {

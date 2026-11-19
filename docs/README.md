@@ -4,6 +4,7 @@
 
 ## 使用与版本
 
+- [0.5.34：状态栏图标、通知呈现与玻璃兼容](release-notes-v0.5.34.md)
 - [0.5.27：手机管家首页风险与体检提示](release-notes-v0.5.27.md)
 - [0.5.25：应用语言与保存保护](release-notes-v0.5.25.md)
 - [0.5.24：R8、充电显示、截图剪贴板及手机管家扩展](release-notes-v0.5.24.md)
@@ -12,6 +13,9 @@
 
 ## 功能说明
 
+- [通知可读性与背景回退候选记录](2026-11-16-notification-readability.md)
+- [通知时钟布局修订记录](2026-11-17-notification-clock-r3-report.md)
+- [通知与双排网速修订记录](2026-11-17-notification-network-r2-report.md)
 - [应用语言](2026-11-09_app-languages.md)
 - [充电图标开关](2026-11-09_fusion-charging-icon-switch.md)
 - [截图剪贴板保护](2026-11-09_screenshot-clipboard.md)
@@ -20,7 +24,7 @@
 - [手机管家“正在体检”显示](2026-11-13_security-home-scanning-report.md)
 - [侧边栏把手模式](2026-11-09_sidebar-handle-mode-report.md)
 
-技术报告中的 `analysis/`、JADX/smali 路径和本机日志属于原工作区证据，未作为远端下载附件发布。可下载的源码、APK、R8 mapping 和本版测试/lint 报告以正式 Release 附件为准。
+通知时钟、通知/网速报告记录候选实现和此前阶段的失败证据，不是 0.5.34 的测试通过证明。报告中的 `E:\`、`analysis/`、JADX/smali 路径和本机日志不随仓库提供；本版验证范围以[更新说明](release-notes-v0.5.34.md)和正式 Release 附件为准。源码快照内 0.5.28、0.5.29、0.5.30 笔记是本地中间版本记录，不代表这些版本曾单独远端发布。
 
 ## 构建与架构
 

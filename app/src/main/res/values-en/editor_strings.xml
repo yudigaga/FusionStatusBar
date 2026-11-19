@@ -9,6 +9,7 @@
     <string name="editor_saved_waiting">Saved; waiting for SystemUI to apply</string>
     <string name="editor_applied">SystemUI applied this version</string>
     <string name="editor_degraded">Saved; some SystemUI features are degraded</string>
+    <string name="editor_glass_compatibility">Highlight Glass compatibility mode. Native blur unverified.</string>
     <string name="editor_waiting_mount">Saved; expand the control center to apply</string>
     <string name="editor_draft_restored">Unpublished draft restored</string>
     <string name="editor_restore_draft">Restore last draft</string>

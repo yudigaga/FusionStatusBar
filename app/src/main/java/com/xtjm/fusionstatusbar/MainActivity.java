@@ -566,6 +566,11 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         });
         this.layoutSettingsSummary = (android.widget.TextView) layoutRow.getTag();
         addDivider(personalizationCard);
+        addPreference(personalizationCard,
+                getString(R.string.ui_main_icon_visibility_customization),
+                getString(R.string.ui_main_icon_visibility_customization_summary),
+                view -> showIconVisibilityDialog());
+        addDivider(personalizationCard);
         android.widget.LinearLayout clockRow = addPreference(personalizationCard, getString(R.string.clock_settings_title), getString(R.string.ui_main_fd69741299), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.18
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
@@ -2944,6 +2949,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 
     private void showTelemetryDialog() { settingsPages().showTelemetry(); }
     private void showLayoutDialog() { settingsPages().showLayout(); }
+    private void showIconVisibilityDialog() { settingsPages().showIconVisibility(); }
 
     private void showSettingsDialog(java.lang.String title, com.xtjm.fusionstatusbar.MainActivity.DialogBuilder builder) {
         settingsDialogController().show(title, builder::build, surfaceColor(), textPrimaryColor(), accentColor());

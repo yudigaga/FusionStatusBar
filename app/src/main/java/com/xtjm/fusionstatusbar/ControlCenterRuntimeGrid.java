@@ -141,7 +141,7 @@ final class ControlCenterRuntimeGrid {
                     + " style=" + currentStyle
                     + " enabled=" + settings.enabled
                     + " plan=" + (settings.layoutPlan.isEmpty() ? "empty" : "present"));
-            clear(adapter, false);
+            clear(adapter, false, "mode_or_config_bypass");
             return false;
         }
         try {
@@ -235,7 +235,7 @@ final class ControlCenterRuntimeGrid {
             if (items.isEmpty() && !(horizontal && !plan.mode(compact).items.isEmpty())) {
                 trace(Log.INFO, "runtime grid bypass empty resolved plan mode="
                         + (compact ? "COMPACT" : "NORMAL"));
-                clear(adapter, false);
+                clear(adapter, false, "empty_resolved_layout");
                 SystemUiHooks.reportControlCenterApplication(settings,
                         resolved.unavailableSpecs.isEmpty() ? FusionActivationStatus.APPLIED : FusionActivationStatus.DEGRADED,
                         resolved.unavailableSpecs.isEmpty() ? "empty_layout_native_retained" : "control_center_items_unavailable");
@@ -278,7 +278,9 @@ final class ControlCenterRuntimeGrid {
                 }
                 host.project(next.item, relocatedComponents);
             } catch (Throwable error) {
-                RuntimeCleanup.run("restore failed grid map", () -> host.restoreSnapshot(original, false));
+                RuntimeCleanup.run("restore failed grid map", () -> traceNativePanelMap(adapter,
+                        previous == null ? null : previous.grid, "snapshot", "projection_failed",
+                        false, host.restoreSnapshot(original, false)));
                 if (previous != next) next.dispose();
                 throw error;
             }
@@ -362,10 +364,10 @@ final class ControlCenterRuntimeGrid {
         GridState previous = stateFor(adapter);
         if (previous != null) {
             if (currentSnapshot == null) {
-                RuntimeCleanup.run("restore native panel", () -> previous.restoreNative(true));
+                RuntimeCleanup.run("restore native panel", () -> previous.restoreNative(true, "abort"));
             } else {
                 RuntimeCleanup.run("restore current panel",
-                        () -> previous.restoreSnapshot(currentSnapshot, true));
+                        () -> previous.restoreSnapshot(currentSnapshot, true, "abort"));
             }
             synchronized (STATES) {
                 STATES.remove(adapter);
@@ -381,6 +383,10 @@ final class ControlCenterRuntimeGrid {
 
     /** Clears a proxy without sending an intermediate adapter notification. */
     static void clear(Object adapter, boolean notify) {
+        clear(adapter, notify, "clear");
+    }
+
+    private static void clear(Object adapter, boolean notify, String reason) {
         if (adapter == null) return;
         GridState previous;
         synchronized (STATES) {
@@ -390,7 +396,7 @@ final class ControlCenterRuntimeGrid {
         if (previous == null) return;
         trace(Log.INFO, "runtime grid cleared mode=" + (previous.compact ? "COMPACT" : "NORMAL")
                 + " itemCount=" + previous.items.size());
-        RuntimeCleanup.run("restore native panel", () -> previous.restoreNative(notify));
+        RuntimeCleanup.run("restore native panel", () -> previous.restoreNative(notify, reason));
         previous.dispose();
     }
 
@@ -411,7 +417,7 @@ final class ControlCenterRuntimeGrid {
             STATES.clear();
         }
         for (GridState state : active) {
-            RuntimeCleanup.run("restore native panel", () -> state.restoreNative(false));
+            RuntimeCleanup.run("restore native panel", () -> state.restoreNative(false, reason));
             state.dispose();
         }
         if (!active.isEmpty()) {
@@ -434,6 +440,17 @@ final class ControlCenterRuntimeGrid {
 
     private static void trace(int priority, String message, Throwable error) {
         SystemUiHooks.runtimeGridLog(priority, message, error);
+    }
+
+    private static String diagnosticId(Object value) {
+        return value == null ? "none" : Integer.toHexString(System.identityHashCode(value));
+    }
+
+    private static void traceNativePanelMap(Object adapter, GridView grid, String operation, String reason,
+            boolean notify, ControlCenterHostAdapter.RestoreResult result) {
+        trace(Log.INFO, "runtime grid native panel map outcome=" + result + " operation=" + operation
+                + " reason=" + reason + " notifyRequested=" + notify + " adapterId=" + diagnosticId(adapter)
+                + " gridId=" + diagnosticId(grid) + " revision=" + SystemUiHooks.runtimeDiagnosticRevision());
     }
 
     private static LinkedHashMap<String, Object> collectTiles(
@@ -721,6 +738,8 @@ final class ControlCenterRuntimeGrid {
                 trace(Log.INFO, "runtime grid proxy mounted parent="
                         + (nextGrid.getParent() == null ? "none"
                         : nextGrid.getParent().getClass().getName())
+                        + " adapterId=" + diagnosticId(adapter.get())
+                        + " carrierId=" + diagnosticId(view) + " gridId=" + diagnosticId(nextGrid)
                         + " childCount=" + nextGrid.getChildCount()
                         + " carrierAnimation=native"
                         + " contentHeight=" + nextGrid.contentHeight());
@@ -766,7 +785,6 @@ final class ControlCenterRuntimeGrid {
                 } catch (ReflectiveOperationException error) { throw new IllegalStateException("Group tile bind failed", error); }
             });
             target.addTile(group, placement, -1);
-            ControlCenterMaterials.registerRoot(group, materialSettings);
         }
 
         private void addComponent(GridView target, List<TileBinding> created,
@@ -782,7 +800,6 @@ final class ControlCenterRuntimeGrid {
                 view.setShape(placement.shape, placement.cornerRadius);
                 created.add(TileBinding.moduleView(view));
                 target.addTile(view, placement, -1);
-                ControlCenterMaterials.registerRoot(view, materialSettings);
                 return;
             }
             ControlCenterHostAdapter.HolderBinding nativeBinding =
@@ -797,7 +814,6 @@ final class ControlCenterRuntimeGrid {
                             ? Math.max(1f, materialSettings.borderWidthDp
                                     * target.getResources().getDisplayMetrics().density) : 0f);
             target.addTile(view, placement, -1, binding.sliderLayout);
-            ControlCenterMaterials.registerRoot(view, materialSettings);
             if (binding.sliderLayout != null) {
                 trace(Log.INFO, "runtime slider spec=" + placement.firstSpec
                         + " axis=" + (placement.width > placement.height
@@ -847,6 +863,7 @@ final class ControlCenterRuntimeGrid {
             outerHeightReconciler = new ControlCenterOuterHeightReconciler(view,
                     () -> outerView == view && grid == nextGrid && !disposed && !failed,
                     () -> guardPresentation(() -> pinOuterHeight(view, nextGrid)),
+                    () -> nextGrid.sampleCarrier("settle_timeout", "carrier_transform_deadline"),
                     ControlCenterOuterHeightReconciler.VIEW_SCHEDULER);
             outerHeightReconciler.reconcile();
             scheduleMountTask(view, () -> {
@@ -1018,6 +1035,7 @@ final class ControlCenterRuntimeGrid {
                     RuntimeCleanup.run("cancel grid mount task", () -> outerView.removeCallbacks(task));
             }
             mountTasks.clear();
+            if (grid != null) grid.sampleCarrier("settle_unobserved", "unbind");
             RuntimeCleanup.run("detach bindings", this::detach);
             if (grid != null) RuntimeCleanup.run("release grid material ownership", grid::releaseMaterials);
             if (bindings != null) {
@@ -1109,22 +1127,24 @@ final class ControlCenterRuntimeGrid {
             SystemUiHooks.reportControlCenterApplication(materialSettings, FusionActivationStatus.DEGRADED,
                     "control_center_mount_failed");
             new Handler(Looper.getMainLooper()).post(() -> {
-                RuntimeCleanup.run("restore failed grid", () -> restoreNative(true));
+                RuntimeCleanup.run("restore failed grid", () -> restoreNative(true, "mount_failed"));
                 dispose();
             });
         }
 
-        private void restoreSnapshot(LinkedHashMap<Object, List<Object>> snapshot, boolean notify) {
+        private void restoreSnapshot(LinkedHashMap<Object, List<Object>> snapshot, boolean notify, String reason) {
             if (hostPanel == null) return;
             ControlCenterHostAdapter.RestoreResult result = hostPanel.restoreSnapshot(snapshot, notify);
+            traceNativePanelMap(adapter.get(), grid, "snapshot", reason, notify, result);
             if (result == ControlCenterHostAdapter.RestoreResult.RESTORED_WITHOUT_NOTIFY) {
                 Log.w(TAG, "Current native panel restored without notify");
             }
         }
 
-        private void restoreNative(boolean notify) {
+        private void restoreNative(boolean notify, String reason) {
             if (hostPanel == null) return;
             ControlCenterHostAdapter.RestoreResult result = hostPanel.restoreProxy(item, notify);
+            traceNativePanelMap(adapter.get(), grid, "proxy", reason, notify, result);
             if (result == ControlCenterHostAdapter.RestoreResult.SUPERSEDED) {
                 // A later SystemUI distribution replaced the proxy; keep its native map.
                 Log.w(TAG, "runtime grid proxy missing; keeping current native panel");
@@ -1289,6 +1309,12 @@ final class ControlCenterRuntimeGrid {
         private ControlCenterLayoutPlan.Mode editorMode;
         private boolean materialsReleased;
         private boolean syncingMaterials;
+        private boolean firstDrawSampled;
+        private boolean settledDrawSampled;
+        private boolean carrierTimeoutSampled;
+        private boolean carrierReleasedSampled;
+        private boolean circleMaterialSampled;
+        private boolean externalMaterialSampled;
         private int materialProbeStage;
         private final Runnable materialProbe = new Runnable() {
             @Override public void run() {
@@ -1503,14 +1529,14 @@ final class ControlCenterRuntimeGrid {
                 boolean editing = ControlCenterNativeMode.isEditing(overlay);
                 boolean card = decoration.item.type != ControlCenterLayoutPlan.Type.TILE
                         || decoration.item.width > decoration.item.height;
-                int strength = ControlCenterMaterials.percent(settings,
-                        card ? ControlCenterMaterials.Layer.CARD
-                                : ControlCenterMaterials.Layer.TILE, editing);
-                ControlCenterSoftGlass.apply(overlay, settings.surface, settings.enabled && !editing
-                        && settings.surface.hasSoftGlassReflection(), strength);
+                ControlCenterMaterials.Layer layer = card ? ControlCenterMaterials.Layer.CARD : ControlCenterMaterials.Layer.TILE;
+                int strength = ControlCenterMaterials.percent(settings, layer, editing);
+                ControlCenterSurface surface = ControlCenterMaterials.surface(settings, layer, editing);
+                ControlCenterSoftGlass.apply(overlay, surface, settings.enabled && !editing
+                        && surface.hasSoftGlassReflection(), strength);
                 ControlCenterGlobalBorder.apply(overlay, settings.enabled && !editing
                         && settings.borderEnabled, settings.borderWidthDp,
-                        settings.surface.resolve(overlay.getContext()).neutralForeground() == 0xff202124);
+                        surface.resolve(overlay.getContext()).neutralForeground() == 0xff202124);
             }
             if (contentScaleChanged) requestLayout();
             // Some surfaces are owned by drawable wrappers and refresh only in dispatchDraw.
@@ -1532,6 +1558,78 @@ final class ControlCenterRuntimeGrid {
             for (Decoration decoration : decorations.values())
                 if (decoration.view.getVisibility() == View.VISIBLE)
                     super.drawChild(canvas, decoration.view, getDrawingTime());
+            if (!firstDrawSampled) sampleCarrier("first_draw", "grid_dispatch_draw");
+            else if (!settledDrawSampled) sampleCarrier("settled", "visible_grid_dispatch_draw");
+        }
+
+        private void sampleCarrier(String stage, String reason) {
+            if (stage.equals("settle_timeout") && (settledDrawSampled || carrierTimeoutSampled)) return;
+            if (stage.equals("settle_unobserved")
+                    && (settledDrawSampled || carrierTimeoutSampled || carrierReleasedSampled)) return;
+            if (!(getParent() instanceof View region)
+                    || !(region.getParent() instanceof ControlCenterScaleViewport viewport)
+                    || !(viewport.getParent() instanceof View carrier)) return;
+            try {
+                if (stage.equals("first_draw") && !isAttachedToWindow()) return;
+                int targetHeight = renderedHeight();
+                if (stage.equals("settled") && !isSettledDraw(carrier, viewport, region, targetHeight)) return;
+                switch (stage) {
+                    case "first_draw" -> firstDrawSampled = true;
+                    case "settled" -> settledDrawSampled = true;
+                    case "settle_timeout" -> carrierTimeoutSampled = true;
+                    case "settle_unobserved" -> carrierReleasedSampled = true;
+                }
+                android.graphics.Rect visible = new android.graphics.Rect();
+                trace(Log.INFO, "runtime grid carrier snapshot stage=" + stage
+                        + " reason=" + reason + " firstDrawObserved=" + firstDrawSampled
+                        + " revision=" + SystemUiHooks.runtimeDiagnosticRevision()
+                        + " carrierId=" + diagnosticId(carrier) + " gridId=" + diagnosticId(this)
+                        + " viewportId=" + diagnosticId(viewport) + " targetHeight=" + targetHeight
+                        + " carrierMinimumHeight=" + carrier.getMinimumHeight()
+                        + " windowVisibility=" + carrier.getWindowVisibility()
+                        + " regionSize=" + region.getWidth() + "x" + region.getHeight()
+                        + " viewportScrollX=" + viewport.getScrollX()
+                        + describeGeometry("carrier", carrier, visible)
+                        + describeGeometry("viewport", viewport, visible)
+                        + describeGeometry("grid", this, visible));
+            } catch (RuntimeException ignored) { }
+        }
+
+        private boolean isSettledDraw(View carrier, View viewport, View region, int targetHeight) {
+            // pinOuterHeight may have updated LayoutParams without a completed traversal.
+            if (!isAttachedToWindow() || !ControlCenterOuterHeightReconciler.isSettled(carrier)
+                    || !hasCurrentHeight(carrier, targetHeight) || !hasCurrentHeight(viewport, targetHeight)
+                    || region.isLayoutRequested() || region.getMeasuredHeight() != targetHeight
+                    || region.getHeight() != targetHeight || isLayoutRequested()
+                    || getMeasuredHeight() != contentHeight() || getHeight() != getMeasuredHeight()
+                    || getWindowVisibility() != View.VISIBLE || !isShown()) return false;
+            float alpha = 1f;
+            for (View view = this; view != null; view = view.getParent() instanceof View parent ? parent : null) {
+                alpha *= view.getAlpha();
+                if (!(alpha > 0f)) return false;
+            }
+            return getGlobalVisibleRect(new android.graphics.Rect());
+        }
+
+        private static boolean hasCurrentHeight(View view, int targetHeight) {
+            ViewGroup.LayoutParams params = view.getLayoutParams();
+            return !view.isLayoutRequested() && params != null && params.height == targetHeight
+                    && view.getMeasuredHeight() == targetHeight && view.getHeight() == targetHeight;
+        }
+
+        private static String describeGeometry(String role, View view, android.graphics.Rect visible) {
+            ViewGroup.LayoutParams params = view.getLayoutParams();
+            return " " + role + "LpHeight=" + (params == null ? "none" : params.height)
+                    + " " + role + "Measured=" + view.getMeasuredWidth() + "x" + view.getMeasuredHeight()
+                    + " " + role + "Size=" + view.getWidth() + "x" + view.getHeight()
+                    + " " + role + "Visibility=" + view.getVisibility()
+                    + " " + role + "Attached=" + view.isAttachedToWindow()
+                    + " " + role + "LayoutRequested=" + view.isLayoutRequested()
+                    + " " + role + "Alpha=" + view.getAlpha()
+                    + " " + role + "Scale=" + view.getScaleX() + "x" + view.getScaleY()
+                    + " " + role + "Translation=" + view.getTranslationX() + "," + view.getTranslationY()
+                    + " " + role + "VisibleRect="
+                    + (view.getGlobalVisibleRect(visible) ? visible.toShortString() : "none");
         }
 
         private void diagnoseDecorationSurfaces() {
@@ -1599,7 +1697,13 @@ final class ControlCenterRuntimeGrid {
             ControlCenterLayoutPlan.Item shape = slot.item.withShape(slot.item.shape,
                     slot.item.cornerRadius > 0 ? slot.item.cornerRadius : materialSettings.cornerRadius);
             if (!ControlCenterMaterials.syncComponentView(slot.view, shape, materialSettings)) return;
-            if (slot.materialDiagnosed || slot.view.getWidth() <= 0 || slot.view.getHeight() <= 0) return;
+            if (!hasMeasuredSurface(slot.view)) return;
+            if (!slot.materialRouteSampled && nativeGlassPolicy(slot.view, ControlCenterMaterials.Layer.CARD)) {
+                String role = ControlCenterComponentSpec.MEDIA.equals(slot.item.firstSpec) ? "media" : "device_center";
+                slot.materialRouteSampled = true;
+                traceMaterialOwner(slot, role, materialSettings.cardBlur, slot.view, null);
+            }
+            if (slot.materialDiagnosed) return;
             slot.materialDiagnosed = true;
             try {
                 trace(Log.INFO, "component surface layers spec=" + slot.item.firstSpec + " shape=" + shape.shape
@@ -1612,17 +1716,32 @@ final class ControlCenterRuntimeGrid {
         private void syncTileSurface(Slot slot) {
             boolean external = slot.item.type == ControlCenterLayoutPlan.Type.TILE && nativeTile(slot.view)
                     && slot.item.shape != ControlCenterLayoutPlan.Shape.CIRCLE;
-            ControlCenterMaterials.syncTileView(slot.view, materialSettings, external);
+            boolean managed = ControlCenterMaterials.syncTileView(slot.view, materialSettings, external);
+            View backing = null;
             if (external) {
                 for (Slot candidate : slots) {
-                    if (candidate.half < 0 && candidate.item.id.equals(slot.item.id))
-                        ControlCenterMaterials.applyTileBacking(candidate.view, slot.view, materialSettings);
+                    if (candidate.half < 0 && candidate.item.id.equals(slot.item.id)
+                            && ControlCenterMaterials.applyTileBacking(candidate.view, slot.view, materialSettings))
+                        backing = candidate.view;
                 }
             }
-            if (slot.materialDiagnosed || !diagnosticTile(slot.item.firstSpec)) return;
+            boolean inspectLayers = !slot.materialDiagnosed && diagnosticTile(slot.item.firstSpec);
+            boolean sampleExternal = !externalMaterialSampled && external && backing != null
+                    && hasMeasuredSurface(backing);
+            boolean sampleCircle = !circleMaterialSampled && nativeCircle(slot.view, slot.item);
+            boolean sampleRoute = managed && (sampleExternal || sampleCircle)
+                    && hasMeasuredSurface(slot.view)
+                    && nativeGlassPolicy(slot.view, ControlCenterMaterials.Layer.TILE);
+            if (!inspectLayers && !sampleRoute) return;
             View surface = ControlCenterMaterials.tileSurface(slot.view);
-            if (surface instanceof android.widget.ImageView image && image.getDrawable() != null
-                    && surface.getWidth() > 0 && surface.getHeight() > 0) {
+            if (!(surface instanceof android.widget.ImageView image) || !hasMeasuredSurface(surface)) return;
+            if (sampleRoute) {
+                externalMaterialSampled |= sampleExternal;
+                circleMaterialSampled |= sampleCircle;
+                traceMaterialOwner(slot, external ? "external_backing" : "circle",
+                        materialSettings.tileBlur, surface, backing);
+            }
+            if (inspectLayers && image.getDrawable() != null) {
                 slot.materialDiagnosed = true;
                 try {
                     trace(Log.INFO, "tile surface layers spec=" + slot.item.firstSpec + " shape=" + slot.item.shape
@@ -1631,6 +1750,27 @@ final class ControlCenterRuntimeGrid {
                     trace(Log.WARN, "tile surface inspection unavailable", error);
                 }
             }
+        }
+
+        private boolean nativeGlassPolicy(View view, ControlCenterMaterials.Layer layer) {
+            return materialSettings.enabled && materialSettings.surface == ControlCenterSurface.HIGHLIGHT_GLASS
+                    && ControlCenterMaterials.nativeFallback(materialSettings, layer, ControlCenterNativeMode.isEditing(view));
+        }
+
+        private static boolean hasMeasuredSurface(View view) {
+            return view.getWidth() > 0 && view.getHeight() > 0;
+        }
+
+        private void traceMaterialOwner(Slot slot, String role, int requestedBlur, View surface, View backing) {
+            try {
+                Drawable backingDrawable = backing == null ? null : backing.getBackground();
+                trace(Log.INFO, "control-center material snapshot role=" + role
+                        + " gridId=" + diagnosticId(this) + " revision=" + SystemUiHooks.runtimeDiagnosticRevision()
+                        + " shape=" + slot.item.shape + " requestedBlur=" + requestedBlur
+                        + (backingDrawable == null ? "" : " backing=" + backingDrawable.getClass().getSimpleName()
+                        + " backingId=" + diagnosticId(backing) + " backingSize=" + backing.getWidth() + "x" + backing.getHeight())
+                        + ControlCenterMaterials.describeMaterialOwner(surface));
+            } catch (RuntimeException ignored) { }
         }
 
         private static boolean diagnosticTile(String spec) {
@@ -1663,7 +1803,8 @@ final class ControlCenterRuntimeGrid {
                 if (materialSettings.enabled && stable && wrapper == null) continue;
                 boolean editing = materialSettings.enabled && ControlCenterNativeMode.isEditing(tile);
                 if (tileSlot != null) tileSlot.materialFallbackSuspended = !materialSettings.enabled || editing;
-                if (!materialSettings.enabled || editing) {
+                if (!materialSettings.enabled || editing || nativeTile(tile)
+                        && ControlCenterMaterials.nativeFallback(materialSettings, ControlCenterMaterials.Layer.TILE, editing)) {
                     // The deferred slot pass can already have cleared the dirty flag.
                     // Release our fallback before considering stable active-state shortcuts.
                     if (wrapper != null) {
@@ -1674,7 +1815,7 @@ final class ControlCenterRuntimeGrid {
                 }
                 int strength = ControlCenterMaterials.percent(materialSettings,
                         ControlCenterMaterials.Layer.TILE, editing);
-                ControlCenterSurface surface = ControlCenterMaterials.surface(materialSettings, editing)
+                ControlCenterSurface surface = ControlCenterMaterials.surface(materialSettings, ControlCenterMaterials.Layer.TILE, editing)
                         .resolve(tile.getContext());
                 int surfaceColor = ControlCenterMaterials.color(surface.stateColor(true), strength);
                 // A settings refresh can change opacity without changing the active state.
@@ -2074,6 +2215,7 @@ final class ControlCenterRuntimeGrid {
 
     private static final class Slot {
         boolean materialDiagnosed;
+        boolean materialRouteSampled;
         boolean materialDirty = true;
         boolean materialActive;
         boolean materialActiveKnown;

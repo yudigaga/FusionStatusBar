@@ -25,11 +25,33 @@ public final class FusionConfig {
     static final String KEY_PREVIEW_CATALOG = "preview_tile_catalog";
     static final String KEY_PREVIEW_URI = "preview_uri";
     static final String KEY_SCHEMA_VERSION = "config_schema_version";
-    static final int CONFIG_SCHEMA_VERSION = 6;
+    static final int CONFIG_SCHEMA_VERSION = 7;
 
     public static final int SIDE_LEFT = 0;
     public static final int SIDE_RIGHT = 1;
     public static final int MAX_SPAN_OFFSET_DP = 24;
+    public static final int ICON_NETWORK_SPEED = 1;
+    public static final int ICON_BLUETOOTH = 1 << 1;
+    public static final int ICON_LOCATION = 1 << 2;
+    public static final int ICON_PRIVACY = 1 << 3;
+    public static final int ICON_VPN = 1 << 4;
+    public static final int ICON_HOTSPOT = 1 << 5;
+    public static final int ICON_VOLUME = 1 << 6;
+    public static final int ICON_ZEN = 1 << 7;
+    public static final int ICON_ALARM = 1 << 8;
+    public static final int ICON_ROAMING = 1 << 9;
+    public static final int ICON_HEADSET = 1 << 10;
+    public static final int ICON_PHONE = 1 << 11;
+    public static final int ICON_TABLET = 1 << 12;
+    public static final int ICON_PC = 1 << 13;
+    public static final int ICON_TV = 1 << 14;
+    public static final int ICON_CAR = 1 << 15;
+    public static final int ICON_SPEAKER = 1 << 16;
+    public static final int ICON_GLASSES = 1 << 17;
+    public static final int ICON_CAMERA = 1 << 18;
+    public static final int SYSTEM_ICON_ALL = (1 << 19) - 1;
+    public static final int DEFAULT_SYSTEM_ICON_MASK = SYSTEM_ICON_ALL
+            & ~(ICON_PRIVACY | ICON_ALARM);
 
     static final String KEY_ICON_SCALE = "icon_scale";
     static final String KEY_STROKE_SCALE = "stroke_scale";
@@ -55,6 +77,7 @@ public final class FusionConfig {
     static final String KEY_FUSION_ROW = "fusion_row";
     static final String KEY_SYSTEM_ICON_SCALE = "system_icon_scale";
     static final String KEY_NOTIFICATION_ICON_SCALE = "notification_icon_scale";
+    static final String KEY_SYSTEM_ICON_MASK = "system_icon_visibility_mask";
 
     public final int iconScale;
     public final long revision;
@@ -84,6 +107,7 @@ public final class FusionConfig {
     public final int fusionRow;
     public final int systemIconScale;
     public final int notificationIconScale;
+    public final int systemIconVisibilityMask;
 
     public FusionConfig(int iconScale, int strokeScale, boolean doubleRow, int doubleRowSide,
             boolean spanRows, boolean wifiIcon, int statusBarHeight, int clockSide, int clockRow,
@@ -133,6 +157,23 @@ public final class FusionConfig {
             boolean showWeather, TelemetryConfig telemetry,
             NotificationClockConfig notificationClock, ControlCenterConfig controlCenter,
             int statusClockSizeSp, long revision, FusionContentConfig fusionContent) {
+        this(iconScale, strokeScale, doubleRow, doubleRowSide, spanRows, wifiIcon,
+                statusBarHeight, clockSide, clockRow, notificationSide, notificationRow,
+                systemSide, systemRow, fusionSide, fusionRow, systemIconScale,
+                notificationIconScale, spanOffsetX, spanOffsetY, customClock, clockPattern,
+                showWeather, telemetry, notificationClock, controlCenter, statusClockSizeSp,
+                revision, fusionContent, DEFAULT_SYSTEM_ICON_MASK);
+    }
+
+    private FusionConfig(int iconScale, int strokeScale, boolean doubleRow, int doubleRowSide,
+            boolean spanRows, boolean wifiIcon, int statusBarHeight, int clockSide, int clockRow,
+            int notificationSide, int notificationRow, int systemSide, int systemRow,
+            int fusionSide, int fusionRow, int systemIconScale, int notificationIconScale,
+            int spanOffsetX, int spanOffsetY, boolean customClock, String clockPattern,
+            boolean showWeather, TelemetryConfig telemetry,
+            NotificationClockConfig notificationClock, ControlCenterConfig controlCenter,
+            int statusClockSizeSp, long revision, FusionContentConfig fusionContent,
+            int systemIconVisibilityMask) {
         this.revision = Math.max(0L, revision);
         this.iconScale = clampScale(iconScale);
         this.strokeScale = clampScale(strokeScale);
@@ -165,6 +206,7 @@ public final class FusionConfig {
         this.fusionRow = normalizeRow(fusionRow);
         this.systemIconScale = clampScale(systemIconScale);
         this.notificationIconScale = clampScale(notificationIconScale);
+        this.systemIconVisibilityMask = systemIconVisibilityMask & SYSTEM_ICON_ALL;
     }
 
     FusionConfig(int iconScale, int strokeScale, boolean doubleRow, int doubleRowSide,
@@ -357,7 +399,9 @@ public final class FusionConfig {
                 ControlCenterConfig.fromBundle(values))
                 .withFusionContent(FusionContentConfig.fromBundle(values))
                 .withStatusClockSizeSp(values.getInt(KEY_STATUS_CLOCK_SIZE,
-                        fallback.statusClockSizeSp)).withRevision(
+                        fallback.statusClockSizeSp))
+                .withSystemIconVisibilityMask(values.getInt(KEY_SYSTEM_ICON_MASK,
+                        fallback.systemIconVisibilityMask)).withRevision(
                         values.getLong(KEY_REVISION, 0L));
     }
 
@@ -392,6 +436,7 @@ public final class FusionConfig {
         values.putInt(KEY_FUSION_ROW, fusionRow);
         values.putInt(KEY_SYSTEM_ICON_SCALE, systemIconScale);
         values.putInt(KEY_NOTIFICATION_ICON_SCALE, notificationIconScale);
+        values.putInt(KEY_SYSTEM_ICON_MASK, systemIconVisibilityMask);
         return values;
     }
 
@@ -403,7 +448,8 @@ public final class FusionConfig {
                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
                 source.telemetry, source.notificationClock, source.controlCenter,
-                source.statusClockSizeSp, revision, source.fusionContent);
+                source.statusClockSizeSp, revision, source.fusionContent,
+                source.systemIconVisibilityMask);
     }
 
     private FusionConfig(FusionConfig source, int statusClockSizeSp) {
@@ -414,12 +460,25 @@ public final class FusionConfig {
                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
                 source.telemetry, source.notificationClock, source.controlCenter,
-                statusClockSizeSp, source.revision, source.fusionContent);
+                statusClockSizeSp, source.revision, source.fusionContent,
+                source.systemIconVisibilityMask);
+    }
+
+    private FusionConfig(FusionConfig source, int statusClockSizeSp, int systemIconVisibilityMask) {
+        this(source.iconScale, source.strokeScale, source.doubleRow, source.doubleRowSide,
+                source.spanRows, source.wifiIcon, source.statusBarHeight, source.clockSide,
+                source.clockRow, source.notificationSide, source.notificationRow,
+                source.systemSide, source.systemRow, source.fusionSide, source.fusionRow,
+                source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
+                source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
+                source.telemetry, source.notificationClock, source.controlCenter,
+                statusClockSizeSp, source.revision, source.fusionContent, systemIconVisibilityMask);
     }
 
     private FusionConfig preserveStatusClockSize(FusionConfig changed) {
         FusionConfig result = changed.statusClockSizeSp == statusClockSizeSp
-                ? changed : new FusionConfig(changed, statusClockSizeSp);
+                && changed.systemIconVisibilityMask == systemIconVisibilityMask ? changed
+                : new FusionConfig(changed, statusClockSizeSp, systemIconVisibilityMask);
         return result.fusionContent.sameAs(fusionContent)
                 ? result : result.withFusionContent(fusionContent);
     }
@@ -432,7 +491,8 @@ public final class FusionConfig {
                 source.systemIconScale, source.notificationIconScale, source.spanOffsetX,
                 source.spanOffsetY, source.customClock, source.clockPattern, source.showWeather,
                 source.telemetry, source.notificationClock, source.controlCenter,
-                source.statusClockSizeSp, source.revision, fusionContent);
+                source.statusClockSizeSp, source.revision, fusionContent,
+                source.systemIconVisibilityMask);
     }
 
     FusionConfig withFusionContent(FusionContentConfig value) {
@@ -658,7 +718,20 @@ public final class FusionConfig {
     }
 
     public FusionConfig withStatusClockSizeSp(int value) {
-        return new FusionConfig(this, clampStatusClockSize(value));
+        return new FusionConfig(this, clampStatusClockSize(value), systemIconVisibilityMask);
+    }
+
+    public FusionConfig withSystemIconVisibilityMask(int value) {
+        return new FusionConfig(this, statusClockSizeSp, value & SYSTEM_ICON_ALL);
+    }
+
+    public FusionConfig withSystemIconEnabled(int icon, boolean enabled) {
+        if ((icon & SYSTEM_ICON_ALL) == 0 || (icon & (icon - 1)) != 0
+                || (icon & SYSTEM_ICON_ALL) != icon) {
+            throw new IllegalArgumentException("invalid_system_icon");
+        }
+        int next = enabled ? systemIconVisibilityMask | icon : systemIconVisibilityMask & ~icon;
+        return new FusionConfig(this, statusClockSizeSp, next);
     }
 
     public static int clampStatusClockSize(int value) {

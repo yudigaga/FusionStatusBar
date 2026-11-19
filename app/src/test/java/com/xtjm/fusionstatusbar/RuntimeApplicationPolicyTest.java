@@ -42,5 +42,33 @@ public class RuntimeApplicationPolicyTest {
                 RuntimeApplicationPolicy.controlCenterAvailability(true, true).state());
     }
 
+    @Test public void mountedAutomaticGlassWithUnknownOemBlurReportsItsFallback() {
+        ControlCenterConfig automatic = ControlCenterConfig.defaults().withEnabled(true)
+                .withSurface(ControlCenterSurface.HIGHLIGHT_GLASS).withBlur(0, 30, 0);
+        RuntimeApplicationPolicy.Result fallback = RuntimeApplicationPolicy.controlCenterMaterial(
+                automatic, FusionActivationStatus.APPLIED, "control_center_mounted");
+        assertEquals(FusionActivationStatus.DEGRADED, fallback.state());
+        assertEquals("control_center_mounted_canvas_compatibility_private_blur_unverified",
+                fallback.reason());
+        for (ControlCenterConfig unchanged : new ControlCenterConfig[] {
+                automatic.withEnabled(false), automatic.withBlur(0, 0, 0),
+                automatic.withSurface(ControlCenterSurface.CLEAR),
+                automatic.withSurface(ControlCenterSurface.SOFT_GLASS)}) {
+            RuntimeApplicationPolicy.Result result = RuntimeApplicationPolicy.controlCenterMaterial(
+                    unchanged, FusionActivationStatus.APPLIED, "control_center_mounted");
+            assertEquals(FusionActivationStatus.APPLIED, result.state());
+            assertEquals("control_center_mounted", result.reason());
+        }
+    }
+
+    @Test public void missingHooksAndPendingMountAreNotOverwrittenByMaterialFallback() {
+        ControlCenterConfig automatic = ControlCenterConfig.defaults().withEnabled(true)
+                .withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
+        assertEquals("required_control_center_hooks_unavailable", RuntimeApplicationPolicy.controlCenterMaterial(
+                automatic, FusionActivationStatus.DEGRADED, "required_control_center_hooks_unavailable").reason());
+        assertEquals(FusionActivationStatus.WAITING, RuntimeApplicationPolicy.controlCenterMaterial(
+                automatic, FusionActivationStatus.WAITING, "control_center_mount_pending").state());
+    }
+
     static class Battery { void onAttachedToWindow() { } }
 }

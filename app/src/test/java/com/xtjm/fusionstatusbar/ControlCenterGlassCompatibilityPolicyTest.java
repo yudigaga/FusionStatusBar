@@ -64,8 +64,11 @@ public class ControlCenterGlassCompatibilityPolicyTest {
             finally { image.recycle(); }
             assertEquals("Legacy API discovery must not force the unverified native view mode1", 0,
                     panel.forcedMode1Calls);
-            assertTrue("The compatible path may preserve OEM mode3 or let the established Canvas surface own the fill",
-                    panel.viewMode == 3 || panel.viewMode == 0);
+            assertEquals("UNKNOWN automatic blur retains the observed OEM material", 3, panel.viewMode);
+            assertEquals(2, panel.backgroundMode);
+            assertEquals(180, panel.radius);
+            assertNotSame("Highlight compatibility uses a reversible Canvas layer", background,
+                    panel.getBackground());
             assertFalse("An unverified native glass path must not force the OEM mix effect on", panel.mix);
             assertArrayEquals("An unverified native glass path must not invent a native bloom profile",
                     new float[21], panel.bloom, 0f);

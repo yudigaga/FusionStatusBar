@@ -180,4 +180,6 @@
     <string name="ui_main_fbab901503" formatted="false">&quot;Permite directamente el inicio entre aplicaciones. Activa el ámbito del sistema (system / system_server) en LSPosed y reinicia el teléfono.&quot;</string>
     <string name="ui_main_fd69741299" formatted="false">&quot;Hora de la barra de estado, fecha lunar, día de la semana y tiempo&quot;</string>
     <string name="ui_main_fed31d5ca1" formatted="false">&quot;Referencia del diseño real  &quot;</string>
+    <string name="ui_main_icon_visibility_customization">Personalizar iconos</string>
+    <string name="ui_main_icon_visibility_customization_summary">Configura el estado del sistema y los dispositivos conectados</string>
 </resources>

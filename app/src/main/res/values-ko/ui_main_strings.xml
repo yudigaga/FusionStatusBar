@@ -180,5 +180,7 @@
     <string name="ui_main_fbab901503" formatted="false">&quot;앱 간 실행을 바로 허용합니다. LSPosed에서 시스템(system / system_server) 범위를 선택한 뒤 휴대전화를 다시 시작해야 합니다&quot;</string>
     <string name="ui_main_fd69741299" formatted="false">&quot;상태 표시줄 시간, 음력, 요일 및 날씨&quot;</string>
     <string name="ui_main_fed31d5ca1" formatted="false">&quot;실제 레이아웃 참고 이미지  &quot;</string>
+    <string name="ui_main_icon_visibility_customization">아이콘 표시 사용자 지정</string>
+    <string name="ui_main_icon_visibility_customization_summary">시스템 상태와 연결 기기별로 설정</string>
 </resources>
 

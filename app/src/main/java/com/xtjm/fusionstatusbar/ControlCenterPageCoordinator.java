@@ -110,7 +110,9 @@ final class ControlCenterPageCoordinator implements AutoCloseable {
         }
         if (state.startsWith(FusionActivationStatus.APPLIED) || state.startsWith(FusionActivationStatus.DISABLED))
             applicationMessage = R.string.editor_applied;
-        else if (state.startsWith(FusionActivationStatus.DEGRADED)) applicationMessage = R.string.editor_degraded;
+        else if (state.startsWith(FusionActivationStatus.DEGRADED))
+            applicationMessage = state.endsWith(RuntimeApplicationPolicy.GLASS_COMPATIBILITY_SUFFIX)
+                    ? R.string.editor_glass_compatibility : R.string.editor_degraded;
         else if (state.startsWith(FusionActivationStatus.FAILED)) applicationMessage = R.string.editor_apply_failed;
         else if (state.startsWith(FusionActivationStatus.WAITING)) applicationMessage = R.string.editor_waiting_mount;
         else applicationMessage = SystemClock.elapsedRealtime() >= deadline

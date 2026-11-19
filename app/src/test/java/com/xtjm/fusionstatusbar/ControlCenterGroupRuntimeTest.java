@@ -1,6 +1,7 @@
 package com.xtjm.fusionstatusbar;
 
 import android.app.Activity;
+import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -51,6 +52,10 @@ public class ControlCenterGroupRuntimeTest {
             ControlCenterGroupView surface = (ControlCenterGroupView) grid.getChildAt(0);
             assertEquals(7, surface.getChildCount());
             assertEquals(7, factory.records.size());
+            for (Holder holder : owner.holders) {
+                assertEquals("Cold bind must scan each group member's materials once",
+                        1, ((ModeCountingView) holder.itemView).modeReads);
+            }
             invoke(state, "attach");
             for (int i = 0; i < 7; i++) {
                 Holder holder = owner.holders.get(i);
@@ -94,12 +99,17 @@ public class ControlCenterGroupRuntimeTest {
     }
     public static class Owner {
         final ArrayList<Holder> holders = new ArrayList<>();
-        public Holder createViewHolder(ViewGroup parent, int type) { Holder holder = new Holder(new FrameLayout(parent.getContext())); holders.add(holder); return holder; }
+        public Holder createViewHolder(ViewGroup parent, int type) { Holder holder = new Holder(new ModeCountingView(parent.getContext())); holders.add(holder); return holder; }
         public void onBindViewHolder(Holder holder, QSRecord record) {
             holder.itemView.setAlpha(0);
             holder.itemView.setOnClickListener(v -> holder.clicks++);
             holder.itemView.setOnLongClickListener(v -> { holder.longClicks++; return true; });
         }
+    }
+    public static class ModeCountingView extends FrameLayout {
+        int modeReads;
+        ModeCountingView(Context context) { super(context); }
+        public String getMode() { modeReads++; return "NORMAL"; }
     }
     public static class Holder {
         public final FrameLayout itemView;

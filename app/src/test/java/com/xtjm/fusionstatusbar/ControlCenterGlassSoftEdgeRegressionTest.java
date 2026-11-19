@@ -27,34 +27,36 @@ public class ControlCenterGlassSoftEdgeRegressionTest {
 
     @After public void clear() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void qsAndSystemSurfacesUseTheSameAutomaticGlassEdgeInBothThemes() {
+    @Test public void genericCanvasAndSystemMenusUseTheSameAutomaticGlassEdgeInBothThemes() {
         for (boolean night : new boolean[] {false, true}) {
             Context context = context(night);
             QSCardItemView qs = new QSCardItemView(context);
-            FrameLayout notification = new FrameLayout(context);
-            configure(qs); configure(notification);
+            FrameLayout systemMenu = new FrameLayout(context);
+            configure(qs); configure(systemMenu);
             ControlCenterConfig config = ControlCenterConfig.defaults().withEnabled(true)
                     .withSurface(ControlCenterSurface.HIGHLIGHT_GLASS).withCornerRadius(24)
                     .withGlobalBorder(false, 1).withBlur(100, 100, 100);
             try {
-                ControlCenterMaterials.registerRoot(qs, config);
-                SystemSurfaceStyle.apply(notification, config, true);
-                Bitmap qsImage = draw(qs), notificationImage = draw(notification);
+                // Exercise the shared Canvas profile directly; automatic QS material ownership now falls back on UNKNOWN.
+                ((GradientDrawable) qs.getBackground()).setColor(night ? 0xc03c4149 : 0x18ffffff);
+                ControlCenterSoftGlass.apply(qs, ControlCenterSurface.HIGHLIGHT_GLASS, true, 100);
+                SystemSurfaceStyle.apply(systemMenu, config, true);
+                Bitmap qsImage = draw(qs), systemMenuImage = draw(systemMenu);
                 try {
                     assertEquals("The comparison must use the same material body", qsImage.getPixel(90, 90),
-                            notificationImage.getPixel(90, 90));
+                            systemMenuImage.getPixel(90, 90));
                     for (int depth = 0; depth <= 7; depth++) {
-                        assertEquals("QS and notification top reflection must share one profile at night=" + night
+                        assertEquals("Generic Canvas and system menu top reflection must share one profile at night=" + night
                                         + " depth=" + depth,
-                                qsImage.getPixel(WIDTH / 2, depth), notificationImage.getPixel(WIDTH / 2, depth));
-                        assertEquals("QS and notification side reflection must share one profile at night=" + night
+                                qsImage.getPixel(WIDTH / 2, depth), systemMenuImage.getPixel(WIDTH / 2, depth));
+                        assertEquals("Generic Canvas and system menu side reflection must share one profile at night=" + night
                                         + " depth=" + depth,
-                                qsImage.getPixel(depth, HEIGHT / 2), notificationImage.getPixel(depth, HEIGHT / 2));
+                                qsImage.getPixel(depth, HEIGHT / 2), systemMenuImage.getPixel(depth, HEIGHT / 2));
                     }
-                } finally { qsImage.recycle(); notificationImage.recycle(); }
+                } finally { qsImage.recycle(); systemMenuImage.recycle(); }
             } finally {
-                SystemSurfaceStyle.restore(notification);
-                ControlCenterMaterials.refresh(config.withEnabled(false));
+                SystemSurfaceStyle.restore(systemMenu);
+                ControlCenterSoftGlass.apply(qs, false, 0);
             }
         }
     }

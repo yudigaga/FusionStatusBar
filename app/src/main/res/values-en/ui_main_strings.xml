@@ -180,4 +180,6 @@
     <string name="ui_main_fbab901503" formatted="false">&quot;Allow app-to-app launches directly. Enable the System scope (system / system_server) in LSPosed and reboot the phone.&quot;</string>
     <string name="ui_main_fd69741299" formatted="false">&quot;Status bar time, lunar date, weekday, and weather&quot;</string>
     <string name="ui_main_fed31d5ca1" formatted="false">&quot;Actual layout reference  &quot;</string>
+    <string name="ui_main_icon_visibility_customization">Customize icon visibility</string>
+    <string name="ui_main_icon_visibility_customization_summary">Set visibility for system status and connected devices</string>
 </resources>

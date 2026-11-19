@@ -1,5 +1,6 @@
 package com.xtjm.fusionstatusbar;
 
+import android.os.Bundle;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -170,7 +171,27 @@ public class FusionConfigTest {
 
     @Test
     public void configurationSchemaHasAnExplicitCurrentVersion() {
-        assertEquals(6, FusionConfig.CONFIG_SCHEMA_VERSION);
+        assertEquals(7, FusionConfig.CONFIG_SCHEMA_VERSION);
+    }
+
+    @Test
+    public void systemIconVisibilityKeepsStockDefaultsAndSurvivesRoundTripAndEdits() {
+        FusionConfig defaults = FusionConfig.fromBundle(new Bundle());
+        assertEquals(FusionConfig.DEFAULT_SYSTEM_ICON_MASK, defaults.systemIconVisibilityMask);
+
+        FusionConfig changed = defaults
+                .withSystemIconEnabled(FusionConfig.ICON_VOLUME, false)
+                .withSystemIconEnabled(FusionConfig.ICON_SPEAKER, true)
+                .withIconScale(120);
+        assertEquals(0, changed.systemIconVisibilityMask & FusionConfig.ICON_VOLUME);
+        assertTrue((changed.systemIconVisibilityMask & FusionConfig.ICON_SPEAKER) != 0);
+
+        FusionConfig restored = FusionConfig.fromBundle(changed.toBundle());
+        assertEquals(changed.systemIconVisibilityMask, restored.systemIconVisibilityMask);
+        assertEquals(changed.systemIconVisibilityMask,
+                restored.withStatusClockSizeSp(20).systemIconVisibilityMask);
+        assertEquals(FusionConfig.SYSTEM_ICON_ALL,
+                FusionConfig.defaults().withSystemIconVisibilityMask(-1).systemIconVisibilityMask);
     }
 
     @Test

@@ -6,16 +6,22 @@ import android.text.TextWatcher
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.widget.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -234,6 +240,16 @@ object MiuixControls {
 
     @JvmStatic fun toggle(content: LinearLayout, title: String, summary: String, checked: Boolean,
                           update: Consumer<Boolean>): android.widget.Switch {
+        return createToggle(content, title, summary, checked, 0, update)
+    }
+
+    @JvmStatic fun iconToggle(content: LinearLayout, title: String, summary: String, checked: Boolean,
+                              iconResource: Int, update: Consumer<Boolean>): android.widget.Switch {
+        return createToggle(content, title, summary, checked, iconResource, update)
+    }
+
+    private fun createToggle(content: LinearLayout, title: String, summary: String, checked: Boolean,
+                             iconResource: Int, update: Consumer<Boolean>): android.widget.Switch {
         val context = content.context
         val row = LinearLayout(context)
         row.orientation = LinearLayout.VERTICAL
@@ -255,10 +271,32 @@ object MiuixControls {
             SuperSwitch(title = title, summary = summary.takeIf { it.isNotEmpty() },
                 checked = model.value, enabled = model.active,
                 modifier = Modifier.testTag("setting_$title"),
+                startAction = if (iconResource == 0) null else {
+                    { statusIcon(iconResource) }
+                },
                 onCheckedChange = { model.isChecked = it })
         }, LinearLayout.LayoutParams(-1, -2))
         content.addView(row, LinearLayout.LayoutParams(-1, -2))
         return model
+    }
+
+    @Composable private fun statusIcon(resource: Int) {
+        val multicolor = resource == R.drawable.status_icon_privacy
+                || resource == R.drawable.status_icon_vpn
+                || resource == R.drawable.status_icon_roaming
+        Box(
+            modifier = Modifier.padding(end = 12.dp).size(48.dp).clip(RoundedCornerShape(14.dp))
+                .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(resource),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                colorFilter = if (multicolor) null
+                    else ColorFilter.tint(MiuixTheme.colorScheme.onSurface)
+            )
+        }
     }
 
     @JvmStatic fun slider(content: LinearLayout, title: String, summary: String, minimum: Int,

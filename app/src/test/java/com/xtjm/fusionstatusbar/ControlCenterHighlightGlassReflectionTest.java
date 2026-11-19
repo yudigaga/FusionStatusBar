@@ -55,11 +55,12 @@ public class ControlCenterHighlightGlassReflectionTest {
         } finally { restored.recycle(); }
     }
 
-    @Test public void changingSystemModeRebuildsShaderOnceThenReusesItOnMaterialRefresh() throws Exception {
+    @Test public void genericAutomaticCanvasModeRebuildsShaderOnceThenReusesItOnRefresh() throws Exception {
         QSCardItemView surface = measuredSurface();
         ControlCenterConfig settings = ControlCenterConfig.defaults().withEnabled(true)
                 .withSurface(ControlCenterSurface.HIGHLIGHT_GLASS).withBlur(100, 72, 100);
-        ControlCenterMaterials.registerRoot(surface, settings);
+        // Exercise the generic Canvas renderer directly; UNKNOWN QS automatic glass now restores OEM ownership.
+        ControlCenterSoftGlass.apply(surface, settings.surface, true, 72);
         Drawable overlay = overlay(surface);
         Paint rim = rim(overlay);
         Shader day = rim.getShader();
@@ -69,36 +70,36 @@ public class ControlCenterHighlightGlassReflectionTest {
         overlay.setCallback(callback);
         try {
             setNight(surface, true);
-            ControlCenterMaterials.refresh(settings);
+            ControlCenterSoftGlass.apply(surface, settings.surface, true, 72);
             Shader night = rim.getShader();
             assertNotSame("Mode changes must update the reflection without a size change", day, night);
             assertEquals("A mode change needs one drawable redraw", 1, callback.count);
             assertSame("Mode changes retain the existing overlay and layout listener", overlay, overlay(surface));
-            assertEquals(ControlCenterSurface.SOFT_GLASS.color,
+            assertEquals(0xff353840,
                     ((GradientDrawable) surface.getBackground()).getColor().getDefaultColor());
 
             callback.count = 0;
-            for (int update = 0; update < 8; update++) ControlCenterMaterials.refresh(settings);
+            for (int update = 0; update < 8; update++) ControlCenterSoftGlass.apply(surface, settings.surface, true, 72);
             assertSame(night, rim.getShader());
             assertEquals("Unchanged mode refreshes must not invalidate the glass repeatedly", 0, callback.count);
 
             setNight(surface, false);
-            ControlCenterMaterials.refresh(settings);
+            ControlCenterSoftGlass.apply(surface, settings.surface, true, 72);
             Shader nextDay = rim.getShader();
             assertNotSame(night, nextDay);
             assertEquals(1, callback.count);
             callback.count = 0;
-            for (int update = 0; update < 8; update++) ControlCenterMaterials.refresh(settings);
+            for (int update = 0; update < 8; update++) ControlCenterSoftGlass.apply(surface, settings.surface, true, 72);
             assertSame(nextDay, rim.getShader());
             assertEquals(0, callback.count);
         } finally { overlay.setCallback(originalCallback); }
 
-        ControlCenterMaterials.refresh(settings.withEnabled(false));
+        ControlCenterSoftGlass.apply(surface, settings.surface, false, 72);
         assertNull("Disabling must release the overlay and its listener state", state(surface));
         Bitmap restored = draw(surface);
         try { assertEquals(0xff353840, restored.getPixel(80, 0)); }
         finally { restored.recycle(); }
-        ControlCenterMaterials.registerRoot(surface, settings);
+        ControlCenterSoftGlass.apply(surface, settings.surface, true, 72);
         assertNotSame("Re-enabling creates a fresh registered overlay", overlay, overlay(surface));
         assertNotNull(rim(overlay(surface)).getShader());
     }

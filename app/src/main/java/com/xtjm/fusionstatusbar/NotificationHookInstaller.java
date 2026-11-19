@@ -3,6 +3,7 @@ package com.xtjm.fusionstatusbar;
 import io.github.libxposed.api.XposedInterface;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,7 +26,8 @@ final class NotificationHookInstaller {
         EXPANSION_CHANGED,
         TOP_PADDING,
         STACK_LAYOUT,
-        SPEED_VISIBILITY
+        SPEED_VISIBILITY,
+        SPEED_ICON_VISIBLE
     }
 
     interface ClassResolver {
@@ -187,11 +189,21 @@ final class NotificationHookInstaller {
 
         Class<?> speed = resolve(NETWORK_SPEED_CLASS, targetLoader, missingClasses);
         if (speed != null) {
-            Method visibility = members.exact(speed, "setVisibilityByController",
-                    new Class<?>[] {boolean.class}, false);
-            if (visibility != null && register("NetworkSpeedView#setVisibilityByController",
+            String methodName = "updateVisibility";
+            Method visibility = members.exact(speed, methodName, new Class<?>[0], false);
+            if (visibility == null) {
+                methodName = "setVisibilityByController";
+                visibility = members.exact(speed, methodName, new Class<?>[] {boolean.class}, false);
+            }
+            if (visibility != null && register("NetworkSpeedView#" + methodName,
                     visibility, Callback.SPEED_VISIBILITY)) installed++;
-            else missingMembers.add(NETWORK_SPEED_CLASS + "#setVisibilityByController");
+            else missingMembers.add(NETWORK_SPEED_CLASS + "#" + methodName);
+            Method iconVisible = members.exact(speed, "isIconVisible", new Class<?>[0], false);
+            if (iconVisible != null && iconVisible.getReturnType() == boolean.class
+                    && !Modifier.isStatic(iconVisible.getModifiers())
+                    && register("NetworkSpeedView#isIconVisible",
+                            iconVisible, Callback.SPEED_ICON_VISIBLE)) installed++;
+            else missingMembers.add(NETWORK_SPEED_CLASS + "#isIconVisible");
         }
         return new Result(header, bigTimeSize, expandContext, expandProgress, stackState,
                 stackAmbient, ambientPadding, qsFraction, stackInjector, controllerInjector,

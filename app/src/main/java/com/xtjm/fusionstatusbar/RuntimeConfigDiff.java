@@ -46,8 +46,9 @@ final class RuntimeConfigDiff {
                 || previous.systemRow != next.systemRow || previous.fusionSide != next.fusionSide
                 || previous.fusionRow != next.fusionRow || previous.systemIconScale != next.systemIconScale
                 || previous.notificationIconScale != next.notificationIconScale
+                || previous.systemIconVisibilityMask != next.systemIconVisibilityMask
                 || !previous.fusionContent.sameAs(next.fusionContent)
-                || !sameTelemetry(previous.telemetry, next.telemetry);
+                || !previous.telemetry.sameAs(next.telemetry);
         ControlCenterConfig old = previous.controlCenter;
         ControlCenterConfig value = next.controlCenter;
         boolean layout = old.enabled != value.enabled || !old.order.equals(value.order)
@@ -78,14 +79,6 @@ final class RuntimeConfigDiff {
     }
 
     boolean controlCenter() { return controlCenterLayout || controlCenterMaterials; }
-
-    private static boolean sameTelemetry(TelemetryConfig old, TelemetryConfig next) {
-        Bundle a = new Bundle();
-        Bundle b = new Bundle();
-        old.writeTo(a);
-        next.writeTo(b);
-        return sameValues(a, b);
-    }
 
     private static boolean sameNotificationClock(NotificationClockConfig old, NotificationClockConfig next) {
         Bundle a = new Bundle();

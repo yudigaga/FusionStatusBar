@@ -28,7 +28,7 @@ public class NotificationGlassThemeRestoreRegressionTest {
 
     @After public void clearMaterials() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void themeRefreshKeepsTheOwnedBoundsWrapperAndTheActualOemBackground() throws Exception {
+    @Test public void themeRefreshKeepsTheNativeFallbackAndOwnedBoundsWrapper() throws Exception {
         Fixture fixture = new Fixture();
         try {
             fixture.apply();
@@ -44,10 +44,21 @@ public class NotificationGlassThemeRestoreRegressionTest {
             assertSame("The notification must retain actual-height clipping after a theme refresh",
                     bounded, fixture.background.getBackground());
             assertSame("Theme refresh reuses the same styled material", material, bounded.content);
+            assertSame("Unknown blur keeps drawing the actual OEM original", fixture.original,
+                    field(material, "original"));
+            assertNull("Native fallback must not acquire a synthetic glass reflection after a theme change",
+                    field(material, "reflection"));
             assertNotSame("A styled material must never store itself as its original",
                     material, field(material, "original"));
             assertNotSame("The original must not lead back through the owning bounds wrapper",
                     bounded, field(material, "original"));
+            Bitmap pixels = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888);
+            try {
+                fixture.background.draw(new Canvas(pixels));
+                assertEquals("A theme refresh preserves the OEM body rather than selecting a Canvas tint",
+                        OEM_COLOR, pixels.getPixel(80, 30));
+                assertEquals("Native fallback still honors actual height", 0, pixels.getPixel(80, 120));
+            } finally { pixels.recycle(); }
         } finally { fixture.disable(); }
     }
 

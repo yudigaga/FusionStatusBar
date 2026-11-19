@@ -9,6 +9,7 @@
     <string name="editor_saved_waiting">저장했습니다. SystemUI 적용 대기 중입니다</string>
     <string name="editor_applied">SystemUI에 현재 버전이 적용되었습니다</string>
     <string name="editor_degraded">저장했습니다. SystemUI의 일부 기능이 제한된 상태입니다</string>
+    <string name="editor_glass_compatibility">하이라이트 글래스 호환 모드입니다. 기본 흐림 효과는 확인되지 않았습니다.</string>
     <string name="editor_waiting_mount">저장했습니다. 제어 센터를 펼치면 적용됩니다</string>
     <string name="editor_draft_restored">미적용 초안을 복원했습니다</string>
     <string name="editor_restore_draft">이전 초안 복원</string>

@@ -4,7 +4,9 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -25,7 +27,7 @@ import static org.junit.Assert.*;
 public class NotificationGlassShaderCacheRegressionTest {
     @After public void clearMaterials() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void unchangedCollapsedRefreshReusesTheShaderForTheActualDrawableBounds() throws Exception {
+    @Test public void compatibilityCanvasRefreshReusesTheShaderForTheActualDrawableBounds() throws Exception {
         Fixture fixture = new Fixture();
         try {
             fixture.applyAndDraw();
@@ -33,13 +35,13 @@ public class NotificationGlassShaderCacheRegressionTest {
             assertNotNull(initial);
             for (int update = 0; update < 8; update++) {
                 fixture.applyAndDraw();
-                assertSame("An unchanged collapsed notification must not alternate shaders for full and actual height",
+                assertSame("The compatibility Canvas wrapper must not alternate shaders for full and actual height",
                         initial, rimShader(fixture.background));
             }
         } finally { fixture.restore(); }
     }
 
-    @Test public void nativeFadeChangesOpacityWithoutRebuildingTheGlassGradient() throws Exception {
+    @Test public void compatibilityCanvasNativeFadeDoesNotRebuildTheGlassGradient() throws Exception {
         Fixture fixture = new Fixture();
         try {
             fixture.applyAndDraw();
@@ -53,7 +55,7 @@ public class NotificationGlassShaderCacheRegressionTest {
         } finally { fixture.restore(); }
     }
 
-    @Test public void actualHeightChangesReplaceTheShaderOnceAndThenReuseIt() throws Exception {
+    @Test public void compatibilityCanvasHeightChangesReplaceTheShaderOnceAndThenReuseIt() throws Exception {
         Fixture fixture = new Fixture();
         try {
             fixture.applyAndDraw();
@@ -67,7 +69,7 @@ public class NotificationGlassShaderCacheRegressionTest {
         } finally { fixture.restore(); }
     }
 
-    @Test public void systemThemeChangesReplaceTheShaderOnceWithoutReturningToFullHeight() throws Exception {
+    @Test public void compatibilityCanvasThemeChangesReplaceTheShaderOnceWithoutReturningToFullHeight() throws Exception {
         Fixture fixture = new Fixture();
         try {
             fixture.applyAndDraw();
@@ -79,6 +81,42 @@ public class NotificationGlassShaderCacheRegressionTest {
             fixture.applyAndDraw();
             assertSame("Unchanged night refreshes keep the actual-bounds shader", night,
                     rimShader(fixture.background));
+        } finally { fixture.restore(); }
+    }
+
+    @Test public void compatibilityCanvasClipsAndFadesTheCompleteGlassIncludingItsReflection() {
+        Fixture fixture = new Fixture();
+        fixture.background.mClipTopAmount = 8;
+        fixture.background.mClipBottomAmount = 10;
+        try {
+            fixture.applyAndDraw();
+            int fullPeak = 0;
+            for (int alpha : new int[] {255, 128, 0}) {
+                fixture.original.setAlpha(alpha);
+                Bitmap image = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888);
+                Rect bounds = new Rect(fixture.bounded.content.getBounds());
+                int styledAlpha = fixture.bounded.content.getAlpha();
+                try {
+                    fixture.background.draw(new Canvas(image));
+                    int peak = 0;
+                    for (int y = 0; y < 160; y++) {
+                        for (int x = 0; x < 160; x++) {
+                            peak = Math.max(peak, Color.alpha(image.getPixel(x, y)));
+                            if (y < 8 || y >= 54 || alpha == 0)
+                                assertEquals("The Canvas reflection follows native clipping and zero fade", 0,
+                                        Color.alpha(image.getPixel(x, y)));
+                        }
+                    }
+                    if (alpha > 0) assertTrue("The Canvas fixture must draw visible glass",
+                            Color.alpha(image.getPixel(80, 30)) > 0);
+                    if (alpha == 255) fullPeak = peak;
+                    if (alpha == 128) assertTrue("Native fade softens the complete Canvas reflection",
+                            peak <= Math.round(fullPeak * .7f) + 1);
+                    assertEquals(bounds, fixture.bounded.content.getBounds());
+                    assertEquals(styledAlpha, fixture.bounded.content.getAlpha());
+                    assertEquals(alpha, fixture.original.getAlpha());
+                } finally { image.recycle(); }
+            }
         } finally { fixture.restore(); }
     }
 
@@ -103,6 +141,7 @@ public class NotificationGlassShaderCacheRegressionTest {
     private static final class Fixture {
         final NotificationGlassBoundsRegressionTest.NotificationRow row;
         final NotificationGlassBoundsRegressionTest.NotificationBackgroundView background;
+        final NotificationSurfaceHooks.BoundedBackground bounded;
         final GradientDrawable original = new GradientDrawable();
         final FusionConfig config;
 
@@ -113,6 +152,7 @@ public class NotificationGlassShaderCacheRegressionTest {
             Context context = app.createConfigurationContext(mode);
             row = new NotificationGlassBoundsRegressionTest.NotificationRow(context);
             background = row.mBackgroundNormal;
+            bounded = new NotificationSurfaceHooks.BoundedBackground(background);
             original.setColor(0xff353840);
             original.setCornerRadius(12f);
             background.mBackground = original;
@@ -127,7 +167,11 @@ public class NotificationGlassShaderCacheRegressionTest {
         }
 
         void applyAndDraw() {
-            NotificationSurfaceHooks.applyRow(row, config);
+            // Exercise the retained generic Canvas renderer; automatic notifications use native fallback.
+            if (background.getBackground() == bounded) background.setBackground(bounded.content);
+            SystemSurfaceStyle.apply(background, config.controlCenter, true);
+            bounded.content = background.getBackground();
+            background.setBackground(bounded);
             draw();
         }
 
@@ -138,8 +182,8 @@ public class NotificationGlassShaderCacheRegressionTest {
         }
 
         void restore() {
-            NotificationSurfaceHooks.applyRow(row, config.withControlCenter(config.controlCenter
-                    .withSystemSurfaces(config.controlCenter.systemSurfaces.withNotifications(false))));
+            if (background.getBackground() == bounded) background.setBackground(bounded.content);
+            SystemSurfaceStyle.restore(background);
         }
     }
 }

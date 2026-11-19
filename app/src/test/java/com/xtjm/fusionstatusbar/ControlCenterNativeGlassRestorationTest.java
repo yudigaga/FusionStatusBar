@@ -26,7 +26,7 @@ import static org.junit.Assert.*;
 public class ControlCenterNativeGlassRestorationTest {
     @After public void clear() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void observedBlendDoesNotPromoteLegacyGlassAndTheLatestOemBaselineRestores() throws Exception {
+    @Test public void unknownAutomaticBlurKeepsTheLatestOemBaselineBeforeAndAfterDisable() throws Exception {
         Context context = RuntimeEnvironment.getApplication();
         ControlCenterConfig original = ControlCenterConfig.defaults().withEnabled(true);
         ControlCenterConfig highlight = original.withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
@@ -49,9 +49,9 @@ public class ControlCenterNativeGlassRestorationTest {
 
             record(panel, "setMiBackgroundBlendColors", colors(Color.CYAN), highlight);
             apply(grid, highlight);
-            assertEquals("An observed blend does not prove the full native glass ABI", 0, panel.viewMode);
-            assertEquals(0, panel.backgroundMode);
-            assertEquals(0, panel.radius);
+            assertEquals("UNKNOWN automatic blur retains OEM view mode", 1, panel.viewMode);
+            assertEquals(2, panel.backgroundMode);
+            assertEquals(180, panel.radius);
             assertFalse(panel.mix);
             assertTrue("A restorable legacy blend retains compatibility rendering", backgroundAlpha(panel) > 0);
 
@@ -94,9 +94,9 @@ public class ControlCenterNativeGlassRestorationTest {
             apply(grid, highlight);
             assertEquals("Restoring glass must not leave its native sampling scale stuck at zero",
                     1f, panel.scaleRatio, 0f);
-            assertEquals("Canvas compatibility retains ownership independently of the OEM sampling ratio", 0,
+            assertEquals("Positive UNKNOWN fallback restores the OEM composition mode", 2,
                     panel.backgroundMode);
-            assertEquals(0, panel.radius);
+            assertEquals(180, panel.radius);
             assertTrue(backgroundAlpha(panel) > 0);
 
             record(panel, "setMiBackgroundBlurScaleRatio", .7f, highlight);
@@ -105,7 +105,7 @@ public class ControlCenterNativeGlassRestorationTest {
         } finally { grid.releaseMaterials(); }
     }
 
-    @Test public void lowPositiveStrengthRoundTripKeepsTheCompatibilityBackgroundRestorable() throws Exception {
+    @Test public void everyPositiveUnknownStrengthKeepsTheFullOemBackgroundRestorable() throws Exception {
         Context context = RuntimeEnvironment.getApplication();
         ControlCenterConfig original = ControlCenterConfig.defaults().withEnabled(true);
         ControlCenterConfig highlight = original.withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
@@ -127,12 +127,12 @@ public class ControlCenterNativeGlassRestorationTest {
             int fullAlpha = backgroundAlpha(panel);
             assertTrue(fullAlpha > 0);
             apply(grid, highlight.withBlur(100, 1, 1));
-            assertEquals("Low strength must not activate the retired native takeover", 0, panel.viewMode);
-            assertTrue("Very low alpha can round down but must never increase opacity", backgroundAlpha(panel) <= fullAlpha);
+            assertEquals("A positive strength retains the OEM mode while blur is UNKNOWN", 1, panel.viewMode);
+            assertEquals("Positive UNKNOWN fallback uses the full OEM alpha", fullAlpha, backgroundAlpha(panel));
             apply(grid, highlight);
             assertEquals("Full strength restores the compatibility opacity after the low endpoint", fullAlpha,
                     backgroundAlpha(panel));
-            assertEquals(0, panel.viewMode);
+            assertEquals(1, panel.viewMode);
             assertFalse(panel.mix);
             apply(grid, highlight.withEnabled(false));
             assertEquals("Disabling restores the real OEM radius", 20, panel.radius);

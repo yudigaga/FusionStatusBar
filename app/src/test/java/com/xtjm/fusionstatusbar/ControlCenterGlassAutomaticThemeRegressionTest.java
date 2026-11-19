@@ -56,15 +56,23 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
         assertAutomaticDraw(Kind.OVERLAY);
     }
 
-    @Test public void actualGridDecorationUsesTheDayProfileWithoutAConfigurationCallback() throws Exception {
-        assertAutomaticDraw(Kind.GRID_DECORATION);
+    @Test public void actualGridDecorationKeepsUnknownFallbackWithoutAConfigurationCallback() throws Exception {
+        Fixture fixture = fixture(Kind.GRID_DECORATION, true);
+        Bitmap original = fixture.draw();
+        changeResourcesOnly(fixture.target, false);
+        Bitmap automatic = fixture.draw(), cold = fixture(Kind.GRID_DECORATION, false).draw();
+        try {
+            assertTrue("UNKNOWN automatic grid decorations retain their transparent native fallback", original.sameAs(cold));
+            assertTrue(cold.sameAs(automatic));
+        } finally { original.recycle(); automatic.recycle(); cold.recycle(); }
+        assertStableFrames(fixture);
     }
 
     @Test public void systemSurfaceUsesMatchingDayBodyAndReflectionWithoutAnotherApply() throws Exception {
         assertAutomaticDraw(Kind.SYSTEM);
     }
 
-    @Test public void boundedNotificationUsesTheDayProfileWithoutRebindingItsBackground() throws Exception {
+    @Test public void boundedNotificationKeepsTheNativeFallbackAcrossThemesWithoutRebinding() throws Exception {
         Fixture fixture = fixture(Kind.NOTIFICATION, true);
         Drawable bounded = fixture.target.getBackground();
         Drawable material = ((NotificationSurfaceHooks.BoundedBackground) bounded).content;
@@ -72,8 +80,12 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
         changeResourcesOnly(fixture.target, false);
         Bitmap automatic = fixture.draw(), cold = fixture(Kind.NOTIFICATION, false).draw();
         try {
-            assertTrue("A notification that missed the theme callback must draw like a freshly configured day notification",
+            assertTrue("A notification that missed the theme callback must retain the same native fallback as a fresh row",
                     cold.sameAs(automatic));
+            assertEquals("Unknown blur must keep the native body instead of selecting a day glass profile",
+                    BODY, automatic.getPixel(WIDTH / 2, 30));
+            assertNull("Automatic notifications must not use the generic Canvas glass reflection",
+                    field(material, "reflection").get(material));
             assertSame("An automatic theme change must retain native notification clipping", bounded,
                     fixture.target.getBackground());
             assertSame("The existing styled material must be updated instead of re-wrapping the notification", material,
@@ -100,8 +112,8 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
             windowRoot.getViewTreeObserver().dispatchOnPreDraw();
             Bitmap resumed = draw(card), cold = draw(styledCard(false));
             try {
-                assertFalse("The fixture must have genuinely crossed theme profiles", night.sameAs(cold));
-                assertTrue("Changing root ownership must not accept day as a new baseline while retaining night material",
+                assertTrue("UNKNOWN automatic material retains OEM pixels in either theme", night.sameAs(cold));
+                assertTrue("Changing root ownership retains the native fallback",
                         cold.sameAs(resumed));
                 assertEquals("No configuration callback was delivered to this surviving card", 0,
                         card.configurationCallbacks);
@@ -206,6 +218,39 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
     }
 
     private static void assertStableFrames(Fixture fixture) throws Exception {
+        if (fixture.kind == Kind.GRID_DECORATION) {
+            Method current = ControlCenterSoftGlass.class.getDeclaredMethod("current", View.class);
+            current.setAccessible(true);
+            assertNull("UNKNOWN automatic grid material owns no glass shader", current.invoke(null, fixture.target));
+            Bitmap baseline = fixture.draw();
+            try {
+                for (int frame = 0; frame < 30; frame++) {
+                    Bitmap actual = fixture.draw();
+                    try { assertTrue(baseline.sameAs(actual)); }
+                    finally { actual.recycle(); }
+                }
+            } finally { baseline.recycle(); }
+            return;
+        }
+        if (fixture.kind == Kind.NOTIFICATION) {
+            Drawable bounded = fixture.target.getBackground();
+            Drawable material = ((NotificationSurfaceHooks.BoundedBackground) bounded).content;
+            assertNull("Unknown notification blur has no synthetic shader to rebuild",
+                    field(material, "reflection").get(material));
+            Bitmap baseline = fixture.draw();
+            try {
+                for (int frame = 0; frame < 30; frame++) {
+                    Bitmap actual = fixture.draw();
+                    try { assertTrue("Stable native fallback frames keep the host pixels", baseline.sameAs(actual)); }
+                    finally { actual.recycle(); }
+                    assertSame("Stable frames retain the bounds wrapper", bounded, fixture.target.getBackground());
+                    assertSame("Stable frames retain its native fallback material", material,
+                            ((NotificationSurfaceHooks.BoundedBackground) bounded).content);
+                    assertSame(fixture.original, ((NotificationBackgroundView) fixture.target).mBackground);
+                }
+            } finally { baseline.recycle(); }
+            return;
+        }
         Drawable glass = glass(fixture);
         Paint rim = (Paint) field(glass, "rim").get(glass);
         Shader stable = rim.getShader();
@@ -230,7 +275,7 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
     }
 
     private static Drawable glass(Fixture fixture) throws Exception {
-        if (fixture.kind == Kind.SYSTEM || fixture.kind == Kind.NOTIFICATION) {
+        if (fixture.kind == Kind.SYSTEM) {
             Drawable material = fixture.target.getBackground();
             if (material instanceof NotificationSurfaceHooks.BoundedBackground bounded) material = bounded.content;
             return (Drawable) field(material, "reflection").get(material);
