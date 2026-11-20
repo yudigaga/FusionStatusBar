@@ -105,7 +105,7 @@ public class ControlCenterNativeGlassRestorationTest {
         } finally { grid.releaseMaterials(); }
     }
 
-    @Test public void everyPositiveUnknownStrengthKeepsTheFullOemBackgroundRestorable() throws Exception {
+    @Test public void unknownCanvasStrengthScalesIndependentlyOfRestorableOemBackground() throws Exception {
         Context context = RuntimeEnvironment.getApplication();
         ControlCenterConfig original = ControlCenterConfig.defaults().withEnabled(true);
         ControlCenterConfig highlight = original.withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
@@ -128,7 +128,8 @@ public class ControlCenterNativeGlassRestorationTest {
             assertTrue(fullAlpha > 0);
             apply(grid, highlight.withBlur(100, 1, 1));
             assertEquals("A positive strength retains the OEM mode while blur is UNKNOWN", 1, panel.viewMode);
-            assertEquals("Positive UNKNOWN fallback uses the full OEM alpha", fullAlpha, backgroundAlpha(panel));
+            assertEquals("Canvas tint scales to 1%, even when it rounds to zero", Math.round(fullAlpha / 100f),
+                    backgroundAlpha(panel));
             apply(grid, highlight);
             assertEquals("Full strength restores the compatibility opacity after the low endpoint", fullAlpha,
                     backgroundAlpha(panel));

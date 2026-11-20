@@ -45,7 +45,7 @@ public class ControlCenterAdaptiveGlassConsumersTest {
                 ControlCenterSurface.SOFT_GLASS.color, surfaceColor(dark));
     }
 
-    @Test public void runtimeGridRetainsOemComponentColorAcrossAutomaticThemeChanges() {
+    @Test public void runtimeGridUpdatesCompatibilityColorAndRestoresItsOemBackground() {
         Context context = context(false);
         ControlCenterRuntimeGrid.GridView grid = new ControlCenterRuntimeGrid.GridView(context, 4, 8, 12, 0, 2);
         MediaPlayerPanel panel = new MediaPlayerPanel(context);
@@ -57,17 +57,20 @@ public class ControlCenterAdaptiveGlassConsumersTest {
                 0, 0, 2, 2), -1);
         grid.applyMaterials(adaptive());
         render(grid, 400, 240).recycle();
-        assertSame(background, panel.getBackground());
-        assertCenter(panel, Color.GRAY);
+        Drawable compatibility = panel.getBackground();
+        assertNotSame(background, compatibility);
+        assertCenter(panel, ControlCenterSurface.HIGHLIGHT_GLASS.color);
         changeTheme(grid, true);
         render(grid, 400, 240).recycle();
-        assertSame(background, panel.getBackground());
-        assertCenter(panel, Color.GRAY);
+        assertSame(compatibility, panel.getBackground());
+        assertCenter(panel, ControlCenterSurface.SOFT_GLASS.color);
         changeTheme(grid, false);
         render(grid, 400, 240).recycle();
+        assertSame(compatibility, panel.getBackground());
+        assertCenter(panel, ControlCenterSurface.HIGHLIGHT_GLASS.color);
+        grid.releaseMaterials();
         assertSame(background, panel.getBackground());
         assertCenter(panel, Color.GRAY);
-        grid.releaseMaterials();
     }
 
     @Test public void dayGlassRetainsWallpaperColorWhileNightGlassDarkensIt() {

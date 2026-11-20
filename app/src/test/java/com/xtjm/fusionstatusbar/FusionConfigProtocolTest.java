@@ -23,6 +23,27 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
 public class FusionConfigProtocolTest {
+    @Test public void systemIconVisibilityKeepsStockDefaultsAndSurvivesRoundTripAndEdits() {
+        FusionConfig defaults = FusionConfig.fromBundle(new Bundle());
+        assertEquals(FusionConfig.DEFAULT_SYSTEM_ICON_MASK, defaults.systemIconVisibilityMask);
+        assertTrue((defaults.systemIconVisibilityMask & FusionConfig.ICON_VOLUME) != 0);
+        assertEquals(0, defaults.systemIconVisibilityMask & FusionConfig.ICON_PRIVACY);
+
+        FusionConfig changed = defaults
+                .withSystemIconEnabled(FusionConfig.ICON_VOLUME, false)
+                .withSystemIconEnabled(FusionConfig.ICON_PRIVACY, true)
+                .withIconScale(120);
+        assertEquals(0, changed.systemIconVisibilityMask & FusionConfig.ICON_VOLUME);
+        assertTrue((changed.systemIconVisibilityMask & FusionConfig.ICON_PRIVACY) != 0);
+
+        FusionConfig restored = FusionConfig.fromBundle(changed.toBundle());
+        assertEquals(changed.systemIconVisibilityMask, restored.systemIconVisibilityMask);
+        assertEquals(changed.systemIconVisibilityMask,
+                restored.withStatusClockSizeSp(20).systemIconVisibilityMask);
+        assertEquals(FusionConfig.SYSTEM_ICON_ALL,
+                FusionConfig.defaults().withSystemIconVisibilityMask(-1).systemIconVisibilityMask);
+    }
+
     @Test public void networkVerticalOffsetsSurviveProviderBundleAndAtomicStore() throws Exception {
         FusionConfig source = FusionConfig.defaults().withFusionWifiOffsetYPercent(-8)
                 .withFusionMobileOffsetYPercent(13).withRevision(7);

@@ -538,7 +538,7 @@ final class ControlCenterMaterials {
                     invoke(view, "setMiBackgroundBlurMode", state.mode);
                     invoke(view, "setMiBackgroundBlurRadius", state.radius);
                     if (mode != null && mode.length == 1 && mode[0] instanceof Integer value)
-                        invoke(view, "setMiViewBlurMode", value);
+                        invoke(view, "setMiViewBlurMode", state.ownedContainer ? 0 : value);
                 });
             } catch (ReflectiveOperationException | RuntimeException ignored) { }
             state.overridden = false;
@@ -561,6 +561,7 @@ final class ControlCenterMaterials {
         }
         if (state.effectPolicy >= 0) {
             for (Map.Entry<String, Object[]> request : state.requests.entrySet()) {
+                if (state.ownedContainer && request.getKey().equals("setMiViewBlurMode")) continue;
                 if (!ControlCenterNativeEffects.decoration(request.getKey())
                         && !ControlCenterNativeEffects.composition(request.getKey())) continue;
                 try {

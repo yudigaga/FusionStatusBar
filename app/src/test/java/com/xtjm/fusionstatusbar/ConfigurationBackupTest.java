@@ -27,11 +27,17 @@ public class ConfigurationBackupTest {
         JSONObject previous = backup.getJSONObject("config");
         previous.remove(FusionContentConfig.KEY_WIFI_OFFSET_Y_PERCENT);
         previous.remove(FusionContentConfig.KEY_MOBILE_OFFSET_Y_PERCENT);
+        previous.remove(FusionConfig.KEY_SYSTEM_ICON_MASK);
+        previous.put(FusionConfig.KEY_SCHEMA_VERSION, 6);
         restored = decode(backup.toString());
-        assertEquals(6, restored.toBundle().getInt(FusionConfig.KEY_SCHEMA_VERSION));
+        assertEquals(FusionConfig.CONFIG_SCHEMA_VERSION,
+                restored.toBundle().getInt(FusionConfig.KEY_SCHEMA_VERSION));
         assertEquals(0, restored.fusionContent.wifiOffsetYPercent);
         assertEquals(0, restored.fusionContent.mobileOffsetYPercent);
         assertEquals(125, restored.fusionContent.networkScale);
+        assertEquals(FusionConfig.DEFAULT_SYSTEM_ICON_MASK, restored.systemIconVisibilityMask);
+        previous.put(FusionConfig.KEY_SCHEMA_VERSION, FusionConfig.CONFIG_SCHEMA_VERSION);
+        previous.put(FusionConfig.KEY_SYSTEM_ICON_MASK, FusionConfig.DEFAULT_SYSTEM_ICON_MASK);
         previous.remove(FusionContentConfig.KEY_NETWORK_SCALE);
         assertThrows(IOException.class, () -> decode(backup.toString()));
     }

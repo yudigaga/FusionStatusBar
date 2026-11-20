@@ -384,7 +384,7 @@ public class PublicWindowSurfaceStyleTest {
         assertTrue((window.getAttributes().flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0);
     }
 
-    @Test public void publicCrossWindowTrueDoesNotAuthorizePrivateControlCenterMaterials() {
+    @Test public void publicCrossWindowBlurDoesNotChangeTheControlCenterCanvasMaterial() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().visible().get();
         Window window = activity.getWindow();
         ControlCenterConfig config = automatic(25).withEnabled(true).withBlur(25, 30, 30);
@@ -399,6 +399,9 @@ public class PublicWindowSurfaceStyleTest {
         label.setTextColor(nativeColors);
         card.addView(label);
         hostBehind(window, 160, true);
+        int body = ControlCenterSurface.HIGHLIGHT_GLASS.resolve(card.getContext()).color;
+        ColorStateList canvasColors = nativeColors.withLStar(100f);
+        int[] pressed = {android.R.attr.state_pressed};
         try {
             ControlCenterMaterials.registerRoot(card, config);
             SystemSurfaceStyle.applyWindow(window, config, true);
@@ -407,15 +410,19 @@ public class PublicWindowSurfaceStyleTest {
                 callback.accept(publicEnabled);
                 ControlCenterMaterials.refresh(config);
                 assertBehind(window, publicEnabled ? 40 : 160, true);
-                assertEquals(100, ControlCenterMaterials.percent(config, ControlCenterMaterials.Layer.CARD, false));
-                assertEquals(0xff353840, nativeBackground.getColor().getDefaultColor());
-                assertEquals(143, nativeBackground.getAlpha());
-                assertSame(nativeColors, label.getTextColors());
+                assertEquals(body, nativeBackground.getColor().getDefaultColor());
+                assertEquals(43, nativeBackground.getAlpha());
+                assertEquals(canvasColors.getDefaultColor(), label.getTextColors().getDefaultColor());
+                assertEquals(canvasColors.getColorForState(pressed, 0), label.getTextColors().getColorForState(pressed, 0));
             }
         } finally {
             SystemSurfaceStyle.applyWindow(window, config, false);
+            ControlCenterMaterials.refresh(config.withEnabled(false));
             ControlCenterMaterials.clearForTest();
         }
+        assertEquals(0xff353840, nativeBackground.getColor().getDefaultColor());
+        assertEquals(143, nativeBackground.getAlpha());
+        assertSame(nativeColors, label.getTextColors());
     }
 
     private static HookObservingActivity reentrantActivity() {

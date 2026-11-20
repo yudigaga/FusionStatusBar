@@ -23,7 +23,7 @@ import static org.junit.Assert.*;
 public class ControlCenterFallbackOpacityRegressionTest {
     @After public void clear() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void nativeTileWithoutImageViewKeepsZeroAndManualOpacityWithoutInventingAnUnknownAutomaticBody() {
+    @Test public void nativeTileWithoutImageViewScalesCanvasCompatibilityAndManualOpacity() {
         Context context = RuntimeEnvironment.getApplication();
         for (ControlCenterSurface style : ControlCenterSurface.values()) {
             QSTileItemView tile = new QSTileItemView(context);
@@ -36,14 +36,14 @@ public class ControlCenterFallbackOpacityRegressionTest {
                     ControlCenterConfig changed = settings(strength).withSurface(style);
                     ControlCenterMaterials.refresh(changed);
                     grid.updateDecorations(changed);
-                    assertPixels(grid, tile, style == ControlCenterSurface.CLEAR || style == ControlCenterSurface.HIGHLIGHT_GLASS
+                    assertPixels(grid, tile, style == ControlCenterSurface.CLEAR
                             ? 0 : Math.round(255f * strength / 100));
                 }
             } finally { grid.releaseMaterials(); }
         }
     }
 
-    @Test public void unknownAutomaticNoImageTileRestoresLatestOemRequestsWithoutInventingCanvasFill() throws Exception {
+    @Test public void unknownAutomaticNoImageTilePaintsCanvasAndRestoresLatestOemRequests() throws Exception {
         Context context = RuntimeEnvironment.getApplication();
         QSTileItemView tile = new QSTileItemView(context);
         Drawable original = tile.getBackground();
@@ -61,8 +61,8 @@ public class ControlCenterFallbackOpacityRegressionTest {
             record(tile, "setMiBackgroundBlurRadius", 240, zero);
             for (int strength : new int[] {40, 100}) {
                 ControlCenterConfig changed = settings(strength).withSurface(ControlCenterSurface.HIGHLIGHT_GLASS);
-                ControlCenterMaterials.refresh(changed); grid.updateDecorations(changed); assertPixels(grid, tile, 0);
-                assertSame("UNKNOWN returns ownership to the original transparent host background", original, tile.getBackground());
+                ControlCenterMaterials.refresh(changed); grid.updateDecorations(changed);
+                assertPixels(grid, tile, Math.round(255f * strength / 100));
                 assertEquals("The latest OEM view-mode request replays independently of Canvas pixels", 2, tile.viewMode);
                 assertEquals(3, tile.backgroundMode); assertEquals(240, tile.radius);
             }
@@ -141,8 +141,9 @@ public class ControlCenterFallbackOpacityRegressionTest {
             grid.draw(new Canvas(pixels));
             int centerX = tile.getLeft() + tile.getWidth() / 2;
             int bodyY = tile.getTop() + Math.max(8, tile.getHeight() / 6);
+            int tolerance = expectedAlpha == 0 || expectedAlpha == 255 ? 0 : 1;
             assertEquals("The fallback body must follow the configured tile strength", expectedAlpha,
-                    Color.alpha(pixels.getPixel(centerX, bodyY)));
+                    Color.alpha(pixels.getPixel(centerX, bodyY)), tolerance);
             assertEquals("Changing only the surface strength must preserve the custom glyph", Color.BLUE,
                     pixels.getPixel(centerX, tile.getTop() + tile.getHeight() / 2));
         } finally { pixels.recycle(); }

@@ -40,7 +40,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
 
     @After public void clearMaterials() { ControlCenterMaterials.clearForTest(); }
 
-    @Test public void aLatePluginResourceChangeKeepsUnknownAutomaticOemBodyWhileItsWindowStaysDay() {
+    @Test public void aLatePluginResourceChangeUpdatesTheCanvasBodyWhileItsWindowStaysDay() {
         ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).setup().visible();
         try {
             Activity activity = controller.get();
@@ -63,8 +63,11 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
             int nativeCallsBeforeWindowChange = card.nativeCalls;
             setNight(window.getResources(), false);
             window.getViewTreeObserver().dispatchOnPreDraw();
-            assertTrue("The existing window observer must actually process the first mode change",
-                    card.nativeCalls > nativeCallsBeforeWindowChange);
+            assertEquals("The plugin keeps its night body until its own resources change",
+                    ControlCenterSurface.SOFT_GLASS.color,
+                    ((GradientDrawable) card.getBackground()).getColor().getDefaultColor());
+            assertEquals("Window theme changes do not replay unchanged private material requests",
+                    nativeCallsBeforeWindowChange, card.nativeCalls);
             assertEquals("The plugin receives its resource change later", Configuration.UI_MODE_NIGHT_YES,
                     nightMode(plugin.getResources()));
             assertEquals(Configuration.UI_MODE_NIGHT_NO, nightMode(window.getResources()));
@@ -98,7 +101,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
             render(pending).recycle();
             assertFalse(pending.isAttachedToWindow());
             register(pending);
-            assertEquals(0xff353840,
+            assertEquals(ControlCenterSurface.SOFT_GLASS.color,
                     ((GradientDrawable) pending.getBackground()).getColor().getDefaultColor());
 
             setNight(plugin.getResources(), false);
@@ -115,7 +118,7 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
         } finally { controller.pause().stop().destroy(); }
     }
 
-    @Test public void rootPreDrawKeepsUnknownAutomaticGridDecorationFreeOfGlassAcrossResourceChanges() throws Exception {
+    @Test public void rootPreDrawUpdatesTheGridCanvasShaderInPlaceAcrossResourceChanges() throws Exception {
         ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).setup().visible();
         ControlCenterRuntimeGrid.GridView grid = null;
         Drawable glass = null;
@@ -146,15 +149,25 @@ public class ControlCenterThemeResourceGroupsRegressionTest {
             finally { recorded.recycle(); }
             window.getViewTreeObserver().dispatchOnPreDraw();
             glass = decorationGlass(grid);
-            assertNull("UNKNOWN private blur must not install an automatic night reflection", glass);
+            assertNotNull("Compatibility must install a Canvas reflection without private blur", glass);
+            Shader nightShader = rimShader(glass);
+            assertNotNull(nightShader);
+            previous = glass.getCallback();
+            Invalidations invalidations = new Invalidations(previous);
+            glass.setCallback(invalidations);
 
             setNight(window.getResources(), false);
             setNight(plugin.getResources(), false);
             window.getViewTreeObserver().dispatchOnPreDraw();
-            assertNull("Changing a public window or plugin theme cannot authorize a private glass material",
-                    decorationGlass(grid));
+            assertSame("The theme change keeps the existing Canvas reflection", glass, decorationGlass(grid));
+            Shader dayShader = rimShader(glass);
+            assertNotNull(dayShader);
+            assertNotSame("The shader must update before the next recorded draw", nightShader, dayShader);
+            assertTrue("The recorded reflection must be invalidated", invalidations.count > 0);
+            int redraws = invalidations.count;
             for (int frame = 0; frame < 30; frame++) window.getViewTreeObserver().dispatchOnPreDraw();
-            assertNull("Stable fallback frames retain the absence of an automatic glass shader", decorationGlass(grid));
+            assertSame("Stable frames reuse the day shader", dayShader, rimShader(glass));
+            assertEquals(redraws, invalidations.count);
         } finally {
             if (glass != null) glass.setCallback(previous);
             if (grid != null) grid.releaseMaterials();

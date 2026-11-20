@@ -71,8 +71,8 @@ try {
     & (Join-Path $PSScriptRoot 'save-source-snapshot.ps1') -ProjectRoot $projectRoot -GitPath $GitPath -Destination $directory
     if (-not $SkipBuild) {
         $gradle = Join-Path $projectRoot $(if ($windowsHost) { 'gradlew.bat' } else { 'gradlew' })
-        Invoke-Checked $gradle @(':app:testReleaseUnitTest', ':app:lintRelease',
-            ':app:assembleRelease', '--console=plain', '--no-daemon')
+        & $gradle ':app:testReleaseUnitTest' ':app:lintRelease' ':app:assembleRelease' '--console=plain' '--no-daemon'
+        if ($LASTEXITCODE -ne 0) { throw "Gradle Release validation failed ($LASTEXITCODE)." }
     }
     $validationPath = Join-Path $directory 'verified-build.json'
     Invoke-Checked $PythonPath @((Join-Path $PSScriptRoot 'validate-build.py'), '--project-root', $projectRoot,

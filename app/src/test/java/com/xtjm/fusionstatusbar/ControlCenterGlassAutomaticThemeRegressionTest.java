@@ -56,16 +56,8 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
         assertAutomaticDraw(Kind.OVERLAY);
     }
 
-    @Test public void actualGridDecorationKeepsUnknownFallbackWithoutAConfigurationCallback() throws Exception {
-        Fixture fixture = fixture(Kind.GRID_DECORATION, true);
-        Bitmap original = fixture.draw();
-        changeResourcesOnly(fixture.target, false);
-        Bitmap automatic = fixture.draw(), cold = fixture(Kind.GRID_DECORATION, false).draw();
-        try {
-            assertTrue("UNKNOWN automatic grid decorations retain their transparent native fallback", original.sameAs(cold));
-            assertTrue(cold.sameAs(automatic));
-        } finally { original.recycle(); automatic.recycle(); cold.recycle(); }
-        assertStableFrames(fixture);
+    @Test public void actualGridDecorationChangesCanvasProfileWithoutAConfigurationCallback() throws Exception {
+        assertAutomaticDraw(Kind.GRID_DECORATION);
     }
 
     @Test public void systemSurfaceUsesMatchingDayBodyAndReflectionWithoutAnotherApply() throws Exception {
@@ -112,8 +104,8 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
             windowRoot.getViewTreeObserver().dispatchOnPreDraw();
             Bitmap resumed = draw(card), cold = draw(styledCard(false));
             try {
-                assertTrue("UNKNOWN automatic material retains OEM pixels in either theme", night.sameAs(cold));
-                assertTrue("Changing root ownership retains the native fallback",
+                assertFalse("The fixture must render different Canvas profiles for day and night", night.sameAs(cold));
+                assertTrue("Changing root ownership applies the current Canvas profile",
                         cold.sameAs(resumed));
                 assertEquals("No configuration callback was delivered to this surviving card", 0,
                         card.configurationCallbacks);
@@ -221,13 +213,15 @@ public class ControlCenterGlassAutomaticThemeRegressionTest {
         if (fixture.kind == Kind.GRID_DECORATION) {
             Method current = ControlCenterSoftGlass.class.getDeclaredMethod("current", View.class);
             current.setAccessible(true);
-            assertNull("UNKNOWN automatic grid material owns no glass shader", current.invoke(null, fixture.target));
+            Object state = current.invoke(null, fixture.target);
+            assertNotNull("Compatibility grid decorations own a Canvas reflection", state);
             Bitmap baseline = fixture.draw();
             try {
                 for (int frame = 0; frame < 30; frame++) {
                     Bitmap actual = fixture.draw();
                     try { assertTrue(baseline.sameAs(actual)); }
                     finally { actual.recycle(); }
+                    assertSame("Stable frames reuse the Canvas reflection", state, current.invoke(null, fixture.target));
                 }
             } finally { baseline.recycle(); }
             return;

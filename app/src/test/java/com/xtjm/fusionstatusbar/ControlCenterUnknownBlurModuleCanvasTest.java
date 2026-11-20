@@ -33,7 +33,7 @@ public class ControlCenterUnknownBlurModuleCanvasTest {
         assertEquals(0, owner.viewMode); assertEquals(0, owner.backgroundMode); assertEquals(0, owner.radius);
     }
 
-    @Test public void unknownAutomaticGroupKeepsItsExistingCanvasAndCustomLabelInsteadOfInventingAnOemImage() {
+    @Test public void automaticGroupTintsItsExistingCanvasAndKeepsItsCustomLabel() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         ControlCenterLayoutPlan.Item item = ControlCenterLayoutPlan.Item.group("group:test",
                 ControlCenterGroupData.empty().add("wifi"), 0, 0, 2, 1);
@@ -42,21 +42,26 @@ public class ControlCenterUnknownBlurModuleCanvasTest {
         });
         GradientDrawable original = (GradientDrawable) group.getBackground();
         int groupColor = original.getColor().getDefaultColor();
+        int compatibilityColor = ControlCenterSurface.HIGHLIGHT_GLASS.resolve(group.getContext()).color;
         try {
             for (int amount : new int[] {30, 100, 30}) {
                 ControlCenterConfig config = automatic(amount);
                 ControlCenterMaterials.registerRoot(group, config); ControlCenterMaterials.refresh(config);
                 assertSame(original, group.getBackground());
-                assertEquals(groupColor, original.getColor().getDefaultColor());
-                assertEquals(255, original.getAlpha());
+                assertEquals(compatibilityColor, original.getColor().getDefaultColor());
+                assertEquals(Math.round(255f * amount / 100), original.getAlpha());
                 assertEquals(Color.MAGENTA, ((TextView) group.getChildAt(0)).getCurrentTextColor());
             }
             ControlCenterMaterials.refresh(automatic(0)); assertEquals(0, original.getAlpha());
-            ControlCenterMaterials.refresh(automatic(30)); assertEquals(255, original.getAlpha());
+            ControlCenterMaterials.refresh(automatic(30)); assertEquals(77, original.getAlpha());
+            ControlCenterMaterials.refresh(automatic(30).withEnabled(false));
+            assertSame(original, group.getBackground());
+            assertEquals(groupColor, original.getColor().getDefaultColor());
+            assertEquals(255, original.getAlpha());
         } finally { activity.finish(); }
     }
 
-    @Test public void unknownAutomaticFiveGKeepsDefaultActiveInactiveColorsAndItsUserGlyph() {
+    @Test public void automaticFiveGAppliesCompatibilityTintWhileKeepingItsStateAndUserGlyph() {
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
         FakeRadio radio = new FakeRadio();
         ControlCenter5GTileView tile = new ControlCenter5GTileView(activity, new ControlCenter5GController(radio));
@@ -79,15 +84,19 @@ public class ControlCenterUnknownBlurModuleCanvasTest {
                 label.setTextColor(ControlCenterMaterials.textColor(label, requestedGlyph, config));
                 ControlCenterMaterials.registerRoot(tile, config); ControlCenterMaterials.refresh(config);
                 assertSame(original, tile.getBackground());
-                assertEquals(requestedFill, original.getColor().getDefaultColor());
+                int compatibilityFill = active ? 0xfff8f9fb
+                        : ControlCenterSurface.HIGHLIGHT_GLASS.resolve(tile.getContext()).color;
+                assertEquals(compatibilityFill, original.getColor().getDefaultColor());
                 assertEquals(requestedGlyph, label.getCurrentTextColor());
-                assertEquals(255, original.getAlpha());
+                assertEquals(77, original.getAlpha());
             }
             label.setTextColor(ControlCenterMaterials.textColor(label, Color.MAGENTA, automatic(30)));
             ControlCenterMaterials.refresh(automatic(100)); assertEquals(Color.MAGENTA, label.getCurrentTextColor());
             ControlCenterMaterials.refresh(automatic(0)); assertEquals(0, original.getAlpha());
-            ControlCenterMaterials.refresh(automatic(30).withEnabled(false)); assertEquals(255, original.getAlpha());
-            ControlCenterMaterials.refresh(automatic(30)); assertEquals(255, original.getAlpha());
+            ControlCenterMaterials.refresh(automatic(30).withEnabled(false));
+            assertEquals(255, original.getAlpha());
+            assertEquals(0xff5e636b, original.getColor().getDefaultColor());
+            ControlCenterMaterials.refresh(automatic(30)); assertEquals(77, original.getAlpha());
             assertEquals(Color.MAGENTA, label.getCurrentTextColor());
         } finally { tile.release(); activity.finish(); }
     }

@@ -139,17 +139,21 @@ public class ControlCenterUnknownBlurFallbackTest {
         }
     }
 
-    @Test public void selectingOriginalSurfaceRemovesOnlyTheMaterialWrapper() throws Exception {
+    @Test public void disablingManualGlassRestoresTheOriginalDrawablesAndOutline() {
         QSTileItemView tile = new QSTileItemView(context(false)); NativeIcon icon = new NativeIcon(tile.getContext());
         ColorDrawable nativeFill = new ColorDrawable(Color.GRAY), glyph = new ColorDrawable(Color.BLUE);
         LayerDrawable layers = new LayerDrawable(new Drawable[] {nativeFill, glyph});
         layers.setLayerSize(1, 20, 20); icon.setImageDrawable(layers); tile.addView(icon);
+        ViewOutlineProvider originalOutline = icon.getOutlineProvider();
+        boolean originalClipping = icon.getClipToOutline();
         ControlCenterMaterials.registerGridTileShape(tile, ControlCenterLayoutPlan.Item.tile("wifi", 0, 0, 1, 1));
         ControlCenterMaterials.syncTileView(tile, automatic(30).withSurface(ControlCenterSurface.SOFT_GLASS));
         assertNotSame(nativeFill, layers.getDrawable(0));
+        assertNotSame(originalOutline, icon.getOutlineProvider());
         ControlCenterMaterials.syncTileView(tile, ControlCenterConfig.defaults());
         assertSame(nativeFill, layers.getDrawable(0)); assertSame(glyph, layers.getDrawable(1));
-        assertTrue(icon.getClipToOutline());
+        assertSame(originalOutline, icon.getOutlineProvider());
+        assertEquals(originalClipping, icon.getClipToOutline());
     }
 
     @Test public void canvasLayerRestoresTheOemCircleWhenDisabled() throws Exception {
@@ -160,18 +164,24 @@ public class ControlCenterUnknownBlurFallbackTest {
         layers.setLayerSize(1, 20, 20);
         icon.setImageDrawable(layers);
         tile.addView(icon);
+        ViewOutlineProvider originalOutline = icon.getOutlineProvider();
+        boolean originalClipping = icon.getClipToOutline();
         ControlCenterMaterials.registerGridTileShape(tile, ControlCenterLayoutPlan.Item.tile("wifi", 0, 0, 1, 1)
                 .withShape(ControlCenterLayoutPlan.Shape.CIRCLE, 0));
         ShadowLog.clear();
         ControlCenterMaterials.syncTileView(tile, automatic(30));
+        Drawable compatibilityFill = layers.getDrawable(0);
+        assertNotSame(nativeFill, compatibilityFill);
+        assertTrue(icon.getClipToOutline());
         assertEquals(0, materialRestoreCount("circle"));
 
         ControlCenterMaterials.syncTileView(tile, automatic(30).withSurface(ControlCenterSurface.SOFT_GLASS));
-        assertNotSame(nativeFill, layers.getDrawable(0));
+        assertSame(compatibilityFill, layers.getDrawable(0));
         ControlCenterMaterials.syncTileView(tile, ControlCenterConfig.defaults());
         assertSame(nativeFill, layers.getDrawable(0));
         assertSame(glyph, layers.getDrawable(1));
-        assertTrue(icon.getClipToOutline());
+        assertSame(originalOutline, icon.getOutlineProvider());
+        assertEquals(originalClipping, icon.getClipToOutline());
         assertEquals(0, materialRestoreCount("circle"));
     }
 

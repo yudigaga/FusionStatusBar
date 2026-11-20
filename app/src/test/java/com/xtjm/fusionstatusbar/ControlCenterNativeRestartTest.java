@@ -69,7 +69,7 @@ public class ControlCenterNativeRestartTest {
         pixels.recycle();
     }
 
-    @Test public void everyManualSurfacePaintsItsBackdropWhileUnknownAutomaticRestoresTheNativeGlyphOnlyTile() {
+    @Test public void canvasSurfacesPaintBehindTheNativeGlyphAndRestoreItsOriginalBackground() {
         for (ControlCenterSurface surface : ControlCenterSurface.values()) {
             if (surface == ControlCenterSurface.DEFAULT) continue;
             ControlCenterMaterials.clearForTest();
@@ -84,17 +84,11 @@ public class ControlCenterNativeRestartTest {
             ControlCenterMaterials.registerRoot(tile, settings);
             Bitmap pixels = draw(tile);
             int actual = pixels.getPixel(30, 50);
-            if (surface == ControlCenterSurface.HIGHLIGHT_GLASS) {
-                assertEquals("UNKNOWN automatic material must not invent a body behind the native glyph", Color.TRANSPARENT, actual);
-                assertNull("The original image has no OEM Drawable background to replace", icon.getBackground());
-            } else {
-                assertEquals("Native glyph-only tile must render the manual surface " + surface.name(),
-                        Color.alpha(surface.color), Color.alpha(actual));
-                // Skia's premultiplied bitmap conversion can round translucent RGB.
-                assertEquals(Color.red(surface.color), Color.red(actual), 2);
-                assertEquals(Color.green(surface.color), Color.green(actual), 2);
-                assertEquals(Color.blue(surface.color), Color.blue(actual), 2);
-            }
+            assertEquals("Native glyph-only tile must render the Canvas surface " + surface.name(),
+                    Color.alpha(surface.color), Color.alpha(actual));
+            assertEquals(Color.red(surface.color), Color.red(actual), 2);
+            assertEquals(Color.green(surface.color), Color.green(actual), 2);
+            assertEquals(Color.blue(surface.color), Color.blue(actual), 2);
             assertEquals("The foreground glyph stays native", Color.BLUE, pixels.getPixel(50, 50));
             assertSame(layers, icon.getDrawable());
             pixels.recycle();
