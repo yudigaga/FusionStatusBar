@@ -9,11 +9,13 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.lang.ref.WeakReference;
 import java.util.Iterator;
@@ -26,6 +28,12 @@ final class DualRowStatusBarLayout {
     private static final long SLOW_LAYOUT_MS = 16L;
     private static final long SLOW_LAYOUT_LOG_INTERVAL_MS = 5_000L;
     private static final Map<ViewGroup, WeakReference<State>> STATES = new WeakHashMap<>();
+    private static final String NATIVE_ICON_RAIL =
+            "com.android.systemui.statusbar.views.MiuiStatusIconContainer";
+    // OEM icon MOVE can finish after the privacy controller's final layout.
+    private static final long PRIVACY_EXIT_OBSERVE_MS = 1_000L;
+    private static final int NO_NATIVE_EDGE = Integer.MIN_VALUE;
+    private static final Class<?>[] NO_ARGS = new Class<?>[0];
 
     private DualRowStatusBarLayout() {
     }
@@ -307,6 +315,19 @@ final class DualRowStatusBarLayout {
         private final RectF nativeFrameBounds = new RectF();
         private final RectF nativeChildBounds = new RectF();
         private final RectF nativeBounds = new RectF();
+        private final ViewTreeObserver.OnPreDrawListener alarmGapPass = this::updateReadoutBeforeDraw;
+        private ViewTreeObserver alarmGapObserver;
+        private StatusPairView gapReadout;
+        private ViewGroup gapRail;
+        private View gapAlarm;
+        private Method gapAlarmVisibleState;
+        private Method gapAlarmAppearAmount;
+        private int gapStateId;
+        private int gapRailChildren = -1;
+        private Field privacyState;
+        private boolean privacyWasActive;
+        private long observePrivacyExitUntil;
+        private int readoutNativeEdge = NO_NATIVE_EDGE;
 
         StatusSlotLayout(Context context, int gravity) {
             super(context);
@@ -318,6 +339,7 @@ final class DualRowStatusBarLayout {
         }
 
         void clearFusionReservation() {
+            setAlarmGapReadout(null);
             priorityChild = null;
             priorityFallbackWidth = 0;
             priorityExtraWidth = 0;
@@ -325,6 +347,192 @@ final class DualRowStatusBarLayout {
             externalPriorityFallbackWidth = 0;
             externalPriorityExtraWidth = 0;
             requestLayout();
+        }
+
+        void setAlarmGapReadout(StatusPairView readout) {
+            if (gapReadout == readout) return;
+            if (gapReadout != null && gapReadout.getParent() == this) gapReadout.setTranslationX(0);
+            stopAlarmGapPass();
+            gapReadout = readout;
+            gapRail = readout == null || priorityChild == null ? null
+                    : find(priorityChild, "statusIcons") instanceof ViewGroup rail
+                        && rail.getParent() == priorityChild
+                        && NATIVE_ICON_RAIL.equals(rail.getClass().getName()) ? rail : null;
+            gapAlarm = null;
+            gapAlarmVisibleState = null;
+            gapAlarmAppearAmount = null;
+            gapStateId = gapRail == null ? 0 : getResources().getIdentifier(
+                    "status_bar_view_state_tag", "id", "com.android.systemui");
+            privacyState = gapRail == null ? null : RuntimeReflection.field(
+                    priorityChild.getClass(), "mPrivacyState");
+            gapRailChildren = -1;
+            resetPrivacyExit();
+            startAlarmGapPass();
+        }
+
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            startAlarmGapPass();
+        }
+
+        @Override protected void onDetachedFromWindow() {
+            stopAlarmGapPass();
+            resetPrivacyExit();
+            if (gapReadout != null && gapReadout.getParent() == this) gapReadout.setTranslationX(0);
+            super.onDetachedFromWindow();
+        }
+
+        private void startAlarmGapPass() {
+            if (gapRail == null || gapStateId == 0 && privacyState == null
+                    || alarmGapObserver != null || !isAttachedToWindow()) return;
+            alarmGapObserver = getViewTreeObserver();
+            alarmGapObserver.addOnPreDrawListener(alarmGapPass);
+        }
+
+        private void stopAlarmGapPass() {
+            if (alarmGapObserver != null && alarmGapObserver.isAlive()) {
+                alarmGapObserver.removeOnPreDrawListener(alarmGapPass);
+            }
+            alarmGapObserver = null;
+        }
+
+        private boolean updateReadoutBeforeDraw() {
+            if (gapReadout != null && gapReadout.getParent() == this) {
+                updatePrivacyExitReservation();
+                int offset = gapStateId == 0 ? 0 : settledAlarmGap();
+                if (gapReadout.getTranslationX() != offset) gapReadout.setTranslationX(offset);
+            }
+            return true;
+        }
+
+        private void resetPrivacyExit() {
+            privacyWasActive = false;
+            observePrivacyExitUntil = 0;
+        }
+
+        private void updatePrivacyExitReservation() {
+            if (privacyState == null || gapRail.getParent() != priorityChild
+                    || priorityChild.getParent() != this || !gapRail.isShown()
+                    || gapReadout.getVisibility() != VISIBLE
+                    || getWindowVisibility() != VISIBLE
+                    || !(readField(priorityChild, privacyState) instanceof Enum<?> state)) {
+                resetPrivacyExit();
+                return;
+            }
+            if (!"COMPLETE_HIDE_PRIVACY".equals(state.name())) {
+                privacyWasActive = true;
+                observePrivacyExitUntil = 0;
+                return;
+            }
+            long now = SystemClock.uptimeMillis();
+            if (privacyWasActive) {
+                privacyWasActive = false;
+                observePrivacyExitUntil = now + PRIVACY_EXIT_OBSERVE_MS;
+            }
+            if (observePrivacyExitUntil <= now || readoutNativeEdge == NO_NATIVE_EDGE
+                    || isLayoutRequested() || priorityChild.isLayoutRequested() || gapRail.isLayoutRequested()
+                    || !isPlainHostFrame((ViewGroup) priorityChild) || !isPlainHostFrame(gapRail)) {
+                return;
+            }
+
+            boolean nativeAtLeft = reserveAtStart != (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
+            collectNativeBounds(nativeAtLeft);
+            if (nativeBounds.isEmpty()) return;
+            int edge = nativeAtLeft ? (int) Math.ceil(nativeBounds.right)
+                    : (int) Math.floor(nativeBounds.left);
+            if (edge == readoutNativeEdge) return;
+            // A completed traversal already placed the native children. Only repack the readouts.
+            layoutReadouts(collectReadouts(), nativeAtLeft, edge);
+        }
+
+        private int settledAlarmGap() {
+            if (gapReadout.getVisibility() != VISIBLE || gapReadout.getWidth() <= 0
+                    || gapRail.getParent() != priorityChild || priorityChild.getParent() != this
+                    || !gapRail.isShown() || gapRail.getAlpha() != 1f
+                    || priorityChild.getAlpha() != 1f) return 0;
+            int count = gapRail.getChildCount();
+            if (count != gapRailChildren || gapAlarm != null && gapAlarm.getParent() != gapRail) {
+                gapAlarm = null;
+                gapAlarmVisibleState = null;
+                gapAlarmAppearAmount = null;
+                gapRailChildren = count;
+                for (int index = 0; index < count; index++) {
+                    View icon = gapRail.getChildAt(index);
+                    if ("alarm_clock".equals(readMethod(icon, "getSlot"))) {
+                        gapAlarm = icon;
+                        gapAlarmVisibleState = findMethod(icon, "getVisibleState");
+                        gapAlarmAppearAmount = findMethod(icon, "getIconAppearAmount");
+                        break;
+                    }
+                }
+            }
+            if (gapAlarm == null || gapAlarm.getWidth() <= 0
+                    || !Integer.valueOf(2).equals(invoke(gapAlarm, gapAlarmVisibleState))
+                    || !Float.valueOf(0f).equals(invoke(gapAlarm, gapAlarmAppearAmount))) {
+                return 0;
+            }
+            if (!Boolean.TRUE.equals(readField(gapAlarm.getTag(gapStateId), "hiddenBySpace"))
+                    || !Boolean.TRUE.equals(readMethod(gapAlarm, "isIconVisible"))
+                    || !Boolean.FALSE.equals(readMethod(gapAlarm, "isIconBlocked"))
+                    || !(readMethod(gapRail, "getIslandTranslationX") instanceof Number island)
+                    || island.intValue() > 0
+                    || !(readField(priorityChild, privacyState) instanceof Enum<?> privacy)
+                    || !"COMPLETE_HIDE_PRIVACY".equals(privacy.name())
+                    || !isPlainHostFrame((ViewGroup) priorityChild) || !isPlainHostFrame(gapRail)) {
+                return 0;
+            }
+
+            boolean nativeAtLeft = reserveAtStart != (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
+            int edge = nativeAtLeft ? gapReadout.getLeft() : gapReadout.getRight();
+            int clearance = nativeAtLeft ? edge - getPaddingLeft()
+                    : getWidth() - getPaddingRight() - edge;
+            for (int index = 0; index < getChildCount(); index++) {
+                View child = getChildAt(index);
+                if (child != gapReadout && child != priorityChild) {
+                    clearance = Math.min(clearance, clearanceTo(child, edge, nativeAtLeft));
+                }
+            }
+            ViewGroup wrapper = (ViewGroup) priorityChild;
+            for (int index = 0; index < wrapper.getChildCount(); index++) {
+                View child = wrapper.getChildAt(index);
+                if (child != gapRail) {
+                    clearance = Math.min(clearance, clearanceTo(child, edge, nativeAtLeft));
+                }
+            }
+            for (int index = 0; index < count; index++) {
+                View icon = gapRail.getChildAt(index);
+                if (icon != gapAlarm) {
+                    clearance = Math.min(clearance, clearanceTo(icon, edge, nativeAtLeft));
+                }
+            }
+            mapBounds(gapAlarm);
+            int margin = nativeAtLeft ? gapReadout.preferredLeftMargin()
+                    : gapReadout.preferredRightMargin();
+            int amount = Math.max(0, Math.min((int) mappedBounds.width(), clearance - margin));
+            return nativeAtLeft ? -amount : amount;
+        }
+
+        private int clearanceTo(View view, int edge, boolean nativeAtLeft) {
+            if (view.getVisibility() != VISIBLE || view.getAlpha() == 0f
+                    || view.getWidth() <= 0 || view.getHeight() <= 0) return Integer.MAX_VALUE;
+            mapBounds(view);
+            boolean behindReadout = nativeAtLeft ? mappedBounds.left >= gapReadout.getRight()
+                    : mappedBounds.right <= gapReadout.getLeft();
+            int distance = behindReadout ? Integer.MAX_VALUE : (int) Math.floor(nativeAtLeft
+                    ? edge - mappedBounds.right : mappedBounds.left - edge);
+            if (view instanceof ViewGroup group && !group.getClipChildren()) {
+                for (int index = 0; index < group.getChildCount(); index++) {
+                    distance = Math.min(distance, clearanceTo(group.getChildAt(index), edge, nativeAtLeft));
+                }
+            }
+            return distance;
+        }
+
+        private static boolean isPlainHostFrame(ViewGroup group) {
+            // The OEM retains removed icons as transient children until their animation ends.
+            return group.getBackground() == null && group.getForeground() == null
+                    && group.getAnimation() == null && !group.hasTransientState()
+                    && Integer.valueOf(0).equals(readMethod(group, "getTransientViewCount"));
         }
 
         void setLocalFusionReservation(View child, int fallbackWidth, int extraWidth) {
@@ -449,6 +657,9 @@ final class DualRowStatusBarLayout {
         @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             super.onLayout(changed, left, top, right, bottom);
+            readoutNativeEdge = NO_NATIVE_EDGE;
+            // Child replacement can keep the same count when the previous scan found no alarm.
+            if (gapAlarm == null) gapRailChildren = -1;
             int readoutCount = collectReadouts();
             if (readoutCount == 0) return;
             layoutReadoutsBesideNativeContent(readoutCount);
@@ -504,6 +715,26 @@ final class DualRowStatusBarLayout {
 
         private void layoutReadoutsBesideNativeContent(int readoutCount) {
             boolean nativeAtLeft = reserveAtStart != (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
+            collectNativeBounds(nativeAtLeft);
+            if (nativeBounds.isEmpty()) return;
+
+            // Host layout and property transforms can change after measurement.
+            int nativeLeft = (int) Math.floor(nativeBounds.left);
+            int nativeRight = (int) Math.ceil(nativeBounds.right);
+            int shift = nativeAtLeft ? getPaddingLeft() - nativeLeft
+                    : getWidth() - getPaddingRight() - nativeRight;
+            if (shift != 0) {
+                for (int index = 0; index < getChildCount(); index++) {
+                    View child = getChildAt(index);
+                    if (!(child instanceof StatusPairView) && hasVisibleContent(child)) {
+                        child.offsetLeftAndRight(shift);
+                    }
+                }
+            }
+            layoutReadouts(readoutCount, nativeAtLeft, (nativeAtLeft ? nativeRight : nativeLeft) + shift);
+        }
+
+        private void collectNativeBounds(boolean nativeAtLeft) {
             nativeBounds.setEmpty();
             for (int index = 0; index < getChildCount(); index++) {
                 View child = getChildAt(index);
@@ -537,32 +768,20 @@ final class DualRowStatusBarLayout {
                 }
                 nativeBounds.union(nativeChildBounds);
             }
-            if (nativeBounds.isEmpty()) return;
+        }
 
-            // Host layout and property transforms can change after measurement. Keep its
-            // measured frames intact, then fit readouts against the current visual envelope.
+        private void layoutReadouts(int readoutCount, boolean nativeAtLeft, int nativeEdge) {
+            readoutNativeEdge = nativeEdge;
             int contentLeft = getPaddingLeft();
             int contentRight = getWidth() - getPaddingRight();
-            int nativeLeft = (int) Math.floor(nativeBounds.left);
-            int nativeRight = (int) Math.ceil(nativeBounds.right);
-            int nativeWidth = Math.max(0, nativeRight - nativeLeft);
-            int shift = nativeAtLeft ? contentLeft - nativeLeft : contentRight - nativeRight;
-            if (shift != 0) {
-                for (int index = 0; index < getChildCount(); index++) {
-                    View child = getChildAt(index);
-                    if (!(child instanceof StatusPairView) && hasVisibleContent(child)) {
-                        child.offsetLeftAndRight(shift);
-                    }
-                }
-            }
             allocateReadouts(readoutCount,
-                    Math.max(0, contentRight - contentLeft - nativeWidth));
+                    Math.max(0, Math.min(contentRight - contentLeft,
+                            nativeAtLeft ? contentRight - nativeEdge : nativeEdge - contentLeft)));
             int readoutWidth = 0;
             for (int index = 0; index < readoutCount; index++) {
                 readoutWidth += allocatedWidths[index];
             }
-            int cursor = nativeAtLeft ? contentLeft + nativeWidth
-                    : contentRight - nativeWidth - readoutWidth;
+            int cursor = nativeAtLeft ? nativeEdge : nativeEdge - readoutWidth;
             cursor = Math.max(contentLeft, Math.min(contentRight, cursor));
             boolean rtl = getLayoutDirection() == LAYOUT_DIRECTION_RTL;
             for (int position = 0; position < readoutCount; position++) {
@@ -582,11 +801,7 @@ final class DualRowStatusBarLayout {
         private void includeNativeBounds(View view, boolean directChild) {
             if (view.getVisibility() != VISIBLE || view.getAlpha() <= 0.01f) return;
             if (view.getWidth() > 0 && view.getHeight() > 0) {
-                visualMatrix.reset();
-                view.transformMatrixToGlobal(visualMatrix);
-                transformMatrixToLocal(visualMatrix);
-                mappedBounds.set(0f, 0f, view.getWidth(), view.getHeight());
-                visualMatrix.mapRect(mappedBounds);
+                mapBounds(view);
                 nativeChildBounds.union(mappedBounds);
                 if (directChild) nativeFrameBounds.set(mappedBounds);
             }
@@ -598,8 +813,53 @@ final class DualRowStatusBarLayout {
             }
         }
 
+        private void mapBounds(View view) {
+            visualMatrix.reset();
+            view.transformMatrixToGlobal(visualMatrix);
+            transformMatrixToLocal(visualMatrix);
+            mappedBounds.set(0f, 0f, view.getWidth(), view.getHeight());
+            visualMatrix.mapRect(mappedBounds);
+        }
+
         private int dp(int value) {
             return Math.round(value * getResources().getDisplayMetrics().density);
+        }
+    }
+
+    private static Object readMethod(Object target, String name) {
+        return invoke(target, findMethod(target, name));
+    }
+
+    private static Method findMethod(Object target, String name) {
+        try {
+            return RuntimeReflection.exact(target.getClass(), name, NO_ARGS, false);
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static Object invoke(Object target, Method method) {
+        try {
+            return method == null ? null : method.invoke(target);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static Object readField(Object target, String name) {
+        if (target == null) return null;
+        try {
+            return readField(target, RuntimeReflection.field(target.getClass(), name));
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    private static Object readField(Object target, Field field) {
+        try {
+            return field == null ? null : field.get(target);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
         }
     }
 
@@ -784,6 +1044,7 @@ final class DualRowStatusBarLayout {
                         view.setLayoutParams(params);
                     }
                 }
+                if (metric == TelemetryConfig.NET_SPEED) target.setAlarmGapReadout(view);
                 view.setTranslationY(dp(settings.verticalOffset(metric)));
                 boolean calibratedRow = plan.spanFusion
                         && plan.fusionSide == FusionConfig.SIDE_RIGHT
@@ -898,7 +1159,7 @@ final class DualRowStatusBarLayout {
             for (View child : systemChildren) {
                 if (isBatteryContainer(child)) {
                     View statusIcons = findClassView(child,
-                            "com.android.systemui.statusbar.views.MiuiStatusIconContainer");
+                            NATIVE_ICON_RAIL);
                     if (statusIcons instanceof ViewGroup statusGroup) {
                         applyVisualScale(statusIcons, config.systemIconScale, plan.systemSide);
                         statusGroup.setClipChildren(false);

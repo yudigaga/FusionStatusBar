@@ -21,6 +21,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import com.android.systemui.statusbar.views.MiuiStatusBatteryContainer;
+import com.android.systemui.statusbar.views.MiuiStatusIconContainer;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
@@ -55,6 +56,7 @@ public class NetworkLeadingGapLayoutContractTest {
     private static final int BATTERY = 0x7f0e4103;
     private static final int STATUS_ICONS = 0x7f0e4104;
     private static final int CLOCK = 0x7f0e4105;
+    private static final int ICON_STATE = 0x7f0e4106;
     private static final int WIDTH = 960;
     private static final int HEIGHT = 80;
     private final Map<Field, Object> savedSamplerFields = new LinkedHashMap<>();
@@ -112,6 +114,225 @@ public class NetworkLeadingGapLayoutContractTest {
                 fixture.assertClockToReadoutGap(snapshot);
             }
         }
+    }
+
+    @Test public void speedStillReservesNativeFrameAfterAnIconStopsDrawing()
+            throws Exception {
+        for (int direction : directions()) {
+            Fixture fixture = new Fixture(false, direction);
+            FrameLayout.LayoutParams iconParams =
+                    new FrameLayout.LayoutParams(24, HEIGHT, Gravity.END);
+            iconParams.setMarginEnd(24);
+            fixture.firstIcon.setLayoutParams(iconParams);
+            fixture.apply(enabled(true, TelemetryConfig.SIDE_RIGHT, 0,
+                    TelemetryConfig.ALIGN_DEFAULT));
+            fixture.measureAndLayout();
+            RectF firstIcon = fixture.bounds(fixture.firstIcon);
+            RectF secondIcon = fixture.bounds(fixture.secondIcon);
+            Snapshot compact = fixture.capture("two-icons-with-compact-frame");
+
+            View alarm = new View(fixture.root.getContext());
+            alarm.setBackgroundColor(0xffffffff);
+            fixture.statusIcons.addView(alarm,
+                    new FrameLayout.LayoutParams(64, HEIGHT, Gravity.START));
+            fixture.statusIcons.getLayoutParams().width += 64;
+            fixture.statusIcons.requestLayout();
+            fixture.measureAndLayout();
+            Snapshot withAlarm = fixture.capture("three-visible-icons");
+            alarm.setVisibility(View.INVISIBLE);
+            fixture.measureAndLayout();
+            Snapshot reserved = fixture.capture("two-icons-after-alarm-stops-drawing");
+
+            assertEquals(firstIcon, fixture.bounds(fixture.firstIcon));
+            assertEquals(secondIcon, fixture.bounds(fixture.secondIcon));
+            assertEquals(64f, reserved.nativeFrame.width() - compact.nativeFrame.width(), 0.01f);
+            assertEquals("The readout does not move back when just the icon stops drawing",
+                    withAlarm.readoutInk, reserved.readoutInk);
+            assertEquals("The extra container width keeps the readout closer to the cutout",
+                    64f, fixture.end(compact.readoutInk) - fixture.end(reserved.readoutInk), 0.01f);
+        }
+    }
+
+    @Test public void speedReusesOnlyTheSettledAlarmGapWithoutMovingNativeIcons() throws Exception {
+        for (int direction : directions()) {
+            Fixture fixture = new Fixture(false, direction);
+            MiuiStatusIconContainer rail = new MiuiStatusIconContainer(fixture.root.getContext());
+            rail.setId(STATUS_ICONS);
+            rail.setClipChildren(false);
+            fixture.battery.removeView(fixture.statusIcons);
+            fixture.battery.addView(rail, 0, new LinearLayout.LayoutParams(128, HEIGHT));
+            View bluetooth = addVisibleIcon(rail, 24);
+            View battery = addVisibleIcon(rail, 0);
+            AlarmIcon alarm = new AlarmIcon(rail.getContext());
+            rail.addView(alarm, new FrameLayout.LayoutParams(64, HEIGHT, Gravity.START));
+            fixture.apply(enabled(true, TelemetryConfig.SIDE_RIGHT, 0,
+                    TelemetryConfig.ALIGN_DEFAULT));
+            fixture.measureAndLayout();
+
+            RectF originalReadout = fixture.bounds(fixture.readout());
+            RectF originalRail = fixture.bounds(rail);
+            RectF originalBluetooth = fixture.bounds(bluetooth);
+            RectF originalBattery = fixture.bounds(battery);
+            alarm.visibleState = 2;
+            alarm.hiddenBySpace = true;
+            alarm.appear = .25f;
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            assertEquals("The disappearing alarm may still draw", originalReadout,
+                    fixture.bounds(fixture.readout()));
+
+            alarm.appear = 0f;
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            RectF recovered = fixture.bounds(fixture.readout());
+            assertEquals("Recover only the alarm width, retaining the original gutter",
+                    64f, fixture.end(recovered) - fixture.end(originalReadout), 0.01f);
+            assertEquals(originalRail, fixture.bounds(rail));
+            assertEquals(originalBluetooth, fixture.bounds(bluetooth));
+            assertEquals(originalBattery, fixture.bounds(battery));
+            assertFalse(RectF.intersects(recovered, originalBluetooth));
+
+            rail.islandX = 20;
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            assertEquals("Island layouts keep the conservative reservation", originalReadout,
+                    fixture.bounds(fixture.readout()));
+            rail.islandX = -1;
+            fixture.battery.mPrivacyState = MiuiStatusBatteryContainer.PrivacyState.COMPLETE_SHOW_PRIVACY;
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            assertEquals("Privacy activity keeps the conservative reservation", originalReadout,
+                    fixture.bounds(fixture.readout()));
+            fixture.battery.mPrivacyState = MiuiStatusBatteryContainer.PrivacyState.COMPLETE_HIDE_PRIVACY;
+            View transientIcon = new View(rail.getContext());
+            ViewGroup.class.getMethod("addTransientView", View.class, int.class)
+                    .invoke(rail, transientIcon, 0);
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            assertEquals("A removed icon may still draw as a transient child", originalReadout,
+                    fixture.bounds(fixture.readout()));
+            ViewGroup.class.getMethod("removeTransientView", View.class).invoke(rail, transientIcon);
+            assertGapStopsBeforeOverflow(fixture, rail, originalReadout);
+
+            alarm.appear = .1f;
+            alarm.visibleState = 0;
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            assertEquals("Readout yields before the alarm returns", originalReadout,
+                    fixture.bounds(fixture.readout()));
+        }
+    }
+
+    @Test public void speedRecoversWhenPrivacyExitLayoutPrecedesTheFinalIconTranslation()
+            throws Exception {
+        for (int direction : directions()) {
+            Fixture fixture = new Fixture(false, direction);
+            Context context = fixture.root.getContext();
+            MiuiStatusIconContainer rail = new MiuiStatusIconContainer(context);
+            rail.setId(STATUS_ICONS);
+            rail.setClipChildren(false);
+            fixture.battery.setClipChildren(false);
+            fixture.battery.removeView(fixture.statusIcons);
+            fixture.battery.addView(rail, 0, new LinearLayout.LayoutParams(360, HEIGHT));
+            AlarmIcon alarm = new AlarmIcon(context);
+            alarm.setBackgroundColor(0xffffffff);
+            rail.addView(alarm, new FrameLayout.LayoutParams(32, HEIGHT, Gravity.START));
+            View bluetooth = addVisibleIcon(rail, 24);
+            View chip = new View(context);
+            chip.setBackgroundColor(0xff00ff00);
+            chip.setVisibility(View.GONE);
+            fixture.battery.addView(chip, 0, new LinearLayout.LayoutParams(32, HEIGHT));
+            fixture.apply(enabled(true, TelemetryConfig.SIDE_RIGHT, 72, TelemetryConfig.ALIGN_DEFAULT));
+
+            fixture.measureAndLayout();
+            RectF baselineSpeed = fixture.bounds(fixture.readout());
+            RectF baselineRail = fixture.bounds(rail);
+            RectF baselineAlarm = fixture.bounds(alarm);
+            RectF baselineBluetooth = fixture.bounds(bluetooth);
+            assertEquals(72f, baselineSpeed.width(), .01f);
+            recordPrivacyGeometry(fixture, "before", rail, alarm, bluetooth);
+
+            fixture.battery.mPrivacyState = MiuiStatusBatteryContainer.PrivacyState.COMPLETE_SHOW_PRIVACY;
+            chip.setVisibility(View.VISIBLE);
+            fixture.measureAndLayout();
+            assertTrue("Privacy chip still displays during the transition", chip.isShown());
+            assertEquals(32f, fixture.end(baselineSpeed) - fixture.end(fixture.bounds(fixture.readout())), .01f);
+            assertFalse(RectF.intersects(fixture.bounds(chip), fixture.bounds(fixture.readout())));
+            assertTrue(fixture.readout().getWidth() < baselineSpeed.width());
+            recordPrivacyGeometry(fixture, "shown", rail, alarm, bluetooth);
+
+            fixture.battery.mPrivacyState = MiuiStatusBatteryContainer.PrivacyState.COMPLETE_HIDE_PRIVACY;
+            chip.setVisibility(View.GONE);
+            alarm.setTranslationX(direction == View.LAYOUT_DIRECTION_RTL ? 32f : -32f);
+            fixture.measureAndLayout();
+            assertTrue("The host has laid out but the last icon animation has not settled",
+                    fixture.end(fixture.bounds(fixture.readout())) < fixture.end(baselineSpeed));
+            recordPrivacyGeometry(fixture, "hide-layout-before-icon-settles", rail, alarm, bluetooth);
+            fixture.root.layoutRequests = 0;
+
+            alarm.setTranslationX(0f);
+            fixture.root.getViewTreeObserver().dispatchOnPreDraw();
+            assertEquals(View.GONE, chip.getVisibility());
+            assertEquals(0, alarm.getVisibleState());
+            assertFalse(alarm.hiddenBySpace);
+            assertEquals(baselineRail, fixture.bounds(rail));
+            assertEquals(baselineAlarm, fixture.bounds(alarm));
+            assertEquals(baselineBluetooth, fixture.bounds(bluetooth));
+            assertEquals("Later translation-only completion must release the stale reservation",
+                    fixture.end(baselineSpeed) - fixture.start(baselineAlarm),
+                    fixture.end(fixture.bounds(fixture.readout())) - fixture.start(fixture.bounds(alarm)), .01f);
+            assertEquals(baselineSpeed, fixture.bounds(fixture.readout()));
+            assertEquals("Readout recovery must not request a root traversal", 0, fixture.root.layoutRequests);
+            recordPrivacyGeometry(fixture, "settled", rail, alarm, bluetooth);
+        }
+    }
+
+    private static void recordPrivacyGeometry(Fixture fixture, String phase, View rail,
+            AlarmIcon alarm, View bluetooth) {
+        System.out.println("PrivacyExit direction=" + fixture.direction + " phase=" + phase
+                + " firstIcon=" + fixture.bounds(alarm) + " alarmState=" + alarm.getVisibleState()
+                + " bluetooth=" + fixture.bounds(bluetooth) + " speed=" + fixture.bounds(fixture.readout())
+                + " rail=" + fixture.bounds(rail) + " wrapper=" + fixture.bounds(fixture.battery));
+    }
+
+    private void assertGapStopsBeforeOverflow(Fixture fixture, FrameLayout rail, RectF original)
+            throws Exception {
+        FrameLayout parent = new FrameLayout(rail.getContext());
+        parent.setClipChildren(false);
+        View icon = new View(parent.getContext());
+        icon.setBackgroundColor(0xffffffff);
+        parent.addView(icon, new FrameLayout.LayoutParams(8, HEIGHT, Gravity.START));
+        rail.addView(parent, new FrameLayout.LayoutParams(8, HEIGHT, Gravity.START));
+        float direction = fixture.direction == View.LAYOUT_DIRECTION_RTL ? -1f : 1f;
+        parent.setTranslationX(-direction * 60);
+        icon.setTranslationX(direction * 80);
+        fixture.measureAndLayout();
+        assertTrue(fixture.end(fixture.bounds(parent)) <= fixture.start(original));
+        assertEquals("An unclipped descendant can overhang into the gap", 20f,
+                fixture.end(fixture.bounds(fixture.readout())) - fixture.end(original), .01f);
+        assertFalse(RectF.intersects(fixture.bounds(fixture.readout()), fixture.bounds(icon)));
+        rail.removeView(parent);
+        fixture.measureAndLayout();
+    }
+
+    private static View addVisibleIcon(FrameLayout rail, int endMargin) {
+        View view = new View(rail.getContext());
+        view.setBackgroundColor(0xffffffff);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(24, HEIGHT, Gravity.END);
+        params.setMarginEnd(endMargin);
+        rail.addView(view, params);
+        return view;
+    }
+
+    private static final class AlarmIcon extends View {
+        float appear = 1f;
+        int visibleState;
+        boolean hiddenBySpace;
+
+        AlarmIcon(Context context) {
+            super(context);
+            setTag(ICON_STATE, this);
+        }
+
+        public String getSlot() { return "alarm_clock"; }
+        public boolean isIconVisible() { return true; }
+        public boolean isIconBlocked() { return false; }
+        public int getVisibleState() { return visibleState; }
+        public float getIconAppearAmount() { return appear; }
     }
 
     @Test public void autoAndFixedAlignmentRecordTextInkSeparatelyFromTheReadoutFrame()
@@ -877,6 +1098,7 @@ public class NetworkLeadingGapLayoutContractTest {
                     case "system_icons" -> BATTERY;
                     case "statusIcons" -> STATUS_ICONS;
                     case "clock" -> CLOCK;
+                    case "status_bar_view_state_tag" -> ICON_STATE;
                     default -> 0;
                 };
             }

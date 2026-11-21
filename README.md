@@ -4,17 +4,17 @@
 
 # FusionStatusBar
 
-[下载正式版](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.34) · [LSPosed 下载](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/248-0.5.34) · [本版说明](docs/release-notes-v0.5.34.md) · [文档目录](docs/README.md)
+[下载正式版](https://github.com/yudigaga/FusionStatusBar/releases/tag/v0.5.36) · [LSPosed 下载](https://github.com/Xposed-Modules-Repo/io.github.yudigaga.fusionstatusbar/releases/tag/250-0.5.36) · [本版说明](docs/release-notes-v0.5.36.md) · [文档目录](docs/README.md)
 
 面向 MIUI / HyperOS 的 LibXposed 模块，提供融合状态栏、控制中心布局与材质编辑，以及桌面手势和系统界面扩展。
 
 ## 当前版本
 
-**0.5.34（构建号 248）· R8**
+**0.5.36（构建号 250）· R8**
 
-- 新增 19 类状态栏图标显示设置，将选项合并到 SystemUI 原生隐藏槽位策略；默认允许显示除隐私指示和闹钟外的其余类别。
-- 高光玻璃在 OEM 私有模糊能力未知时使用可逆 Canvas 兼容表面；不宣称原生 MiGlass 模糊已验证。
-- 调整通知背景处理、通知时钟布局与双排网速视图恢复逻辑；本版没有重跑这些改动的单元测试。
+- 仅在原生闹钟图标因空间不足而完全淡出后，让双排网速回收释放的空间。
+- 隐私提示退出时，按原生图标的最终位置恢复双排网速布局；原生图标仍由系统布局。
+- 沿用 0.5.34 后续的控制中心模糊恢复修复。本版未新增作用域。
 
 ## 主要功能
 
@@ -46,7 +46,7 @@
 
 ## 文档与开发
 
-- [本版更新与验证](docs/release-notes-v0.5.34.md)
+- [本版更新与验证](docs/release-notes-v0.5.36.md)
 - [构建、签名与发布](docs/building.md)
 - [模块关系与维护](docs/development.md)
 - [历史版本、功能说明与技术报告](docs/README.md)
