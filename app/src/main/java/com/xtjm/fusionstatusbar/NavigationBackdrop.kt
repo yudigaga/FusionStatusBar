@@ -11,7 +11,6 @@ import android.graphics.Outline
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.ViewTreeObserver
-import android.util.Log
 import android.widget.FrameLayout
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -156,7 +155,7 @@ internal class NavigationBackdropView(context: Context, private val captureSourc
             release()
             captureFailed = true
             invalidate()
-            Log.w("FusionStatusBar", "Navigation background capture unavailable", error)
+            ModuleLog.w("FusionStatusBar", "Navigation background capture unavailable", error)
             return
         }
         bitmap.getPixels(pixels, 0, scaledWidth, 0, 0, scaledWidth, scaledHeight)

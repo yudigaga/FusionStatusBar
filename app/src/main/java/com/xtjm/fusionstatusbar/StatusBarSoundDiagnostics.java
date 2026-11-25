@@ -121,7 +121,7 @@ final class StatusBarSoundDiagnostics {
             }
         }
         if (report.isEmpty()) report.add(policySummary + " surface=none");
-        if (report.equals(lastReport)) return;
+        if (!ModuleLog.enabled() || report.equals(lastReport)) return;
         lastReport = report;
         long uptime = SystemClock.uptimeMillis();
         for (String line : report) {

@@ -159,7 +159,7 @@ final class ControlCenterWallpaperWorkspace {
     // or compositor presentation latency. Included by the existing log exporter.
     private void logEntryTiming(String phase) {
         WindowManager.LayoutParams attrs = activity.getWindow().getAttributes();
-        android.util.Log.i("FusionStatusBar", "WallpaperWorkspace phase=" + phase
+        ModuleLog.i("FusionStatusBar", "WallpaperWorkspace phase=" + phase
                 + " background=builtin"
                 + " elapsedMs=" + (android.os.SystemClock.uptimeMillis() - openedAt)
                 + " format=" + attrs.format

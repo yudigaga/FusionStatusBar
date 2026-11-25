@@ -13,7 +13,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -126,7 +125,7 @@ final class LauncherHooks {
                     if (result instanceof View icon) applyDesktopIcon(icon);
                     return result;
                 });
-        Log.i(TAG, "launcher hook capability installed=" + count
+        ModuleLog.i(TAG, "launcher hook capability installed=" + count
                 + " launcherPackage=com.miui.home");
         return count;
     }
@@ -260,19 +259,19 @@ final class LauncherHooks {
             String methodName, Class<?>[] parameters, XposedInterface.Hooker hooker) {
         Class<?> type = resolve(loader, className);
         if (type == null) {
-            Log.w(TAG, "launcher hook class missing " + className);
+            ModuleLog.w(TAG, "launcher hook class missing " + className);
             return 0;
         }
         Method method = declaredMethod(type, methodName, parameters);
         if (method == null) {
-            Log.w(TAG, "launcher hook method missing " + className + "#" + methodName);
+            ModuleLog.w(TAG, "launcher hook method missing " + className + "#" + methodName);
             return 0;
         }
         try {
             try {
                 module.deoptimize(method);
             } catch (Throwable error) {
-                Log.w(TAG, "launcher hook deoptimize failed " + methodName, error);
+                ModuleLog.w(TAG, "launcher hook deoptimize failed " + methodName, error);
             }
             module.hook(method)
                     .setId("fusion-statusbar:launcher-" + className + "#" + methodName)
@@ -280,7 +279,7 @@ final class LauncherHooks {
                     .intercept(hooker);
             return 1;
         } catch (Throwable error) {
-            Log.w(TAG, "launcher hook installation failed " + className + "#" + methodName,
+            ModuleLog.w(TAG, "launcher hook installation failed " + className + "#" + methodName,
                     error);
             return 0;
         }
@@ -417,7 +416,7 @@ final class LauncherHooks {
                     new Class<?>[] {float.class, float.class}, screenX, screenY);
             return Boolean.TRUE.equals(inArea) && !Boolean.TRUE.equals(onChild);
         } catch (Throwable error) {
-            Log.w(TAG, "launcher double tap target unavailable", error);
+            ModuleLog.w(TAG, "launcher double tap target unavailable", error);
             return false;
         }
     }
@@ -469,7 +468,7 @@ final class LauncherHooks {
             }
             invoke(workspace, "resetCellScreenScale", new Class<?>[] {float.class}, progress);
         } catch (Throwable error) {
-            Log.w(TAG, "launcher pinch reset failed", error);
+            ModuleLog.w(TAG, "launcher pinch reset failed", error);
         }
     }
 
@@ -495,7 +494,7 @@ final class LauncherHooks {
         }
         Sensor sensor = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         if (sensor == null) {
-            Log.w(TAG, "launcher shake gesture has no accelerometer");
+            ModuleLog.w(TAG, "launcher shake gesture has no accelerometer");
             return;
         }
         ShakeListener listener = new ShakeListener(activity.getApplicationContext());
@@ -582,7 +581,7 @@ final class LauncherHooks {
             return DesktopActionQueue.enqueue(context, action, config.gestureTarget(gestureId),
                     config.gestureToggle(gestureId));
         } catch (Throwable error) {
-            Log.w(TAG, "launcher gesture dispatch failed action=" + action, error);
+            ModuleLog.w(TAG, "launcher gesture dispatch failed action=" + action, error);
             return false;
         }
     }
@@ -631,6 +630,7 @@ final class LauncherHooks {
 
     static void attachRuntime(Context source) {
         if (source == null) return;
+        ModuleLoggingConfig.attachInjected(source);
         Context application = source.getApplicationContext();
         Context app = application == null ? source : application;
         synchronized (LauncherHooks.class) {
@@ -653,7 +653,7 @@ final class LauncherHooks {
                             });
                     configObserver = observer;
                 } catch (Throwable error) {
-                    Log.w(TAG, "launcher desktop config observer unavailable", error);
+                    ModuleLog.w(TAG, "launcher desktop config observer unavailable", error);
                 }
             }
         }

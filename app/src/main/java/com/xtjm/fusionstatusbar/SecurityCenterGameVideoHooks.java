@@ -88,7 +88,7 @@ final class SecurityCenterGameVideoHooks {
                 return chain.proceed();
             });
         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
-            module.log(Log.WARN, FusionModule.TAG, "package qualification gate unavailable: " + owner + "." + name, error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "package qualification gate unavailable: " + owner + "." + name, error);
             return 0;
         }
     }
@@ -119,7 +119,7 @@ final class SecurityCenterGameVideoHooks {
                 if (!SecurityCenterConfigRuntime.current().isEnabled(GAME_THREE_SECOND_LAUNCH)) {
                     try { launch.revoke(); }
                     catch (ReflectiveOperationException error) {
-                        module.log(Log.WARN, FusionModule.TAG, "game launch cleanup failed", error);
+                        FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "game launch cleanup failed", error);
                     }
                 }
             });
@@ -131,7 +131,7 @@ final class SecurityCenterGameVideoHooks {
                 return handled ? null : chain.proceed();
             });
         } catch (ReflectiveOperationException | RuntimeException error) {
-            module.log(Log.WARN, FusionModule.TAG, "game launch gate unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "game launch gate unavailable", error);
             return 0;
         }
     }
@@ -158,12 +158,12 @@ final class SecurityCenterGameVideoHooks {
                         Object monitor = instance.invoke(null);
                         if (Boolean.TRUE.equals(blocked.invoke(monitor))) disableEffects.invoke(monitor);
                     } catch (ReflectiveOperationException | RuntimeException error) {
-                        module.log(Log.WARN, FusionModule.TAG, "video temperature protection restore failed", error);
+                        FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "video temperature protection restore failed", error);
                     }
                 });
             });
         } catch (ReflectiveOperationException | RuntimeException error) {
-            module.log(Log.WARN, FusionModule.TAG, "video temperature restore gate unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "video temperature restore gate unavailable", error);
         }
     }
 

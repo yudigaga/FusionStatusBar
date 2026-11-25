@@ -70,7 +70,7 @@ final class SecurityCenterPrivacyHooks {
             }
             return count;
         } catch (ReflectiveOperationException | LinkageError error) {
-            module.log(Log.WARN, FusionModule.TAG, "security score display unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "security score display unavailable", error);
             return 0;
         }
     }
@@ -89,7 +89,7 @@ final class SecurityCenterPrivacyHooks {
                             SecurityCenterConfigRuntime.current().isEnabled(feature)
                                     ? enabled.intercept(chain) : chain.proceed());
         } catch (ReflectiveOperationException | LinkageError error) {
-            module.log(Log.WARN, FusionModule.TAG, "security privacy method unavailable: "
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "security privacy method unavailable: "
                     + owner + "." + name, error);
             return 0;
         }

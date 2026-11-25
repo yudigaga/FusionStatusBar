@@ -3,7 +3,6 @@ package com.xtjm.fusionstatusbar;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -339,7 +338,7 @@ public final class DesktopConfig {
                     null, config.toBundle());
             return result != null && result.getBoolean(KEY_ACCEPTED, false);
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "desktop settings save failed: "
+            ModuleLog.w("FusionStatusBar", "desktop settings save failed: "
                     + error.getClass().getSimpleName());
             return false;
         }
@@ -374,7 +373,7 @@ public final class DesktopConfig {
                 return loaded;
             }
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "desktop settings read failed: "
+            ModuleLog.w("FusionStatusBar", "desktop settings read failed: "
                     + error.getClass().getSimpleName());
         }
         return DesktopConfigStore.read(context);

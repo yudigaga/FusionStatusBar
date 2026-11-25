@@ -187,4 +187,5 @@
     <string name="about_miuix_summary">Interface built with open-source Miuix components</string>
     <string name="about_project_version">Version %1$s (%2$d)</string>
     <string name="about_link_unavailable">Could not open link</string>
+    <string name="module_logging">Module logs</string>
 </resources>

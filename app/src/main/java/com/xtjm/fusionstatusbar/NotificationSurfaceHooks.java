@@ -1,13 +1,15 @@
 package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.util.Log;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 import java.lang.ref.WeakReference;
@@ -28,8 +30,13 @@ final class NotificationSurfaceHooks {
             "com.android.systemui.statusbar.notification.row.NotificationBackgroundView";
     static final String INJECTOR_CLASS =
             "com.android.systemui.statusbar.notification.row.ExpandableNotificationRowInjector";
+    private static final String CONTENT_CLASS =
+            "com.android.systemui.statusbar.notification.row.NotificationContentView";
+    private static final String OEM_BLUR_CARRIER =
+            "com.android.systemui:drawable/notification_heads_up_transparent_bg";
     private static final Map<View, WeakReference<View>> ROWS = new WeakHashMap<>();
     private static final Map<View, WeakReference<BackgroundState>> BACKGROUNDS = new WeakHashMap<>();
+    private static final Map<View, WeakReference<Drawable>> BLUR_CARRIERS = new WeakHashMap<>();
     private static Supplier<FusionConfig> current = FusionConfig::defaults;
     private static Consumer<Context> start = ignored -> { };
     private static volatile Reporter reporter = (settings, result) -> { };
@@ -53,6 +60,7 @@ final class NotificationSurfaceHooks {
         int installed = 0;
         Class<?> row = resolve(loader, ROW_CLASS);
         for (String method : new String[] {"onFinishInflate", "onAttachedToWindow", "onLayout",
+                "onNotificationUpdated", "onUiModeChanged", "setHideSensitive", "setChildrenExpanded",
                 "setHeadsUp", "setHeadsUpAnimatingAway", "setPinned", "setPinnedStatus", "updateBackgroundColors",
                 "updateBackgroundTint", "updateBackgroundForGroupState"}) {
             installed += hookDeclared(row, method, registrar, chain -> {
@@ -64,6 +72,15 @@ final class NotificationSurfaceHooks {
         installed += hookDeclared(row, "setActualHeight", registrar, chain -> {
             Object result = chain.proceed();
             if (chain.getThisObject() instanceof View view) safelyUpdateBounds(view);
+            return result;
+        });
+        installed += hookDeclared(resolve(loader, CONTENT_CLASS), "selectLayout", registrar, chain -> {
+            Object content = chain.getThisObject();
+            int previousType = number(content, "mVisibleType", -1);
+            Object result = chain.proceed();
+            if (number(content, "mVisibleType", -1) != previousType
+                    && field(content, "mContainingNotification") instanceof View owner)
+                refreshContrast(backgroundOf(owner));
             return result;
         });
         Class<?> injector = resolve(loader, INJECTOR_CLASS);
@@ -89,6 +106,8 @@ final class NotificationSurfaceHooks {
             installed += hookDeclared(background, method, registrar, chain -> {
                 Object result = chain.proceed();
                 if (chain.getThisObject() instanceof View view) {
+                    if (method.equals("setCustomBackground") && chain.getArgs().size() == 1)
+                        rememberBlurCarrier(view, chain.getArgs().get(0));
                     View owner = ownerOf(view);
                     if (owner != null) safelyApply(owner);
                 }
@@ -140,14 +159,25 @@ final class NotificationSurfaceHooks {
     static void applyRow(View row, FusionConfig config) {
         if (row == null || config == null) return;
         View background = backgroundOf(row);
-        if (background == null) return;
-        ROWS.put(row, new WeakReference<>(background));
+        WeakReference<View> previous = background == null ? ROWS.remove(row)
+                : ROWS.put(row, new WeakReference<>(background));
+        View oldBackground = previous == null ? null : previous.get();
+        BackgroundState oldState = oldBackground == null || oldBackground == background
+                ? null : backgroundState(oldBackground);
+        if (oldState != null && oldState.owner.get() == row)
+            SystemSurfaceStyle.setNotificationContrast(oldBackground, null, null);
+        if (background == null) {
+            NotificationGlassContrast.restore(row);
+            return;
+        }
         boolean headsUp = isHeadsUp(row);
         boolean enabled = headsUp ? config.controlCenter.systemSurfaces.headsUp
                 : config.controlCenter.systemSurfaces.notifications;
-        // Notification text, stateful colors, app content and actions belong to the host.
         BackgroundState state = backgroundState(background);
-        if (!enabled && state == null) return;
+        if (!enabled && state == null) {
+            NotificationGlassContrast.restore(row);
+            return;
+        }
         if (state == null) {
             state = new BackgroundState(row);
             BACKGROUNDS.put(background, new WeakReference<>(state));
@@ -176,8 +206,44 @@ final class NotificationSurfaceHooks {
             }
         }
         if (!state.active) BACKGROUNDS.remove(background);
+        refreshContrast(row, background, state.active);
         background.invalidate();
         reportRow(row, config, enabled, background);
+    }
+
+    private static void rememberBlurCarrier(View background, Object requested) {
+        BLUR_CARRIERS.remove(background);
+        try {
+            if (!(requested instanceof Integer id)
+                    || !(field(background, "mBackground") instanceof GradientDrawable drawable)) return;
+            ColorStateList fill = drawable.getColor();
+            if (fill == null || fill.isStateful() || Color.alpha(fill.getDefaultColor()) != 0) return;
+            if (OEM_BLUR_CARRIER.equals(background.getResources().getResourceName(id)))
+                BLUR_CARRIERS.put(background, new WeakReference<>(drawable));
+        } catch (RuntimeException ignored) { }
+    }
+
+    static void refreshContrast(View background) {
+        BackgroundState state = background == null ? null : backgroundState(background);
+        View row = state == null ? null : state.owner.get();
+        try {
+            if (row != null && backgroundOf(row) == background) refreshContrast(row, background, state.active);
+        } catch (RuntimeException error) {
+            ModuleLog.w("FusionStatusBar", "notification contrast refresh failed", error);
+        }
+    }
+
+    private static void refreshContrast(View row, View background, boolean active) {
+        WeakReference<Drawable> reference = active ? BLUR_CARRIERS.get(background) : null;
+        Drawable carrier = reference == null ? null : reference.get();
+        NotificationGlassContrast.Tone tone = null;
+        if (carrier != null && field(background, "mBackground") == carrier
+                && SystemSurfaceStyle.usesNotificationCarrier(background, carrier)) {
+            tone = NotificationGlassContrast.apply(row);
+        } else {
+            NotificationGlassContrast.restore(row);
+        }
+        SystemSurfaceStyle.setNotificationContrast(background, carrier, tone);
     }
 
     private static void reportRow(View row, FusionConfig config, boolean enabled, View background) {
@@ -220,7 +286,7 @@ final class NotificationSurfaceHooks {
             start.accept(row.getContext());
             applyRow(row, current.get());
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "notification surface update failed", error);
+            ModuleLog.w("FusionStatusBar", "notification surface update failed", error);
         }
     }
 
@@ -245,7 +311,7 @@ final class NotificationSurfaceHooks {
             }
             applyRow(row, config);
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "notification surface bounds update failed", error);
+            ModuleLog.w("FusionStatusBar", "notification surface bounds update failed", error);
             safelyApply(row);
         }
     }
@@ -279,7 +345,7 @@ final class NotificationSurfaceHooks {
         catch (ClassNotFoundException | LinkageError ignored) { return null; }
     }
 
-    private static Object field(Object owner, String name) {
+    static Object field(Object owner, String name) {
         if (owner == null) return null;
         try {
             Field value = RuntimeReflection.field(owner.getClass(), name);

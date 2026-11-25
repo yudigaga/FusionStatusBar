@@ -15,13 +15,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
 
-/** Owns second ticks only while a watched clock can actually be seen. Main-thread only. */
-final class VisibleSecondTicker {
+/** Schedules wall-clock-aligned updates while at least one watched clock is visible. Main thread only. */
+final class VisibleClockTicker {
+    private static final long SECOND_MS = 1_000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable render;
     private final LongSupplier wallTime;
+    private final boolean refreshOnVisible;
     private final List<Watch> watches = new ArrayList<>();
     private Context receiverContext;
+    private long intervalMs;
     private boolean scheduled;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { reconcile(); }
@@ -29,21 +32,33 @@ final class VisibleSecondTicker {
     private final Runnable tick = new Runnable() {
         @Override public void run() {
             scheduled = false;
-            if (canRun()) render.run();
-            reconcile();
+            reconcile(true);
         }
     };
 
-    VisibleSecondTicker(Runnable render) { this(render, System::currentTimeMillis); }
+    VisibleClockTicker(Runnable render) { this(render, System::currentTimeMillis); }
 
-    VisibleSecondTicker(Runnable render, LongSupplier wallTime) {
+    VisibleClockTicker(Runnable render, LongSupplier wallTime) {
+        this(render, wallTime, false);
+    }
+
+    VisibleClockTicker(Runnable render, LongSupplier wallTime, boolean refreshOnVisible) {
         this.render = render;
         this.wallTime = wallTime;
+        this.refreshOnVisible = refreshOnVisible;
     }
 
     void update(boolean enabled, View... views) {
+        update(enabled ? SECOND_MS : 0, views);
+    }
+
+    void update(long intervalMs, View... views) {
+        if (this.intervalMs != intervalMs) {
+            this.intervalMs = intervalMs;
+            cancelTick();
+        }
         ArrayList<View> next = new ArrayList<>();
-        if (enabled) {
+        if (intervalMs > 0) {
             for (View view : views) if (view != null && !next.contains(view)) next.add(view);
         }
         boolean same = next.size() == watches.size();
@@ -59,14 +74,21 @@ final class VisibleSecondTicker {
     void close() { update(false); }
     boolean isScheduled() { return scheduled; }
 
-    private void reconcile() {
+    private void reconcile() { reconcile(false); }
+
+    private void reconcile(boolean tickDue) {
         Context context = null;
+        boolean visible = false;
+        boolean becameVisible = false;
         for (Watch watch : watches) {
             View view = watch.view.get();
-            if (view != null && view.isAttachedToWindow()) {
+            if (context == null && view != null && view.isAttachedToWindow()) {
                 context = view.getContext().getApplicationContext();
-                if (context != null) break;
             }
+            boolean nowVisible = isVisible(view);
+            becameVisible |= nowVisible && !watch.visible;
+            watch.visible = nowVisible;
+            visible |= nowVisible;
         }
         if (context == null && receiverContext != null) {
             try { receiverContext.unregisterReceiver(screenReceiver); }
@@ -80,29 +102,34 @@ final class VisibleSecondTicker {
                 receiverContext = context;
             } catch (RuntimeException ignored) { }
         }
-        if (!canRun()) {
-            handler.removeCallbacks(tick);
-            scheduled = false;
-        } else if (!scheduled) {
+        if (!visible) {
+            cancelTick();
+            return;
+        }
+        if (tickDue || refreshOnVisible && becameVisible) render.run();
+        if (intervalMs > 0 && !scheduled) {
             scheduled = true;
-            handler.postDelayed(tick, 1000L - wallTime.getAsLong() % 1000L);
+            handler.postDelayed(tick, intervalMs - Math.floorMod(wallTime.getAsLong(), intervalMs));
         }
     }
 
-    private boolean canRun() {
-        for (Watch watch : watches) {
-            View view = watch.view.get();
-            if (view == null || !view.isAttachedToWindow() || !view.isShown()
-                    || view.getWindowVisibility() != View.VISIBLE) continue;
-            PowerManager power = view.getContext().getSystemService(PowerManager.class);
-            if (power == null || power.isInteractive()) return true;
-        }
-        return false;
+    private void cancelTick() {
+        if (!scheduled) return;
+        handler.removeCallbacks(tick);
+        scheduled = false;
+    }
+
+    static boolean isVisible(View view) {
+        if (view == null || !view.isAttachedToWindow() || !view.isShown()
+                || view.getWindowVisibility() != View.VISIBLE) return false;
+        PowerManager power = view.getContext().getSystemService(PowerManager.class);
+        return power == null || power.isInteractive();
     }
 
     private final class Watch implements View.OnAttachStateChangeListener,
             ViewTreeObserver.OnGlobalLayoutListener {
         final WeakReference<View> view;
+        boolean visible;
         private WeakReference<ViewTreeObserver> observer = new WeakReference<>(null);
 
         Watch(View target) {
@@ -125,7 +152,10 @@ final class VisibleSecondTicker {
         }
 
         @Override public void onViewAttachedToWindow(View target) { observe(target); reconcile(); }
-        @Override public void onViewDetachedFromWindow(View target) { unobserve(); handler.post(VisibleSecondTicker.this::reconcile); }
+        @Override public void onViewDetachedFromWindow(View target) {
+            unobserve();
+            handler.post(VisibleClockTicker.this::reconcile);
+        }
         @Override public void onGlobalLayout() { reconcile(); }
 
         void close() {

@@ -9,7 +9,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
@@ -192,7 +191,7 @@ final class SystemMenuHooks {
         Class<?> powerType = resolver.resolve(POWER_DIALOG, loader);
         powerHooksAvailable = count > 0 && powerType != null;
         volumeHooksAvailable = volumeHooksAvailable || count > 0 && resolver.resolve(VOLUME_CONTROLLER, loader) != null;
-        if (powerType != null) Log.i(TAG, "power menu capability singleton="
+        if (powerType != null) ModuleLog.i(TAG, "power menu capability singleton="
                 + (RuntimeReflection.field(powerType, "mSliderView") != null)
                 + " array=" + (RuntimeReflection.field(powerType, "mSliderViews") != null)
                 + " moduleSideTracks=true");
@@ -210,7 +209,7 @@ final class SystemMenuHooks {
                     + "/" + parameters.length, method, hooker) ? 1 : 0;
         } catch (NoSuchMethodException ignored) { return 0; }
         catch (Throwable error) {
-            Log.w(TAG, "system menu hook unavailable " + className + "#" + name, error);
+            ModuleLog.w(TAG, "system menu hook unavailable " + className + "#" + name, error);
             return 0;
         }
     }
@@ -219,7 +218,7 @@ final class SystemMenuHooks {
         if (next == null) return;
         ControlCenterConfig previous = config;
         config = next;
-        if (!previous.systemSurfaces.equals(next.systemSurfaces)) Log.i(TAG,
+        if (!previous.systemSurfaces.equals(next.systemSurfaces)) ModuleLog.i(TAG,
                 "system menu settings power=" + next.systemSurfaces.powerMenu
                 + " threeColumns=" + next.systemSurfaces.extendedPowerMenu
                 + " volume=" + next.systemSurfaces.volumeDialog
@@ -318,7 +317,7 @@ final class SystemMenuHooks {
         String diagnostic = "power=" + enabled + " threeColumns=" + config.systemSurfaces.extendedPowerMenu
                 + " nativeTracks=" + sliders.size() + " moduleTracks=" + (added ? 2 : 0);
         if (!diagnostic.equals(POWER_DIAGNOSTICS.put(dialog, diagnostic)))
-            Log.i(TAG, "power menu mounted " + diagnostic);
+            ModuleLog.i(TAG, "power menu mounted " + diagnostic);
         reporter.report(config, RuntimeApplicationPolicy.systemSurface(
                 FusionActivationStatus.FEATURE_POWER_MENU, enabled, powerHooksAvailable, enabled, true));
         Object windowValue = field(dialog, "mWindow");
@@ -362,7 +361,7 @@ final class SystemMenuHooks {
             write.invoke(null, context, !silent);
             Method dismiss = RuntimeReflection.exact(dialog.getClass(), "dismiss", new Class<?>[] {int.class}, false);
             if (dismiss != null) dismiss.invoke(dialog, 3);
-        } catch (Throwable error) { Log.w(TAG, "power menu silent toggle failed", error); }
+        } catch (Throwable error) { ModuleLog.w(TAG, "power menu silent toggle failed", error); }
         return null;
     }
 
@@ -604,7 +603,7 @@ final class SystemMenuHooks {
     private interface Operation { void run() throws Exception; }
     private static void safely(Operation operation, String operationName) {
         try { operation.run(); }
-        catch (Throwable error) { Log.w(TAG, "system menu " + operationName + " failed", error); }
+        catch (Throwable error) { ModuleLog.w(TAG, "system menu " + operationName + " failed", error); }
     }
 
     private static final class PowerGeometry {

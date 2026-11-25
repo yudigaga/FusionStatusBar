@@ -1,7 +1,6 @@
 package com.xtjm.fusionstatusbar;
 
 import android.animation.Animator;
-import android.util.Log;
 import android.view.View;
 
 import java.lang.reflect.Field;
@@ -170,7 +169,7 @@ final class LauncherBackReadyFeedbackGuard {
 
     private static void reportFailure(Throwable error) {
         if (FAILURE_REPORTED.compareAndSet(false, true)) {
-            Log.w(TAG, "launcher ready feedback guard unavailable: "
+            ModuleLog.w(TAG, "launcher ready feedback guard unavailable: "
                     + error.getClass().getSimpleName());
         }
     }

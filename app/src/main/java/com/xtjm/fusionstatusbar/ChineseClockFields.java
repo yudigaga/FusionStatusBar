@@ -1,7 +1,6 @@
 package com.xtjm.fusionstatusbar;
 
 import android.icu.util.ChineseCalendar;
-import android.util.Log;
 
 import java.util.Date;
 import java.util.TimeZone;
@@ -34,7 +33,7 @@ final class ChineseClockFields {
         } catch (Throwable error) {
             cached = ClockTextFormatter.LunarFields.EMPTY;
             if (ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "lunar calendar unavailable", error);
+                ModuleLog.w("FusionStatusBar", "lunar calendar unavailable", error);
             }
         }
         cachedDay = localDay;

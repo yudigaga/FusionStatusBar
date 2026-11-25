@@ -40,14 +40,15 @@ final class MiscSystemConfigExchange {
 
     static void report(String message) {
         XposedModule module = reporter.get();
-        if (module != null) module.log(Log.INFO, FusionModule.TAG, message);
-        else Log.i(FusionModule.TAG, message);
+        if (module != null) FusionModule.logModule(module, Log.INFO, FusionModule.TAG, message);
+        else ModuleLog.i(FusionModule.TAG, message);
     }
 
     static synchronized void attach(Context source) {
         if (source == null || !SYSTEM_PACKAGE.equals(source.getPackageName())
                 || runtimeContext.get() != null) return;
         runtimeContext = new WeakReference<>(source);
+        ModuleLoggingConfig.attachInjected(source);
         try { config = MiscConfigStore.read(cache); }
         catch (RuntimeException error) { report("system start confirmation cache unavailable"); }
         report("system start confirmation config origin=cache enabled=" + config.removeChainStartDialog);

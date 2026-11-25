@@ -23,6 +23,14 @@ public final class FusionConfigProvider extends ContentProvider {
     @Override public Bundle call(String method, String arg, Bundle extras) {
         Context context = getContext();
         String caller = getCallingPackage();
+        if (ModuleLoggingConfig.METHOD_GET.equals(method)) {
+            enforceModuleLoggingReader(caller, context == null ? null : context.getPackageName());
+            Boolean enabled = ModuleLoggingConfig.read(context);
+            if (enabled == null) return null;
+            Bundle result = new Bundle();
+            result.putBoolean(ModuleLoggingConfig.KEY_ENABLED, enabled);
+            return result;
+        }
         if (MiscConfig.METHOD_GET.equals(method)) {
             enforceMiscReadCaller(caller, context == null ? null : context.getPackageName());
             return MiscConfigStore.read(context).toBundle();
@@ -123,7 +131,7 @@ public final class FusionConfigProvider extends ContentProvider {
             context.getContentResolver().notifyChange(FusionConfig.controlCenterPreviewUri(), null);
             return result;
         } catch (IOException error) {
-            android.util.Log.w("FusionStatusBar", "preview transaction rejected", error);
+            ModuleLog.w("FusionStatusBar", "preview transaction rejected", error);
             return previews.state();
         }
     }
@@ -155,6 +163,13 @@ public final class FusionConfigProvider extends ContentProvider {
         if (caller == null || !(caller.equals(ownPackage)
                 || "android".equals(caller) || "com.miui.securitycenter".equals(caller))) {
             throw new SecurityException("misc_config_caller_not_authorized");
+        }
+    }
+
+    static void enforceModuleLoggingReader(String caller, String ownPackage) {
+        if (!SYSTEM_UI_PACKAGE.equals(caller) && !LAUNCHER_PACKAGE.equals(caller)
+                && !"miui.systemui.plugin".equals(caller)) {
+            enforceMiscReadCaller(caller, ownPackage);
         }
     }
 

@@ -3,7 +3,6 @@ package com.xtjm.fusionstatusbar;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import java.util.EnumSet;
 
 /** Settings for system features outside the status bar and launcher. */
@@ -110,7 +109,7 @@ public final class MiscConfig {
             Bundle values = context.getContentResolver().call(contentUri(), METHOD_GET, null, null);
             return values == null ? null : fromBundle(values);
         } catch (RuntimeException error) {
-            Log.w(FusionModule.TAG, "misc config read unavailable: "
+            ModuleLog.w(FusionModule.TAG, "misc config read unavailable: "
                     + error.getClass().getSimpleName());
             return null;
         }
@@ -128,7 +127,7 @@ public final class MiscConfig {
                     config.toBundle());
             return result != null && result.getBoolean(KEY_ACCEPTED, false);
         } catch (RuntimeException error) {
-            Log.w(FusionModule.TAG, "misc config save unavailable: "
+            ModuleLog.w(FusionModule.TAG, "misc config save unavailable: "
                     + error.getClass().getSimpleName());
             return false;
         }
@@ -140,12 +139,12 @@ public final class MiscConfig {
         try {
             context.getContentResolver().notifyChange(contentUri(), null);
         } catch (RuntimeException error) {
-            Log.w(FusionModule.TAG, "misc config committed; notification unavailable", error);
+            ModuleLog.w(FusionModule.TAG, "misc config committed; notification unavailable", error);
         }
         try {
             MiscSystemConfigExchange.publish(context, MiscConfigStore.read(context));
         } catch (RuntimeException error) {
-            Log.w(FusionModule.TAG, "misc config committed; framework publication unavailable", error);
+            ModuleLog.w(FusionModule.TAG, "misc config committed; framework publication unavailable", error);
         }
     }
 }

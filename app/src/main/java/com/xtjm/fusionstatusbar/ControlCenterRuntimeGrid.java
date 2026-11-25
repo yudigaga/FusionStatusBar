@@ -1137,7 +1137,7 @@ final class ControlCenterRuntimeGrid {
             ControlCenterHostAdapter.RestoreResult result = hostPanel.restoreSnapshot(snapshot, notify);
             traceNativePanelMap(adapter.get(), grid, "snapshot", reason, notify, result);
             if (result == ControlCenterHostAdapter.RestoreResult.RESTORED_WITHOUT_NOTIFY) {
-                Log.w(TAG, "Current native panel restored without notify");
+                ModuleLog.w(TAG, "Current native panel restored without notify");
             }
         }
 
@@ -1147,9 +1147,9 @@ final class ControlCenterRuntimeGrid {
             traceNativePanelMap(adapter.get(), grid, "proxy", reason, notify, result);
             if (result == ControlCenterHostAdapter.RestoreResult.SUPERSEDED) {
                 // A later SystemUI distribution replaced the proxy; keep its native map.
-                Log.w(TAG, "runtime grid proxy missing; keeping current native panel");
+                ModuleLog.w(TAG, "runtime grid proxy missing; keeping current native panel");
             } else if (result == ControlCenterHostAdapter.RestoreResult.RESTORED_WITHOUT_NOTIFY) {
-                Log.w(TAG, "Native panel restored without notify");
+                ModuleLog.w(TAG, "Native panel restored without notify");
             }
         }
 

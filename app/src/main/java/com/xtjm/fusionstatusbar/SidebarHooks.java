@@ -8,7 +8,6 @@ import android.content.res.Resources;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewParent;
@@ -80,11 +79,11 @@ final class SidebarHooks {
                             });
                     count++;
                 } catch (Throwable error) {
-                    Log.w(TAG, "sidebar sampling hook failed " + className, error);
+                    ModuleLog.w(TAG, "sidebar sampling hook failed " + className, error);
                 }
             }
         }
-        if (count == 0) Log.w(TAG, "sidebar sampling helper unavailable");
+        if (count == 0) ModuleLog.w(TAG, "sidebar sampling helper unavailable");
         return count;
     }
 
@@ -158,21 +157,21 @@ final class SidebarHooks {
                     if (!ACTION_SHOW_SIDEBAR.equals(intent.getAction())) return;
                     View handle = sidebar.get();
                     if (handle == null || !handle.isAttachedToWindow() || !handle.isShown()) {
-                        Log.w(TAG, "native sidebar handle unavailable");
+                        ModuleLog.w(TAG, "native sidebar handle unavailable");
                         return;
                     }
                     try {
                         show(handle, dockLocation(receiverContext, handle));
                     } catch (Throwable error) {
-                        Log.w(TAG, "native sidebar expansion failed", error);
+                        ModuleLog.w(TAG, "native sidebar expansion failed", error);
                     }
                 }
             }, new IntentFilter(ACTION_SHOW_SIDEBAR), SENDER_PERMISSION, MAIN,
                     Context.RECEIVER_EXPORTED);
-            Log.i(TAG, "native sidebar action receiver registered");
+            ModuleLog.i(TAG, "native sidebar action receiver registered");
         } catch (Throwable error) {
             RECEIVER_REGISTERED.set(false);
-            Log.w(TAG, "sidebar action receiver registration failed", error);
+            ModuleLog.w(TAG, "sidebar action receiver registration failed", error);
         }
     }
 

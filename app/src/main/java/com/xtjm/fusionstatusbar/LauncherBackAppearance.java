@@ -3,7 +3,6 @@ package com.xtjm.fusionstatusbar;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.util.Log;
 import android.view.View;
 
 import java.lang.reflect.Field;
@@ -47,7 +46,7 @@ final class LauncherBackAppearance {
                         .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(hook);
                 return true;
             } catch (Throwable error) {
-                Log.w(TAG, "launcher back appearance hook unavailable", error);
+                ModuleLog.w(TAG, "launcher back appearance hook unavailable", error);
                 return false;
             }
         }, settings, attachRuntime);
@@ -66,7 +65,7 @@ final class LauncherBackAppearance {
             LauncherBackAppearance appearance = new LauncherBackAppearance(settings, attachRuntime);
             return registrar.install(draw, appearance::draw) ? 1 : 0;
         } catch (Exception | LinkageError error) {
-            Log.w(TAG, "launcher back appearance capability unavailable", error);
+            ModuleLog.w(TAG, "launcher back appearance capability unavailable", error);
             return 0;
         }
     }
@@ -86,7 +85,7 @@ final class LauncherBackAppearance {
         } catch (RuntimeException error) {
             if (!state.failureReported) {
                 state.failureReported = true;
-                Log.w(TAG, "launcher back appearance settings unavailable", error);
+                ModuleLog.w(TAG, "launcher back appearance settings unavailable", error);
             }
             return chain.proceed();
         }
@@ -120,7 +119,7 @@ final class LauncherBackAppearance {
             state.customUnavailable = true;
             if (!state.failureReported) {
                 state.failureReported = true;
-                Log.w(TAG, "launcher custom back appearance draw failed", error);
+                ModuleLog.w(TAG, "launcher custom back appearance draw failed", error);
             }
         }
         return result;
@@ -163,7 +162,7 @@ final class LauncherBackAppearance {
         static Optional<HostFields> resolve(Class<?> type) {
             try { return Optional.of(new HostFields(type)); }
             catch (ReflectiveOperationException | RuntimeException error) {
-                Log.w(TAG, "launcher back appearance geometry contract unavailable", error);
+                ModuleLog.w(TAG, "launcher back appearance geometry contract unavailable", error);
                 return Optional.empty();
             }
         }

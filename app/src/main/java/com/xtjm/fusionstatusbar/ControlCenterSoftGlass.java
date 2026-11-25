@@ -88,8 +88,9 @@ final class ControlCenterSoftGlass {
     }
 
     static final class GlassDrawable extends Drawable {
-        private static final float[] BAND_WIDTHS = {1f, .67f, .40f, .22f};
-        private static final float[] BAND_OPACITY = {.08f, .10f, .14f, .16f};
+        private static final float[] BAND_WIDTHS = {1f, .70f, .42f, .21f};
+        private static final float[] BAND_OPACITY = {.045f, .075f, .15f, .28f};
+        private static final float[] REFLECTION_STOPS = {0f, .16f, .42f, .65f, 1f};
         private final WeakReference<View> owner;
         private final Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint inner = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -151,15 +152,20 @@ final class ControlCenterSoftGlass {
             float density = view.getResources().getDisplayMetrics().density;
             float factor = strength / 100f;
             if (highlight) {
-                // Keep every reflection band on the outer contour. An offset inner
-                // shade reads as a second border, especially on active white tiles.
-                edgeWidth = Math.min(density * 6f, Math.min(width, height) * .14f);
+                // All bands share the same contour, with the brightest light nearest the edge.
+                edgeWidth = Math.min(density * 5.5f, Math.min(width, height) * .115f);
                 rim.setStrokeWidth(edgeWidth);
-                rim.setShader(new LinearGradient(0, 0, width * .35f, height,
+                // Choose the endpoint for a fixed light direction in normalized bounds.
+                float horizontalSlope = .36f / width;
+                float verticalSlope = .64f / height;
+                float lengthSquared = horizontalSlope * horizontalSlope + verticalSlope * verticalSlope;
+                rim.setShader(new LinearGradient(0, 0, horizontalSlope / lengthSquared, verticalSlope / lengthSquared,
                         daylight
-                                ? new int[] {alpha(0xb0, factor), alpha(0x28, factor), alpha(0x00, factor), alpha(0x70, factor)}
-                                : new int[] {alpha(0xb0, factor), alpha(0x38, factor), alpha(0x00, factor), alpha(0x70, factor)},
-                        new float[] {0f, .28f, .62f, 1f}, Shader.TileMode.CLAMP));
+                                ? new int[] {alpha(0xf0, factor), alpha(0xa0, factor), alpha(0x2c, factor),
+                                        alpha(0x00, factor), alpha(0x58, factor)}
+                                : new int[] {alpha(0xcf, factor), alpha(0x88, factor), alpha(0x34, factor),
+                                        alpha(0x04, factor), alpha(0x49, factor)},
+                        REFLECTION_STOPS, Shader.TileMode.CLAMP));
                 return;
             }
             rim.setStrokeWidth(Math.max(1f, density * 1.2f));

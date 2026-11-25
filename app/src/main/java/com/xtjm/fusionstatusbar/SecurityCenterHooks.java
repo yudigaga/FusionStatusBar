@@ -16,7 +16,7 @@ final class SecurityCenterHooks {
         int home = SecurityCenterHomeHooks.install(module, loader);
         int battery = SecurityCenterBatteryHooks.install(module, loader);
         int gameVideo = SecurityCenterGameVideoHooks.install(module, loader);
-        module.log(Log.INFO, FusionModule.TAG, "phone manager hooks host=40001380 config=" + config
+        FusionModule.logModule(module, Log.INFO, FusionModule.TAG, "phone manager hooks host=40001380 config=" + config
                 + " privacy=" + privacy + " home=" + home + " battery=" + battery + " gameVideo=" + gameVideo);
         return config + privacy + home + battery + gameVideo;
     }

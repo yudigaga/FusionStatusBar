@@ -18,6 +18,23 @@ class MiscSettingsUiTest {
     @get:Rule(order = 0) val configuration = FusionTestConfigRule()
     @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
 
+    @Test fun moduleLoggingCanBeTurnedOffAndOnFromMaintenance() {
+        val title = "模块日志"
+        compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
+        compose.onNodeWithTag("navigation_5").performClick()
+        scrollToSetting(title)
+        compose.runOnIdle { assertEquals(true, ModuleLoggingConfig.read(compose.activity)) }
+        compose.onNodeWithTag("setting_$title").assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(false, ModuleLoggingConfig.read(compose.activity)) }
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(10_000) { compose.activity.settingsLoaded() }
+        compose.onNodeWithTag("navigation_5").performClick()
+        scrollToSetting(title)
+        compose.runOnIdle { assertEquals(false, ModuleLoggingConfig.read(compose.activity)) }
+        compose.onNodeWithTag("setting_$title").assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(true, ModuleLoggingConfig.read(compose.activity)) }
+    }
+
     @Test fun homeWarningTogglePersistsAndCanBeDisabledWithoutChangingTheScoreOption() {
         val title = "隐藏首页风险提醒"
         val key = "security_center_hide_home_warnings"

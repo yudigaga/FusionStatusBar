@@ -11,7 +11,6 @@ import android.os.HardwarePropertiesManager;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -168,8 +167,8 @@ final class TelemetrySampler {
             appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
             screenReceiver = receiver;
         } catch (RuntimeException error) {
-            if (SCREEN_RECEIVER_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "screen state receiver unavailable", error);
+            if (ModuleLog.enabled() && SCREEN_RECEIVER_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "screen state receiver unavailable", error);
             }
         }
     }
@@ -244,8 +243,8 @@ final class TelemetrySampler {
                     currentInMilliamps, settings.currentPositive,
                     gpuCelsius, upload, download, speedValid);
             if ((!settings.enabled(TelemetryConfig.NET_SPEED) || speedValid)
-                    && VALUES_LOGGED.compareAndSet(false, true)) {
-                Log.i("FusionStatusBar", "telemetry values temperatures="
+                    && ModuleLog.enabled() && VALUES_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.i("FusionStatusBar", "telemetry values temperatures="
                         + readings.textFor(TelemetryConfig.TEMPERATURES, settings, java.util.Locale.ROOT)
                         .replace('\n', '/')
                         + " powerCurrent=" + readings.textFor(
@@ -262,8 +261,8 @@ final class TelemetrySampler {
                 DualRowStatusBarLayout.updateTelemetry(readings);
             });
         } catch (Throwable error) {
-            if (SAMPLE_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "telemetry sample failed", error);
+            if (ModuleLog.enabled() && SAMPLE_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "telemetry sample failed", error);
             }
         }
     }
@@ -273,8 +272,8 @@ final class TelemetrySampler {
         try (FileInputStream input = new FileInputStream(BATTERY_UEVENT)) {
             values.load(input);
         } catch (IOException | SecurityException error) {
-            if (BATTERY_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "battery uevent unavailable", error);
+            if (ModuleLog.enabled() && BATTERY_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "battery uevent unavailable", error);
             }
         }
         return values;
@@ -316,8 +315,8 @@ final class TelemetrySampler {
                     }
                 }
                 if (counted > 0) {
-                    if (NETWORK_SOURCE_LOGGED.compareAndSet(false, true)) {
-                        Log.i("FusionStatusBar", "network speed source=physical interfaces");
+                    if (ModuleLog.enabled() && NETWORK_SOURCE_LOGGED.compareAndSet(false, true)) {
+                        ModuleLog.i("FusionStatusBar", "network speed source=physical interfaces");
                     }
                     return new long[] {tx, rx, 1};
                 }
@@ -326,8 +325,8 @@ final class TelemetrySampler {
                 interfaceRxMethod = null;
             }
         }
-        if (NETWORK_SOURCE_LOGGED.compareAndSet(false, true)) {
-            Log.i("FusionStatusBar", "network speed source=total traffic fallback");
+        if (ModuleLog.enabled() && NETWORK_SOURCE_LOGGED.compareAndSet(false, true)) {
+            ModuleLog.i("FusionStatusBar", "network speed source=total traffic fallback");
         }
         return new long[] {TrafficStats.getTotalTxBytes(), TrafficStats.getTotalRxBytes(), 0};
     }
@@ -378,8 +377,8 @@ final class TelemetrySampler {
                 // The sysfs values already read remain valid.
             }
         }
-        if (BATTERY_SOURCE_LOGGED.compareAndSet(false, true)) {
-            Log.i("FusionStatusBar", "battery source temp="
+        if (ModuleLog.enabled() && BATTERY_SOURCE_LOGGED.compareAndSet(false, true)) {
+            ModuleLog.i("FusionStatusBar", "battery source temp="
                     + values.getProperty("POWER_SUPPLY_TEMP", "missing")
                     + " current=" + values.getProperty("POWER_SUPPLY_CURRENT_NOW", "missing")
                     + " apiCurrent=" + values.getProperty("FUSION_API_CURRENT_UA", "missing")
@@ -400,14 +399,14 @@ final class TelemetrySampler {
         if (gpuTempFile == null) return null;
         try {
             Double value = GpuThermalSensor.celsius(firstLine(gpuTempFile));
-            if (value == null && GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "GPU thermal value invalid: " + gpuTempFile);
+            if (value == null && ModuleLog.enabled() && GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "GPU thermal value invalid: " + gpuTempFile);
             }
             return value;
         } catch (IOException | SecurityException error) {
             gpuTempFile = null;
-            if (GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "GPU temperature unreadable", error);
+            if (ModuleLog.enabled() && GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "GPU temperature unreadable", error);
             }
             return null;
         }
@@ -429,14 +428,14 @@ final class TelemetrySampler {
             return value;
         } catch (SecurityException error) {
             nextHardwareGpuAttempt = Long.MAX_VALUE;
-            if (HARDWARE_GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "hardware GPU temperature denied", error);
+            if (ModuleLog.enabled() && HARDWARE_GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "hardware GPU temperature denied", error);
             }
             return null;
         } catch (RuntimeException error) {
             nextHardwareGpuAttempt = now + 60_000L;
-            if (HARDWARE_GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "hardware GPU temperature unavailable", error);
+            if (ModuleLog.enabled() && HARDWARE_GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "hardware GPU temperature unavailable", error);
             }
             return null;
         }
@@ -448,14 +447,14 @@ final class TelemetrySampler {
             zones = THERMAL_ROOT.listFiles(file ->
                     file.isDirectory() && file.getName().startsWith("thermal_zone"));
         } catch (SecurityException error) {
-            if (GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "GPU thermal directory unreadable", error);
+            if (ModuleLog.enabled() && GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "GPU thermal directory unreadable", error);
             }
             return null;
         }
         if (zones == null) {
-            if (GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "GPU thermal zones unavailable");
+            if (ModuleLog.enabled() && GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+                ModuleLog.w("FusionStatusBar", "GPU thermal zones unavailable");
             }
             return null;
         }
@@ -465,8 +464,8 @@ final class TelemetrySampler {
                 if (GpuThermalSensor.isGpuType(type)) {
                     File temperature = new File(zone, "temp");
                     if (temperature.canRead()) {
-                        if (GPU_PATH_LOGGED.compareAndSet(false, true)) {
-                            Log.i("FusionStatusBar", "GPU thermal zone " + zone.getName()
+                        if (ModuleLog.enabled() && GPU_PATH_LOGGED.compareAndSet(false, true)) {
+                            ModuleLog.i("FusionStatusBar", "GPU thermal zone " + zone.getName()
                                     + " type=" + type.trim());
                         }
                         return temperature;
@@ -476,8 +475,8 @@ final class TelemetrySampler {
                 // Unreadable zones are not GPU evidence.
             }
         }
-        if (GPU_ERROR_LOGGED.compareAndSet(false, true)) {
-            Log.w("FusionStatusBar", "no readable GPU thermal zone found");
+        if (ModuleLog.enabled() && GPU_ERROR_LOGGED.compareAndSet(false, true)) {
+            ModuleLog.w("FusionStatusBar", "no readable GPU thermal zone found");
         }
         return null;
     }

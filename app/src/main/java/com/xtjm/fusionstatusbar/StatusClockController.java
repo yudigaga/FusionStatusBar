@@ -7,22 +7,27 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 import android.widget.TextView;
 
-import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 
 /** Applies clock text on the UI thread and reads Xiaomi weather off the UI thread. */
 final class StatusClockController {
     private static final Uri WEATHER_URI = Uri.parse("content://weather/actualWeatherData/1");
     private static final long WEATHER_REFRESH_MS = 5 * 60 * 1000L;
     private static final long WEATHER_CHANGE_REFRESH_MS = 30 * 1000L;
+    private static final LongSupplier SYSTEM_WALL_TIME = System::currentTimeMillis;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ExecutorService WEATHER_WORKER = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "fusion-weather");
@@ -30,32 +35,27 @@ final class StatusClockController {
         return thread;
     });
 
-    private static WeakReference<TextView> clockRef = new WeakReference<>(null);
+    private static final Map<TextView, ClockState> CLOCKS = Collections.synchronizedMap(new WeakHashMap<>());
+    private static LongSupplier wallTime = SYSTEM_WALL_TIME;
     private static FusionConfig config = FusionConfig.defaults();
     private static Context appContext;
-    private static String nativeText = "";
-    private static String renderedText;
-    private static float nativeTextSizePx;
-    private static float lastAppliedTextSizePx = -1f;
     private static String weatherText = "";
     private static long lastWeatherQuery;
     private static boolean weatherLoading;
     private static boolean weatherObserverRegistered;
     private static final AtomicBoolean WEATHER_ERROR_LOGGED = new AtomicBoolean();
     private static final AtomicBoolean RENDER_ERROR_LOGGED = new AtomicBoolean();
-    // The ticker retains only weak view references and an application context.
     @android.annotation.SuppressLint("StaticFieldLeak")
-    private static final VisibleSecondTicker SECOND_TICK = new VisibleSecondTicker(() -> {
-        TextView clock = clockRef.get();
-        if (clock != null && needsSeconds()) render(clock);
-    });
+    private static final VisibleClockTicker CLOCK_TICK = new VisibleClockTicker(
+            () -> renderClocks(true), () -> wallTime.getAsLong(), true);
 
     private StatusClockController() {
     }
 
     static boolean hasAttachedViews() {
-        TextView clock = clockRef.get();
-        return clock != null && clock.isAttachedToWindow();
+        for (TextView clock : registeredClocks())
+            if (clock != null && clock.isAttachedToWindow()) return true;
+        return false;
     }
 
     static void onNativeUpdate(TextView clock, FusionConfig next) {
@@ -63,33 +63,17 @@ final class StatusClockController {
             MAIN.post(() -> onNativeUpdate(clock, next));
             return;
         }
-        TextView previous = clockRef.get();
-        String observed = clock.getText().toString();
-        if (previous != clock) {
-            clockRef = new WeakReference<>(clock);
-            nativeText = observed;
-            renderedText = null;
-            nativeTextSizePx = clock.getTextSize();
-            lastAppliedTextSizePx = -1f;
-        } else if (!observed.equals(renderedText)) {
-            nativeText = observed;
-        }
-        if (previous == clock && lastAppliedTextSizePx >= 0f
-                && Math.abs(clock.getTextSize() - lastAppliedTextSizePx) > 0.5f) {
-            nativeTextSizePx = clock.getTextSize();
-        } else if (previous == clock && config.statusClockSizeSp == 0) {
-            nativeTextSizePx = clock.getTextSize();
-        }
-        if (previous == clock && config.statusClockSizeSp > 0
-                && next.statusClockSizeSp == 0) {
-            restoreNativeTextSize(clock);
+        ClockState state = CLOCKS.computeIfAbsent(clock, ClockState::new);
+        if (state.lastAppliedTextSizePx < 0f
+                || Math.abs(clock.getTextSize() - state.lastAppliedTextSizePx) > 0.5f) {
+            state.nativeTextSizePx = clock.getTextSize();
         }
         config = next;
         Context application = clock.getContext().getApplicationContext();
         appContext = application != null ? application : clock.getContext();
-        render(clock);
-        applyTextSize(clock);
-        scheduleSeconds();
+        render(clock, state);
+        applyTextSize(clock, state);
+        updateTicker();
         refreshWeather(false);
     }
 
@@ -99,17 +83,15 @@ final class StatusClockController {
             return;
         }
         boolean weatherEnabledNow = next.showWeather && !config.showWeather;
-        TextView clock = clockRef.get();
-        if (clock != null && config.statusClockSizeSp > 0
-                && next.statusClockSizeSp == 0) {
-            restoreNativeTextSize(clock);
-        }
         config = next;
-        if (clock != null) {
-            render(clock);
-            applyTextSize(clock);
+        for (TextView clock : registeredClocks()) {
+            ClockState state = CLOCKS.get(clock);
+            if (state != null) {
+                render(clock, state);
+                applyTextSize(clock, state);
+            }
         }
-        scheduleSeconds();
+        updateTicker();
         refreshWeather(weatherEnabledNow);
     }
 
@@ -129,37 +111,54 @@ final class StatusClockController {
         NotificationCenterClockController.onWeatherChanged();
     }
 
-    private static void render(TextView clock) {
+    private static List<TextView> registeredClocks() {
+        synchronized (CLOCKS) { return new ArrayList<>(CLOCKS.keySet()); }
+    }
+
+    private static void renderClocks(boolean visibleOnly) {
+        for (TextView clock : registeredClocks()) {
+            ClockState state = CLOCKS.get(clock);
+            if (state != null && (!visibleOnly || VisibleClockTicker.isVisible(clock))) render(clock, state);
+        }
+    }
+
+    private static void render(TextView clock, ClockState state) {
         try {
-            renderSafely(clock);
+            renderSafely(clock, state);
         } catch (Throwable error) {
             if (RENDER_ERROR_LOGGED.compareAndSet(false, true)) {
-                Log.w("FusionStatusBar", "custom clock render failed", error);
+                ModuleLog.w("FusionStatusBar", "custom clock render failed", error);
             }
         }
     }
 
-    private static void applyTextSize(TextView clock) {
+    private static void applyTextSize(TextView clock, ClockState state) {
         if (config.statusClockSizeSp > 0) {
             clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP,
                     config.statusClockSizeSp);
-            lastAppliedTextSizePx = clock.getTextSize();
+            state.lastAppliedTextSizePx = clock.getTextSize();
         } else {
-            restoreNativeTextSize(clock);
+            restoreNativeTextSize(clock, state);
         }
     }
 
-    private static void restoreNativeTextSize(TextView clock) {
-        if (nativeTextSizePx > 0f && Math.abs(clock.getTextSize() - nativeTextSizePx) > 0.5f) {
-            clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, nativeTextSizePx);
+    private static void restoreNativeTextSize(TextView clock, ClockState state) {
+        if (state.lastAppliedTextSizePx < 0f) return;
+        if (Math.abs(clock.getTextSize() - state.lastAppliedTextSizePx) > 0.5f) {
+            state.nativeTextSizePx = clock.getTextSize();
+        } else if (state.nativeTextSizePx > 0f
+                && Math.abs(clock.getTextSize() - state.nativeTextSizePx) > 0.5f) {
+            clock.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, state.nativeTextSizePx);
         }
-        lastAppliedTextSizePx = -1f;
+        state.lastAppliedTextSizePx = -1f;
     }
 
-    private static void renderSafely(TextView clock) {
-        String desired = nativeText;
+    private static void renderSafely(TextView clock, ClockState state) {
+        String observed = clock.getText().toString();
+        if (!observed.equals(state.renderedText)) state.nativeText = observed;
+        String desired = state.nativeText;
         if (config.customClock) {
-            Date now = new Date();
+            Date now = new Date(wallTime.getAsLong());
             ClockTextFormatter.LunarFields lunar = ClockTextFormatter.needsLunar(config.clockPattern)
                     ? ChineseClockFields.forDate(now) : ClockTextFormatter.LunarFields.EMPTY;
             String formatted = ClockTextFormatter.format(now, Locale.getDefault(),
@@ -168,21 +167,26 @@ final class StatusClockController {
                 desired = formatted;
             }
         } else {
-            desired = ClockTextFormatter.appendWeather(nativeText,
+            desired = ClockTextFormatter.appendWeather(state.nativeText,
                     config.showWeather, weatherText);
         }
         if (!desired.contentEquals(clock.getText())) {
             clock.setText(desired);
         }
-        renderedText = desired;
+        state.renderedText = desired;
     }
 
-    private static boolean needsSeconds() {
-        return config.customClock && ClockTextFormatter.showsSeconds(config.clockPattern);
+    private static void updateTicker() {
+        if (!config.customClock) {
+            CLOCK_TICK.close();
+            return;
+        }
+        long interval = ClockTextFormatter.showsSeconds(config.clockPattern) ? 1_000L : 60_000L;
+        CLOCK_TICK.update(interval, registeredClocks().toArray(new TextView[0]));
     }
 
-    private static void scheduleSeconds() {
-        SECOND_TICK.update(needsSeconds(), clockRef.get());
+    static void setWallTimeForTest(LongSupplier source) {
+        wallTime = source == null ? SYSTEM_WALL_TIME : source;
     }
 
     private static void refreshWeather(boolean changed) {
@@ -204,10 +208,7 @@ final class StatusClockController {
                 weatherLoading = false;
                 if (!Objects.equals(weatherText, updated)) {
                     weatherText = updated;
-                    TextView clock = clockRef.get();
-                    if (clock != null && config.showWeather) {
-                        render(clock);
-                    }
+                    if (config.showWeather) renderClocks(false);
                     onWeatherChanged();
                 }
             });
@@ -251,7 +252,19 @@ final class StatusClockController {
 
     private static void logWeatherError(Throwable error) {
         if (WEATHER_ERROR_LOGGED.compareAndSet(false, true)) {
-            Log.w("FusionStatusBar", "weather provider unavailable", error);
+            ModuleLog.w("FusionStatusBar", "weather provider unavailable", error);
+        }
+    }
+
+    private static final class ClockState {
+        String nativeText;
+        String renderedText;
+        float nativeTextSizePx;
+        float lastAppliedTextSizePx = -1f;
+
+        ClockState(TextView clock) {
+            nativeText = clock.getText().toString();
+            nativeTextSizePx = clock.getTextSize();
         }
     }
 }

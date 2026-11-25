@@ -7,7 +7,6 @@ import android.content.IntentFilter;
 import android.app.BroadcastOptions;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,7 +71,7 @@ final class RuntimeConfigExchange {
             request(context);
             return true;
         } catch (Throwable error) {
-            Log.w(TAG, "runtime config receiver registration failed", error);
+            ModuleLog.w(TAG, "runtime config receiver registration failed", error);
             return false;
         }
     }
@@ -111,7 +110,7 @@ final class RuntimeConfigExchange {
         try {
             host.sendBroadcast(new Intent(ACTION_REQUEST).setPackage(BuildConfig.APPLICATION_ID));
         } catch (Throwable error) {
-            Log.w(TAG, "runtime config request failed", error);
+            ModuleLog.w(TAG, "runtime config request failed", error);
         }
     }
 
@@ -128,7 +127,7 @@ final class RuntimeConfigExchange {
             }
             return true;
         } catch (Throwable error) {
-            Log.w(TAG, "runtime application report failed", error);
+            ModuleLog.w(TAG, "runtime application report failed", error);
             return false;
         }
     }
@@ -145,7 +144,7 @@ final class RuntimeConfigExchange {
             module.sendBroadcast(new Intent(ACTION_PUBLISH).setPackage(LAUNCHER_PACKAGE)
                     .putExtras(launcher));
         } catch (Throwable error) {
-            Log.w(TAG, "runtime config publication failed", error);
+            ModuleLog.w(TAG, "runtime config publication failed", error);
         }
     }
 
@@ -169,11 +168,11 @@ final class RuntimeConfigExchange {
             if (!cached) return false;
             if (changed != null) {
                 try { changed.run(); }
-                catch (Throwable error) { Log.w(TAG, "runtime config callback failed", error); }
+                catch (Throwable error) { ModuleLog.w(TAG, "runtime config callback failed", error); }
             }
             return true;
         } catch (Throwable error) {
-            Log.w(TAG, "runtime config publication rejected", error);
+            ModuleLog.w(TAG, "runtime config publication rejected", error);
             return false;
         }
     }
@@ -212,7 +211,7 @@ final class RuntimeConfigExchange {
             FusionActivationStatus.reportRead(module, revision, session);
             return FusionActivationStatus.recordApplied(module, values, session);
         } catch (Throwable error) {
-            Log.w(TAG, "runtime application report rejected", error);
+            ModuleLog.w(TAG, "runtime application report rejected", error);
             return false;
         }
     }
@@ -231,13 +230,13 @@ final class RuntimeConfigExchange {
                     Context.RECEIVER_EXPORTED);
             return true;
         } catch (Throwable error) {
-            Log.w(TAG, "settings config receiver registration failed", error);
+            ModuleLog.w(TAG, "settings config receiver registration failed", error);
             return false;
         }
     }
 
     private static void unregister(Context context, BroadcastReceiver receiver) {
         try { context.unregisterReceiver(receiver); }
-        catch (Throwable error) { Log.w(TAG, "settings config receiver release failed", error); }
+        catch (Throwable error) { ModuleLog.w(TAG, "settings config receiver release failed", error); }
     }
 }

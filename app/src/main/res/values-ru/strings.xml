@@ -187,4 +187,5 @@
     <string name="about_miuix_summary">Интерфейс использует открытые компоненты Miuix</string>
     <string name="about_project_version">Версия %1$s (%2$d)</string>
     <string name="about_link_unavailable">Не удалось открыть ссылку</string>
+    <string name="module_logging">Журнал модуля</string>
 </resources>

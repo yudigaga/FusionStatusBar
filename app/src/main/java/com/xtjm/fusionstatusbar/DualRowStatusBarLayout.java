@@ -5,7 +5,6 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -160,13 +159,13 @@ final class DualRowStatusBarLayout {
                 || batteryContainer.getParent() != systemContainer
                 || !"com.android.systemui.statusbar.views.MiuiStatusBatteryContainer"
                 .equals(batteryContainer.getClass().getName())) {
-            Log.w("FusionStatusBar", "HyperOS status-bar hierarchy differs; rows not installed");
+            ModuleLog.w("FusionStatusBar", "HyperOS status-bar hierarchy differs; rows not installed");
             return null;
         }
         int statusIconsId = root.getResources().getIdentifier(
                 "statusIcons", "id", "com.android.systemui");
         if (statusIconsId == 0 || batteryContainer.findViewById(statusIconsId) == null) {
-            Log.w("FusionStatusBar", "Native statusIcons missing from battery container; rows not installed");
+            ModuleLog.w("FusionStatusBar", "Native statusIcons missing from battery container; rows not installed");
             return null;
         }
 
@@ -213,7 +212,7 @@ final class DualRowStatusBarLayout {
                 leftGroup, dripNotifications, fullscreenNotifications, systemChildren);
         setViewField(root, "mStatusBarLeftContainer", leftLayout);
         setViewField(root, "mSystemIconArea", rightLayout);
-        Log.i("FusionStatusBar", "rows installed; native system_icons view retained");
+        ModuleLog.i("FusionStatusBar", "rows installed; native system_icons view retained");
         return state;
     }
 
@@ -694,9 +693,9 @@ final class DualRowStatusBarLayout {
                     child.setTranslationX(offset);
                 }
             }
-            if (!gapLogged) {
+            if (ModuleLog.enabled() && !gapLogged) {
                 gapLogged = true;
-                Log.i("FusionStatusBar", "opposite row gap: iconLeft=" + iconVisibleLeft
+                ModuleLog.i("FusionStatusBar", "opposite row gap: iconLeft=" + iconVisibleLeft
                         + " readoutRight=" + (slotLocation[0] + readoutRight)
                         + " offset=" + offset + " inset=" + getPaddingEnd());
             }
@@ -974,7 +973,7 @@ final class DualRowStatusBarLayout {
                     && (lastSlowLayoutLogAt == 0
                     || startedAt - lastSlowLayoutLogAt >= SLOW_LAYOUT_LOG_INTERVAL_MS)) {
                 lastSlowLayoutLogAt = startedAt;
-                Log.w("FusionStatusBar", "slow status layout: " + elapsed
+                ModuleLog.w("FusionStatusBar", "slow status layout: " + elapsed
                         + "ms root=" + root.getClass().getName()
                         + " doubleRow=" + config.doubleRow
                         + " span=" + plan.spanFusion);

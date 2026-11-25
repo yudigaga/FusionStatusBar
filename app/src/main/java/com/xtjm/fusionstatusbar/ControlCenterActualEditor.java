@@ -8,7 +8,6 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.util.Base64;
-import android.util.Log;
 import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.View;
@@ -418,7 +417,7 @@ final class ControlCenterActualEditor extends FrameLayout {
                 dragging = false;
                 dragDownRawX = event.getRawX();
                 dragDownRawY = event.getRawY();
-                Log.i("FusionStatusBar", "control-center editor touch down hit="
+                ModuleLog.i("FusionStatusBar", "control-center editor touch down hit="
                         + (hit == null ? "<none>" : hit.spec)
                         + " x=" + layoutX + " y=" + layoutY
                         + " tiles=" + displayedTiles.size() + " scale=" + scale);
@@ -512,13 +511,13 @@ final class ControlCenterActualEditor extends FrameLayout {
         resetTouchDrag();
         if (source == null) return;
         if (ControlCenterComponentSpec.isSpecial(source)) {
-            Log.i("FusionStatusBar", "control-center editor component drop spec=" + source
+            ModuleLog.i("FusionStatusBar", "control-center editor component drop spec=" + source
                     + " x=" + x + " y=" + y);
             listener.onTileMovedToPosition(source, x, y);
             return;
         }
         String destination = ordinaryDropTarget(source, x, y);
-        Log.i("FusionStatusBar", "control-center editor tile drop source=" + source
+        ModuleLog.i("FusionStatusBar", "control-center editor tile drop source=" + source
                 + " destination=" + destination);
         if (destination == null) listener.onTileMovedToEnd(source);
         else listener.onTileMoved(source, destination);

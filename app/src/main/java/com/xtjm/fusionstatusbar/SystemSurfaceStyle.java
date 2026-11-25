@@ -2,6 +2,7 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Outline;
 import android.graphics.Paint;
@@ -108,6 +109,19 @@ final class SystemSurfaceStyle {
 
     static boolean usesNativeBackground(Drawable drawable) {
         return drawable instanceof SurfaceDrawable surface && surface.nativeContent();
+    }
+
+    static boolean usesNotificationCarrier(View view, Drawable carrier) {
+        State state = SURFACES.get(view);
+        return state != null && notificationFallback(state) && view.getVisibility() == View.VISIBLE
+                && ownsBackground(view.getBackground(), state.material.get())
+                && originalBackground(view, state) == carrier;
+    }
+
+    static void setNotificationContrast(View view, Drawable carrier, NotificationGlassContrast.Tone tone) {
+        State state = SURFACES.get(view);
+        SurfaceDrawable material = state == null ? null : state.material.get();
+        if (material != null && material.setNotificationContrast(view, carrier, tone)) view.invalidate();
     }
 
     private static boolean ownsBackground(Drawable background, Drawable material) {
@@ -437,11 +451,22 @@ final class SystemSurfaceStyle {
             if (view == null) { stopObserving(); return true; }
             android.content.res.Configuration configuration = view.getResources().getConfiguration();
             int nextMode = configuration.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-            if (nightMode == nextMode && densityDpi == configuration.densityDpi) return true;
+            State state = SURFACES.get(view);
+            if (nightMode == nextMode && densityDpi == configuration.densityDpi) {
+                SurfaceDrawable material = state == null ? null : state.material.get();
+                if (material != null && material.notificationTone != null
+                        && (view.getVisibility() != View.VISIBLE
+                            || !ownsBackground(view.getBackground(), material)
+                            || material.contrastCarrier.get() != nativeBackground(view)))
+                    NotificationSurfaceHooks.refreshContrast(view);
+                return true;
+            }
             nightMode = nextMode;
             densityDpi = configuration.densityDpi;
-            State state = SURFACES.get(view);
-            if (state != null) apply(view, state.config, true, state.track, state.notification);
+            if (state != null) {
+                apply(view, state.config, true, state.track, state.notification);
+                if (state.notification) NotificationSurfaceHooks.refreshContrast(view);
+            }
             if (contentConfig != null) content(view, contentConfig, true, 0, new int[1]);
             return true;
         }
@@ -572,6 +597,8 @@ final class SystemSurfaceStyle {
         private boolean notificationFallback, followNativeBackground, notification;
         private ColorFilter colorFilter;
         private ControlCenterSoftGlass.GlassDrawable reflection;
+        private WeakReference<Drawable> contrastCarrier = new WeakReference<>(null);
+        private NotificationGlassContrast.Tone notificationTone;
 
         void configure(Drawable original, ControlCenterConfig config, int strength, View view,
                 boolean notificationFallback, boolean nativeBackgroundSource, boolean notification) {
@@ -583,11 +610,26 @@ final class SystemSurfaceStyle {
             this.notification = notification;
             this.owner = new WeakReference<>(view);
             this.density = view.getResources().getDisplayMetrics().density;
-            if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS && !notificationFallback) {
+            updateReflection(view);
+            invalidateSelf();
+        }
+
+        boolean setNotificationContrast(View view, Drawable carrier, NotificationGlassContrast.Tone tone) {
+            if (tone == null) carrier = null;
+            if (tone == notificationTone && carrier == contrastCarrier.get()) return false;
+            contrastCarrier = new WeakReference<>(carrier);
+            notificationTone = tone;
+            updateReflection(view);
+            invalidateSelf();
+            return true;
+        }
+
+        private void updateReflection(View view) {
+            if (config.surface == ControlCenterSurface.HIGHLIGHT_GLASS
+                    && (!notificationFallback || notificationTone != null)) {
                 if (reflection == null) reflection = new ControlCenterSoftGlass.GlassDrawable(view);
                 reflection.configureBackground(view, strength, config.surface);
             } else reflection = null;
-            invalidateSelf();
         }
 
         boolean nativeContent() {
@@ -615,6 +657,8 @@ final class SystemSurfaceStyle {
             float radius = Math.min(config.cornerRadius * density, Math.min(bounds.width(), bounds.height()) / 2f);
             float opacity = alpha / 255f * (notificationFallback ? 1f : strength / 100f);
             boolean drawNative = nativeContent();
+            boolean readableGlass = notificationFallback && notificationTone != null
+                    && original == contrastCarrier.get();
             float borderOpacity = alpha / 255f;
             // Native content already carries its host fade; only our extra border needs it again.
             if (notificationFallback && drawNative) borderOpacity *= original.getAlpha() / 255f;
@@ -622,6 +666,14 @@ final class SystemSurfaceStyle {
             path.addRoundRect(bounds, radius, radius, Path.Direction.CW);
             int save = canvas.save();
             canvas.clipPath(path);
+            if (readableGlass) {
+                int tint = notificationTone.tint;
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(tint);
+                paint.setAlpha(Math.round(Color.alpha(tint) * borderOpacity));
+                paint.setColorFilter(null);
+                canvas.drawRoundRect(bounds, radius, radius, paint);
+            }
             if (drawNative) {
                 originalBounds.set(original.getBounds());
                 int previousAlpha = original.getAlpha();
@@ -648,8 +700,8 @@ final class SystemSurfaceStyle {
                 canvas.drawRoundRect(bounds, Math.max(0, radius - stroke / 2f),
                         Math.max(0, radius - stroke / 2f), paint);
             }
-            if (reflection != null) {
-                reflection.setAlpha(alpha);
+            if (reflection != null && (!notificationFallback || readableGlass)) {
+                reflection.setAlpha(notificationFallback ? Math.round(borderOpacity * 255f) : alpha);
                 reflection.setColorFilter(colorFilter);
                 reflection.drawRoundRect(canvas, getBounds(), radius);
             } else if (surface == ControlCenterSurface.SOFT_GLASS) {

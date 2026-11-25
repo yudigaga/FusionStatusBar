@@ -125,6 +125,45 @@ public class ControlCenterHighlightGlassReflectionTest {
         }
     }
 
+    @Test public void automaticGlassKeepsItsLightDirectionAcrossWideAndTallSurfaces() {
+        for (boolean night : new boolean[] {false, true}) {
+            int[] wide = sampleReflections(320, 80, night);
+            int[] tall = sampleReflections(80, 320, night);
+            for (int[] edge : new int[][] {wide, tall}) {
+                assertTrue("The upper-left rim catches a clear reflection", edge[0] >= 48);
+                assertTrue("The top rim fades toward the right", edge[0] - edge[1] >= 12);
+                assertTrue("The lower-right rim catches a weaker bounce", edge[3] > edge[2] + 4
+                        && edge[3] < edge[1]);
+                assertTrue("The strongest reflection is close to the contour",
+                        edge[4] > 0 && edge[4] < edge[0] / 2);
+            }
+            for (int index = 0; index < wide.length; index++) {
+                assertEquals("Matching positions on wide and tall glass should catch similar light",
+                        wide[index], tall[index], 5);
+            }
+        }
+    }
+
+    private static int[] sampleReflections(int width, int height, boolean night) {
+        View surface = measuredSurface(width, height, 12f);
+        setNight(surface, night);
+        ControlCenterSoftGlass.apply(surface, ControlCenterSurface.HIGHLIGHT_GLASS, true, 100);
+        Bitmap image = draw(surface);
+        try {
+            int left = width / 4, right = width * 3 / 4;
+            int bottom = height - 1;
+            int body = Color.red(image.getPixel(width / 2, height / 2));
+            return new int[] {Color.red(image.getPixel(left, 0)) - body,
+                    Color.red(image.getPixel(right, 0)) - body,
+                    Color.red(image.getPixel(left, bottom)) - body,
+                    Color.red(image.getPixel(right, bottom)) - body,
+                    Color.red(image.getPixel(left, 2)) - body};
+        } finally {
+            image.recycle();
+            ControlCenterSoftGlass.apply(surface, false, 0);
+        }
+    }
+
     @Test public void automaticNightUsesTheSoftEdgeInsteadOfTheLegacySoftGlassLine() {
         View automatic = measuredSurface(), manual = measuredSurface();
         setNight(automatic, true);
@@ -142,6 +181,10 @@ public class ControlCenterHighlightGlassReflectionTest {
     }
 
     private static QSCardItemView measuredSurface() {
+        return measuredSurface(160, 100, 24f);
+    }
+
+    private static QSCardItemView measuredSurface(int width, int height, float radius) {
         Context app = RuntimeEnvironment.getApplication();
         Configuration configuration = new Configuration(app.getResources().getConfiguration());
         configuration.uiMode = (configuration.uiMode & ~Configuration.UI_MODE_NIGHT_MASK)
@@ -149,11 +192,11 @@ public class ControlCenterHighlightGlassReflectionTest {
         QSCardItemView surface = new QSCardItemView(app.createConfigurationContext(configuration));
         GradientDrawable background = new GradientDrawable();
         background.setColor(0xff353840);
-        background.setCornerRadius(24f);
+        background.setCornerRadius(radius);
         surface.setBackground(background);
-        surface.measure(View.MeasureSpec.makeMeasureSpec(160, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY));
-        surface.layout(0, 0, 160, 100);
+        surface.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        surface.layout(0, 0, width, height);
         return surface;
     }
     @SuppressWarnings("deprecation")

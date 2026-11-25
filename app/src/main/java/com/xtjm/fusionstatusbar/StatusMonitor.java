@@ -21,7 +21,6 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyDisplayInfo;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -218,7 +217,7 @@ public final class StatusMonitor {
                     Context.RECEIVER_NOT_EXPORTED);
             applyBattery(sticky);
         } catch (Throwable error) {
-            Log.e(TAG, "battery monitor failed", error);
+            ModuleLog.e(TAG, "battery monitor failed", error);
         }
     }
 
@@ -239,7 +238,7 @@ public final class StatusMonitor {
             }, new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
                     null, mainHandler, Context.RECEIVER_NOT_EXPORTED);
         } catch (Throwable error) {
-            Log.w(TAG, "power save monitor failed", error);
+            ModuleLog.w(TAG, "power save monitor failed", error);
         }
         // The change broadcast is not sticky; always prime the current state.
         refreshPowerSave(context);
@@ -258,7 +257,7 @@ public final class StatusMonitor {
             }
             publish();
         } catch (Throwable error) {
-            Log.w(TAG, "power save state unavailable", error);
+            ModuleLog.w(TAG, "power save state unavailable", error);
         }
     }
 
@@ -273,7 +272,7 @@ public final class StatusMonitor {
         ConnectivityManager connectivity = context.getSystemService(ConnectivityManager.class);
         wifiManager = context.getSystemService(WifiManager.class);
         if (connectivity == null) {
-            Log.e(TAG, "connectivity service missing");
+            ModuleLog.e(TAG, "connectivity service missing");
             return;
         }
         try {
@@ -283,7 +282,7 @@ public final class StatusMonitor {
                     .build();
             connectivity.registerNetworkCallback(wifi, new TransportCallback(true), mainHandler);
         } catch (Throwable error) {
-            Log.e(TAG, "wifi monitor failed", error);
+            ModuleLog.e(TAG, "wifi monitor failed", error);
         }
         try {
             NetworkRequest mobile = new NetworkRequest.Builder()
@@ -292,7 +291,7 @@ public final class StatusMonitor {
                     .build();
             connectivity.registerNetworkCallback(mobile, new TransportCallback(false), mainHandler);
         } catch (Throwable error) {
-            Log.e(TAG, "mobile monitor failed", error);
+            ModuleLog.e(TAG, "mobile monitor failed", error);
         }
     }
 
@@ -300,7 +299,7 @@ public final class StatusMonitor {
     private static void registerTelephony(Context context) {
         TelephonyManager base = context.getSystemService(TelephonyManager.class);
         if (base == null) {
-            Log.w(TAG, "telephony service missing");
+            ModuleLog.w(TAG, "telephony service missing");
         return;
         }
         final SubscriptionManager subscriptions = context.getSystemService(SubscriptionManager.class);
@@ -314,9 +313,9 @@ public final class StatusMonitor {
                             }
                         });
             } catch (SecurityException error) {
-                Log.w(TAG, "subscription listener denied", error);
+                ModuleLog.w(TAG, "subscription listener denied", error);
             } catch (Throwable error) {
-                Log.w(TAG, "subscription listener failed", error);
+                ModuleLog.w(TAG, "subscription listener failed", error);
             }
         }
         bindTelephony(base, subscriptions);
@@ -331,9 +330,9 @@ public final class StatusMonitor {
         try {
             defaultSubscription = SubscriptionManager.getDefaultDataSubscriptionId();
         } catch (SecurityException error) {
-            Log.w(TAG, "default data subscription unavailable", error);
+            ModuleLog.w(TAG, "default data subscription unavailable", error);
         } catch (Throwable error) {
-            Log.w(TAG, "default data subscription failed", error);
+            ModuleLog.w(TAG, "default data subscription failed", error);
         }
 
         List<Integer> targets = readSubscriptionOrder(subscriptions, defaultSubscription);
@@ -360,7 +359,7 @@ public final class StatusMonitor {
                     try {
                         telephony.unregisterTelephonyCallback(callback);
                     } catch (Throwable error) {
-                        Log.w(TAG, "telephony callback unregister failed", error);
+                        ModuleLog.w(TAG, "telephony callback unregister failed", error);
                     }
                 }
             }
@@ -411,9 +410,9 @@ public final class StatusMonitor {
                     }
                 }
             } catch (SecurityException error) {
-                Log.w(TAG, "active subscriptions unavailable", error);
+                ModuleLog.w(TAG, "active subscriptions unavailable", error);
             } catch (Throwable error) {
-                Log.w(TAG, "active subscriptions failed", error);
+                ModuleLog.w(TAG, "active subscriptions failed", error);
             }
         }
         if (result.isEmpty()) {
@@ -433,7 +432,7 @@ public final class StatusMonitor {
             try {
                 next = base.createForSubscriptionId(subscription);
             } catch (Throwable error) {
-                Log.w(TAG, "subscription telephony manager failed", error);
+                ModuleLog.w(TAG, "subscription telephony manager failed", error);
             }
         }
         if (next == null) {
@@ -463,17 +462,17 @@ public final class StatusMonitor {
                 next.registerTelephonyCallback(mainExecutor, callback);
             } catch (SecurityException error) {
                 callback.active = false;
-                Log.w(TAG, "telephony callback denied", error);
+                ModuleLog.w(TAG, "telephony callback denied", error);
             } catch (Throwable error) {
                 callback.active = false;
-                Log.e(TAG, "telephony callback failed", error);
+                ModuleLog.e(TAG, "telephony callback failed", error);
             }
         }
         if (callback.active) {
             try {
                 primeTelephony(next, subscription);
             } catch (Throwable error) {
-                Log.w(TAG, "telephony snapshot failed", error);
+                ModuleLog.w(TAG, "telephony snapshot failed", error);
             }
         }
         if (register && !callback.active) {
@@ -495,9 +494,9 @@ public final class StatusMonitor {
             }
             setMobileLabel(subscription, NetworkLabel.fromNetworkType(telephony.getDataNetworkType()));
         } catch (SecurityException error) {
-            Log.w(TAG, "telephony snapshot denied", error);
+            ModuleLog.w(TAG, "telephony snapshot denied", error);
         } catch (Throwable error) {
-            Log.w(TAG, "telephony snapshot failed", error);
+            ModuleLog.w(TAG, "telephony snapshot failed", error);
         }
     }
 
@@ -673,7 +672,7 @@ public final class StatusMonitor {
                 try {
                     listener.onStatus();
                 } catch (Throwable error) {
-                    Log.e(TAG, "status listener failed", error);
+                    ModuleLog.e(TAG, "status listener failed", error);
                 }
             }
         });
@@ -691,7 +690,7 @@ public final class StatusMonitor {
                 }
             }
         } catch (Throwable error) {
-            Log.w(TAG, "wifi rssi unavailable", error);
+            ModuleLog.w(TAG, "wifi rssi unavailable", error);
         }
         int strength = capabilities.getSignalStrength();
         if (strength != NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED && strength < 0) {
@@ -706,12 +705,12 @@ public final class StatusMonitor {
                 return clamp(wifiManager.calculateSignalLevel(rssi));
             }
         } catch (Throwable error) {
-            Log.w(TAG, "wifi signal level failed", error);
+            ModuleLog.w(TAG, "wifi signal level failed", error);
         }
         try {
             return clamp(WifiManager.calculateSignalLevel(rssi, 5));
         } catch (Throwable error) {
-            Log.w(TAG, "wifi signal level fallback failed", error);
+            ModuleLog.w(TAG, "wifi signal level fallback failed", error);
         }
         if (rssi <= -88) {
             return 0;

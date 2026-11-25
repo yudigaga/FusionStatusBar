@@ -1,7 +1,6 @@
 package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,7 +32,7 @@ final class PowerMenuExtension {
         }
         if (!requested) return false;
         if (!(center.getParent() instanceof FrameLayout parent)) {
-            Log.w("FusionStatusBar", "power menu extension unavailable: non-frame slider parent");
+            ModuleLog.w("FusionStatusBar", "power menu extension unavailable: non-frame slider parent");
             return false;
         }
         if (mount == null) {
@@ -67,7 +66,7 @@ final class PowerMenuExtension {
             } catch (ClassNotFoundException ignored) { }
             return PowerMenuActions.restricted(context);
         } catch (ReflectiveOperationException | RuntimeException error) {
-            Log.w("FusionStatusBar", "power menu lock state unavailable", error);
+            ModuleLog.w("FusionStatusBar", "power menu lock state unavailable", error);
             return true;
         }
     }
@@ -177,7 +176,7 @@ final class PowerMenuExtension {
             Context context = context(owner, center);
             try {
                 PowerMenuActions.execute(action, PowerMenuActions.platform(context));
-                Log.i("FusionStatusBar", "power menu side action=" + action);
+                ModuleLog.i("FusionStatusBar", "power menu side action=" + action);
                 Method dismiss = RuntimeReflection.exact(owner.getClass(), "dismiss", new Class<?>[] {int.class}, false);
                 if (dismiss != null) dismiss.invoke(owner, 3);
                 else {
@@ -185,7 +184,7 @@ final class PowerMenuExtension {
                     if (dismiss != null) dismiss.invoke(owner);
                 }
             } catch (Exception error) {
-                Log.w("FusionStatusBar", "power menu side action failed: " + action, error);
+                ModuleLog.w("FusionStatusBar", "power menu side action failed: " + action, error);
                 Toast.makeText(context, ModuleStrings.get(center.getContext(), R.string.ui_shared_80b8df95ad), Toast.LENGTH_SHORT).show();
             }
         }

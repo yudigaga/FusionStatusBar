@@ -1,6 +1,7 @@
 # The framework loads this class by the name in META-INF/xposed/java_init.list.
 -keep,allowoptimization class com.xtjm.fusionstatusbar.FusionModule {
     public <init>();
+    public void onModuleLoaded(io.github.libxposed.api.XposedModuleInterface$ModuleLoadedParam);
     public void onSystemServerStarting(io.github.libxposed.api.XposedModuleInterface$SystemServerStartingParam);
     public void onPackageLoaded(io.github.libxposed.api.XposedModuleInterface$PackageLoadedParam);
     public void onPackageReady(io.github.libxposed.api.XposedModuleInterface$PackageReadyParam);

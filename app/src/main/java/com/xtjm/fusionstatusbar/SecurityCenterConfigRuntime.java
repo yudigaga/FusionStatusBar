@@ -54,7 +54,7 @@ final class SecurityCenterConfigRuntime {
         } catch (ReflectiveOperationException | RuntimeException error) {
             supported = false;
             snapshot = MiscConfig.defaults();
-            Log.w(FusionModule.TAG, "phone manager version unavailable", error);
+            ModuleLog.w(FusionModule.TAG, "phone manager version unavailable", error);
             return false;
         }
     }
@@ -85,13 +85,14 @@ final class SecurityCenterConfigRuntime {
                 return chain.proceed();
             });
         } catch (Throwable error) {
-            module.log(Log.WARN, FusionModule.TAG, "phone manager config context capture unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "phone manager config context capture unavailable", error);
         }
         return count;
     }
 
     private static synchronized void attach(Context source) {
         if (!supported || source == null || !PACKAGE.equals(source.getPackageName()) || worker != null) return;
+        ModuleLoggingConfig.attachInjected(source);
         Context app = source.getApplicationContext();
         context = new WeakReference<>(app == null ? source : app);
         if (cache == null) {
@@ -129,7 +130,7 @@ final class SecurityCenterConfigRuntime {
                     });
             observerRegistered = true;
         } catch (RuntimeException error) {
-            if (registrationRetries == 0) Log.w(FusionModule.TAG, "phone manager config registration pending", error);
+            if (registrationRetries == 0) ModuleLog.w(FusionModule.TAG, "phone manager config registration pending", error);
         }
         if ((!receiverRegistered || !observerRegistered) && ++registrationRetries <= 10)
             worker.postDelayed(SecurityCenterConfigRuntime::registerEndpoints, 1000L);
@@ -154,7 +155,7 @@ final class SecurityCenterConfigRuntime {
                     null, null);
             return MiscConfig.validUpdate(values) ? MiscConfig.fromBundle(values) : null;
         } catch (RuntimeException error) {
-            Log.w(FusionModule.TAG, "phone manager config provider unavailable: "
+            ModuleLog.w(FusionModule.TAG, "phone manager config provider unavailable: "
                     + error.getClass().getSimpleName());
             return null;
         }
@@ -173,10 +174,10 @@ final class SecurityCenterConfigRuntime {
     private static void accept(MiscConfig loaded) {
         snapshot = loaded;
         if (cache != null && !MiscConfigStore.write(cache, loaded))
-            Log.w(FusionModule.TAG, "phone manager runtime cache save failed");
+            ModuleLog.w(FusionModule.TAG, "phone manager runtime cache save failed");
         for (Runnable changed : LISTENERS) {
             try { changed.run(); }
-            catch (RuntimeException error) { Log.w(FusionModule.TAG, "phone manager config listener failed", error); }
+            catch (RuntimeException error) { ModuleLog.w(FusionModule.TAG, "phone manager config listener failed", error); }
         }
     }
 }

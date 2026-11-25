@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.app.BroadcastOptions;
 import android.os.Build;
-import android.util.Log;
 
 /** Authenticated one-shot bridge from Launcher gestures to privileged SystemUI actions. */
 final class DesktopActionQueue {
@@ -34,7 +33,7 @@ final class DesktopActionQueue {
             }
             return true;
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "desktop action broadcast failed", error);
+            ModuleLog.w("FusionStatusBar", "desktop action broadcast failed", error);
             return false;
         }
     }

@@ -38,6 +38,7 @@ public class NotificationBackgroundView extends View {
     }
     public void setClipTopAmount(int value) { geometryCalls++; mClipTopAmount = value; invalidate(); }
     public void setClipBottomAmount(int value) { geometryCalls++; mClipBottomAmount = value; invalidate(); }
+    public void setCustomBackground(int id) { setCustomBackground(getResources().getDrawable(id, null)); }
     public void setCustomBackground(Drawable value) { mBackground = value; setBackground(value); }
     public void setTint(int value) { if (mBackground != null) mBackground.setTint(value); }
     public void setRadius(float value) { invalidate(); }

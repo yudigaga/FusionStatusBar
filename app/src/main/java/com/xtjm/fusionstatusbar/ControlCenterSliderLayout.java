@@ -5,7 +5,6 @@ import android.graphics.Matrix;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewOutlineProvider;
@@ -176,7 +175,7 @@ final class ControlCenterSliderLayout {
                     try {
                         applyAxis();
                     } catch (ReflectiveOperationException error) {
-                        Log.w("FusionControlGrid", "Slider axis update failed", error);
+                        ModuleLog.w("FusionControlGrid", "Slider axis update failed", error);
                     }
                 }
                 if (!restored) {

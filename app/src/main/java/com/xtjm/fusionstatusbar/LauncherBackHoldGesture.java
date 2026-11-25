@@ -4,7 +4,6 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -69,7 +68,7 @@ final class LauncherBackHoldGesture {
                                 .intercept(hook);
                         return true;
                     } catch (Throwable error) {
-                        Log.w(TAG, "back hold hook unavailable " + method.getName(), error);
+                        ModuleLog.w(TAG, "back hold hook unavailable " + method.getName(), error);
                         return false;
                     }
                 }, settings, attachRuntime, dispatcher);
@@ -79,7 +78,7 @@ final class LauncherBackHoldGesture {
                 Method progress = arrow.getDeclaredMethod("onSwipeProgress", float.class);
                 if (progress.getReturnType() == void.class) module.deoptimize(progress);
             } catch (Throwable error) {
-                Log.w(TAG, "launcher back arrow progress deoptimization unavailable", error);
+                ModuleLog.w(TAG, "launcher back arrow progress deoptimization unavailable", error);
             }
         }
         return installed;
@@ -113,11 +112,11 @@ final class LauncherBackHoldGesture {
             if (registrar.install(stop, gesture::swipeStop)) installed++;
             Method predicate = gesture.distanceGate.nativePredicate();
             if (predicate != null && registrar.install(predicate, gesture::nativeDistance)) installed++;
-            Log.i(TAG, "launcher back hold hooks installed=" + installed
+            ModuleLog.i(TAG, "launcher back hold hooks installed=" + installed
                     + (predicate == null ? "/3" : "/4"));
             return installed;
         } catch (Exception | LinkageError error) {
-            Log.w(TAG, "launcher native back hold capability unavailable", error);
+            ModuleLog.w(TAG, "launcher native back hold capability unavailable", error);
             return 0;
         }
     }
@@ -140,7 +139,7 @@ final class LauncherBackHoldGesture {
                 state.attached = true;
             } catch (RuntimeException error) {
                 state.reset();
-                Log.w(TAG, "launcher back hold runtime unavailable", error);
+                ModuleLog.w(TAG, "launcher back hold runtime unavailable", error);
                 return chain.proceed();
             }
         }
@@ -187,7 +186,7 @@ final class LauncherBackHoldGesture {
                     > DesktopConfig.ACTION_NONE
                     && snapshot.isGestureComplete(DesktopConfig.GESTURE_BACK_HOLD) ? snapshot : null;
         } catch (RuntimeException error) {
-            Log.w(TAG, "launcher back hold settings unavailable", error);
+            ModuleLog.w(TAG, "launcher back hold settings unavailable", error);
             return null;
         }
     }
@@ -209,7 +208,7 @@ final class LauncherBackHoldGesture {
         }
         try { return dispatcher.prepare(stub.getContext(), snapshot); }
         catch (RuntimeException error) {
-            Log.w(TAG, "launcher back hold action preparation failed", error);
+            ModuleLog.w(TAG, "launcher back hold action preparation failed", error);
             return null;
         }
     }
@@ -244,7 +243,7 @@ final class LauncherBackHoldGesture {
         }
         try { action.run(); }
         catch (RuntimeException error) {
-            Log.w(TAG, "launcher back hold prepared action failed", error);
+            ModuleLog.w(TAG, "launcher back hold prepared action failed", error);
             logCompletion(state, frame.event, actionId, "custom_request_failed");
             return result;
         }
@@ -253,7 +252,7 @@ final class LauncherBackHoldGesture {
     }
 
     private static void logCompletion(State state, MotionEvent event, int action, String outcome) {
-        Log.i(TAG, "launcher back hold result=" + outcome + " action=" + action
+        ModuleLog.i(TAG, "launcher back hold result=" + outcome + " action=" + action
                 + " durationMs=" + Math.max(0L, event.getEventTime() - state.downTime)
                 + " pauseMs=" + Math.max(0L, event.getEventTime() - state.stationarySince)
                 + " distanceDp=" + (state.snapshot == null ? 0 : state.snapshot.backHoldDistanceDp)

@@ -512,9 +512,9 @@ final class ControlCenterMaterials {
                 invoke(view, "setMiBackgroundBlurRadius", Math.round(275f * blur / 100));
             });
         } catch (ReflectiveOperationException | RuntimeException error) {
-            if (!state.failureLogged) {
+            if (ModuleLog.enabled() && !state.failureLogged) {
                 state.failureLogged = true;
-                android.util.Log.w("FusionStatusBar", "Native per-surface blur unsupported; keeping available material controls", error);
+                ModuleLog.w("FusionStatusBar", "Native per-surface blur unsupported; keeping available material controls", error);
             }
         }
         if (surface != ControlCenterSurface.DEFAULT && view.getBackground() == null
@@ -1273,9 +1273,9 @@ final class ControlCenterMaterials {
             Object[] effective = effectArguments(view, operation, entry.getValue(), config, editing);
             try { guardedThrowing(() -> invoke(view, operation, effective)); }
             catch (ReflectiveOperationException | RuntimeException error) {
-                if (!state.effectsFailureLogged) {
+                if (ModuleLog.enabled() && !state.effectsFailureLogged) {
                     state.effectsFailureLogged = true;
-                    android.util.Log.w("FusionStatusBar", "Native material effect update failed: " + operation, error);
+                    ModuleLog.w("FusionStatusBar", "Native material effect update failed: " + operation, error);
                 }
             }
         }

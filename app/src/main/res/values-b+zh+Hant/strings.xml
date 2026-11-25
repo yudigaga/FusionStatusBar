@@ -187,4 +187,5 @@
     <string name="about_miuix_summary">介面使用 Miuix 開源元件</string>
     <string name="about_project_version">版本 %1$s (%2$d)</string>
     <string name="about_link_unavailable">無法開啟連結</string>
+    <string name="module_logging">模組日誌</string>
 </resources>

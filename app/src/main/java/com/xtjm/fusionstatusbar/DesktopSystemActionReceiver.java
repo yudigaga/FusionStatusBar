@@ -23,7 +23,6 @@ import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.app.NotificationManager;
 import android.app.UiModeManager;
-import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
@@ -51,7 +50,7 @@ final class DesktopSystemActionReceiver {
             try { context = context.createPackageContext("com.android.systemui", 0); }
             catch (PackageManager.NameNotFoundException error) {
                 REGISTERED.set(false);
-                Log.w(TAG, "SystemUI action receiver context unavailable", error);
+                ModuleLog.w(TAG, "SystemUI action receiver context unavailable", error);
                 return;
             }
         }
@@ -61,14 +60,14 @@ final class DesktopSystemActionReceiver {
                 @Override public void onReceive(Context ignored, Intent intent) {
                     int senderUid = Build.VERSION.SDK_INT >= 34 ? getSentFromUid() : -1;
                     if (!receiveLauncherAction(systemUiContext, intent, senderUid)) {
-                        Log.w(TAG, "ignored untrusted desktop action broadcast");
+                        ModuleLog.w(TAG, "ignored untrusted desktop action broadcast");
                     }
                 }
             }, new IntentFilter(DesktopActionQueue.ACTION_DISPATCH), Context.RECEIVER_EXPORTED);
-            Log.i(TAG, "desktop action broadcast bridge registered");
+            ModuleLog.i(TAG, "desktop action broadcast bridge registered");
         } catch (Throwable error) {
             REGISTERED.set(false);
-            Log.w(TAG, "desktop action bridge registration failed", error);
+            ModuleLog.w(TAG, "desktop action bridge registration failed", error);
         }
     }
 
@@ -166,10 +165,10 @@ final class DesktopSystemActionReceiver {
                             null, 0);
                     return;
                 default:
-                    Log.w(TAG, "unsupported desktop action=" + action);
+                    ModuleLog.w(TAG, "unsupported desktop action=" + action);
             }
         } catch (Throwable error) {
-            Log.w(TAG, "desktop action failed action=" + action, error);
+            ModuleLog.w(TAG, "desktop action failed action=" + action, error);
         }
     }
 
@@ -309,7 +308,7 @@ final class DesktopSystemActionReceiver {
                 return;
             }
             default:
-                Log.w(TAG, "unsupported desktop toggle=" + toggle);
+                ModuleLog.w(TAG, "unsupported desktop toggle=" + toggle);
         }
     }
 
@@ -324,7 +323,7 @@ final class DesktopSystemActionReceiver {
                 Object lazy = readField(provider, provider.getClass(), "mFlashlightController");
                 controller = call(lazy, "get", new Class<?>[0]);
             } catch (Exception error) {
-                Log.d(TAG, "MIUI flashlight controller unavailable", error);
+                ModuleLog.d(TAG, "MIUI flashlight controller unavailable", error);
             }
         }
         if (controller != null) {
@@ -354,7 +353,7 @@ final class DesktopSystemActionReceiver {
                                 cameras.setTorchMode(id, !current);
                                 TORCH_STATES.put(id, !current);
                             } catch (Exception error) {
-                                Log.w(TAG, "queued flashlight toggle failed", error);
+                                ModuleLog.w(TAG, "queued flashlight toggle failed", error);
                             }
                         }
                     }
@@ -411,7 +410,7 @@ final class DesktopSystemActionReceiver {
                 return call(instance, "getDependencyInner", new Class<?>[] {Object.class}, contract);
             }
         } catch (Throwable error) {
-            Log.d(TAG, "SystemUI dependency unavailable " + className, error);
+            ModuleLog.d(TAG, "SystemUI dependency unavailable " + className, error);
             return null;
         }
     }
@@ -448,7 +447,7 @@ final class DesktopSystemActionReceiver {
                         return "FusionStatusBarTetheringCallback";
                     }
                     if ("onTetheringFailed".equals(method.getName())) {
-                        Log.w(TAG, "hotspot start failed code=" + (args == null ? "unknown" : args[0]));
+                        ModuleLog.w(TAG, "hotspot start failed code=" + (args == null ? "unknown" : args[0]));
                     }
                     return null;
                 });
@@ -498,7 +497,7 @@ final class DesktopSystemActionReceiver {
                     method.invoke(context, intent, user);
                     return;
                 } catch (Throwable error) {
-                    Log.w(TAG, "profile shortcut launch unavailable", error);
+                    ModuleLog.w(TAG, "profile shortcut launch unavailable", error);
                 }
             }
             context.startActivity(intent);

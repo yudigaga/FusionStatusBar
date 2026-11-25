@@ -44,7 +44,7 @@ final class NotificationCenterClockController {
     private static float lastExpansionProgress = Float.NaN;
     // The ticker retains only weak view references and an application context.
     @android.annotation.SuppressLint("StaticFieldLeak")
-    private static final VisibleSecondTicker SECOND_TICK = new VisibleSecondTicker(() -> {
+    private static final VisibleClockTicker SECOND_TICK = new VisibleClockTicker(() -> {
         renderIfAttached(TIME);
         renderIfAttached(HORIZONTAL_TIME);
     });
@@ -254,7 +254,7 @@ final class NotificationCenterClockController {
         applyIndependentRows(header, time, date);
         if (!headerLogged && (time != null || date != null || horizontalTime != null)) {
             headerLogged = true;
-            android.util.Log.i(TAG, "notification header bound time=" + (time != null)
+            ModuleLog.i(TAG, "notification header bound time=" + (time != null)
                     + " date=" + (date != null)
                     + " horizontalTime=" + (horizontalTime != null));
         }
@@ -998,7 +998,7 @@ final class NotificationCenterClockController {
         if (clock.isAttachedToWindow()) {
             if (state != DATE && !timeAppliedLogged) {
                 timeAppliedLogged = true;
-                android.util.Log.i(TAG, "notification time applied sizeSp=" + sizeSp
+                ModuleLog.i(TAG, "notification time applied sizeSp=" + sizeSp
                         + " offsetDp=" + offsetYDp + " length="
                         + (desired == null ? 0 : desired.length()));
             }

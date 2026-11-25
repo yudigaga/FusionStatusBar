@@ -1,6 +1,5 @@
 package com.xtjm.fusionstatusbar;
 
-import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 
@@ -60,7 +59,7 @@ final class LauncherBackHaptics {
 
     private static void reportFailure(Throwable error) {
         if (FAILURE_REPORTED.compareAndSet(false, true)) {
-            Log.w(TAG, "launcher back readiness feedback unavailable: "
+            ModuleLog.w(TAG, "launcher back readiness feedback unavailable: "
                     + error.getClass().getSimpleName());
         }
     }

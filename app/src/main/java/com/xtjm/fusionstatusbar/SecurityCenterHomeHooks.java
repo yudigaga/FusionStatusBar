@@ -53,7 +53,7 @@ final class SecurityCenterHomeHooks {
             deoptimize(module, loader, "com.miui.securityscan.MainFragment",
                     "com.miui.securityscan.MainFragment$c0", "com.miui.securityscan.MainFragment$j0");
         } catch (ReflectiveOperationException | LinkageError error) {
-            module.log(Log.WARN, FusionModule.TAG, "phone manager home headline unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "phone manager home headline unavailable", error);
         }
         try {
             String prefix = "com.miui.common.card.models.FuncGrid6CardModel$";
@@ -70,7 +70,7 @@ final class SecurityCenterHomeHooks {
                     SecurityCenterHomeHooks::interceptFill);
             deoptimize(module, loader, owner.getName(), owner.getName() + "$1");
         } catch (ReflectiveOperationException | LinkageError error) {
-            module.log(Log.WARN, FusionModule.TAG, "phone manager home cards unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "phone manager home cards unavailable", error);
         }
         SecurityCenterConfigRuntime.addListener(CHANGED);
         return count;
@@ -227,7 +227,7 @@ final class SecurityCenterHomeHooks {
                 views.summary.setText(normalText); views.dot.setVisibility(View.GONE);
             } catch (Resources.NotFoundException unavailable) {
                 restore(owner);
-                Log.w(FusionModule.TAG, "phone manager normal card resources unavailable", unavailable);
+                ModuleLog.w(FusionModule.TAG, "phone manager normal card resources unavailable", unavailable);
             }
         }
     }

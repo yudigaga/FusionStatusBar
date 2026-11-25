@@ -18,7 +18,7 @@ final class ModuleStrings {
             return arguments == null || arguments.length == 0
                     ? owner.getString(resource) : owner.getString(resource, arguments);
         } catch (PackageManager.NameNotFoundException | Resources.NotFoundException unavailable) {
-            android.util.Log.w(FusionModule.TAG, "module language resource unavailable", unavailable);
+            ModuleLog.w(FusionModule.TAG, "module language resource unavailable", unavailable);
             return "";
         }
     }

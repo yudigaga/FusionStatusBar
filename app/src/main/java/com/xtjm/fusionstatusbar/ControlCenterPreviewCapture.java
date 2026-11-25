@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.PixelCopy;
 import android.view.View;
 import java.io.OutputStream;
@@ -44,7 +43,7 @@ final class ControlCenterPreviewCapture {
                 posted.set(false);
                 try { capture(context, state); }
                 catch (Throwable error) {
-                    Log.w("FusionStatusBar", "Control center preview capture failed", error);
+                    ModuleLog.w("FusionStatusBar", "Control center preview capture failed", error);
                 }
             });
         }), 120L);
@@ -131,12 +130,12 @@ final class ControlCenterPreviewCapture {
                     if (!work.execute("write", () -> publish(context, requested, bitmap, layout)))
                         finish(context, bitmap);
                 } catch (Throwable error) {
-                    Log.w("FusionStatusBar", "Preview completion failed", error);
+                    ModuleLog.w("FusionStatusBar", "Preview completion failed", error);
                     finish(context, bitmap);
                 }
             });
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "Preview window copy failed", error);
+            ModuleLog.w("FusionStatusBar", "Preview window copy failed", error);
             finish(context, bitmap);
         }
     }
@@ -153,7 +152,7 @@ final class ControlCenterPreviewCapture {
             FusionConfig.markControlCenterPreviewReady(context, requested, layout.serialized,
                     layout.catalog);
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "Preview generation write failed", error);
+            ModuleLog.w("FusionStatusBar", "Preview generation write failed", error);
         } finally { main.post(() -> finish(context, bitmap)); }
     }
 
@@ -166,7 +165,7 @@ final class ControlCenterPreviewCapture {
     private void retry(Context context, String reason) {
         if (retries++ >= 120) return;
         if (retries <= 3 || retries % 20 == 0)
-            Log.i("FusionStatusBar", "Preview retry=" + retries + " reason=" + reason);
+            ModuleLog.i("FusionStatusBar", "Preview retry=" + retries + " reason=" + reason);
         main.postDelayed(() -> request(context), 500L);
     }
 }

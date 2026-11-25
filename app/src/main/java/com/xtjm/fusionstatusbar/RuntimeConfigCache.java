@@ -3,7 +3,6 @@ package com.xtjm.fusionstatusbar;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.util.Log;
 
 import org.json.JSONException;
 
@@ -22,7 +21,7 @@ final class RuntimeConfigCache {
             String snapshot = preferences(context).getString(KEY_SNAPSHOT, null);
             return snapshot == null ? null : FusionConfigStore.decode(snapshot);
         } catch (JSONException | RuntimeException error) {
-            Log.w(TAG, "host config snapshot unavailable: " + error.getClass().getSimpleName());
+            ModuleLog.w(TAG, "host config snapshot unavailable: " + error.getClass().getSimpleName());
             return null;
         }
     }
@@ -35,7 +34,7 @@ final class RuntimeConfigCache {
             if (snapshot.length() > MAX_BYTES) return false;
             return preferences.edit().putString(KEY_SNAPSHOT, snapshot).commit();
         } catch (JSONException | RuntimeException error) {
-            Log.w(TAG, "host config snapshot write failed: " + error.getClass().getSimpleName());
+            ModuleLog.w(TAG, "host config snapshot write failed: " + error.getClass().getSimpleName());
             return false;
         }
     }

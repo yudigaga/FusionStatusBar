@@ -3,7 +3,6 @@ package com.xtjm.fusionstatusbar;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 
 /** Shared display and status-bar layout settings. */
 public final class FusionConfig {
@@ -247,11 +246,11 @@ public final class FusionConfig {
                     METHOD_PREVIEW_REQUEST, null, null);
             long generation = result == null ? 0L
                     : result.getLong(KEY_PREVIEW_REQUEST, 0L);
-            Log.i("FusionStatusBar", "control center preview request generation="
+            ModuleLog.i("FusionStatusBar", "control center preview request generation="
                     + generation);
             return generation;
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "control center preview request failed: "
+            ModuleLog.w("FusionStatusBar", "control center preview request failed: "
                     + error.getClass().getSimpleName());
             return 0L;
         }
@@ -262,7 +261,7 @@ public final class FusionConfig {
             context.getContentResolver().call(controlCenterPreviewUri(),
                     METHOD_PREVIEW_CLEAR, null, null);
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "control center preview clear failed: "
+            ModuleLog.w("FusionStatusBar", "control center preview clear failed: "
                     + error.getClass().getSimpleName());
         }
     }
@@ -273,7 +272,7 @@ public final class FusionConfig {
             return context.getContentResolver().call(controlCenterPreviewUri(),
                     METHOD_PREVIEW_STATE, null, null);
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "control center preview state failed: "
+            ModuleLog.w("FusionStatusBar", "control center preview state failed: "
                     + error.getClass().getSimpleName());
             return null;
         }
@@ -294,7 +293,7 @@ public final class FusionConfig {
                     METHOD_PREVIEW_READY, null, values);
             return result != null && result.getLong(KEY_PREVIEW_READY, 0L) == generation;
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "control center preview ready failed: "
+            ModuleLog.w("FusionStatusBar", "control center preview ready failed: "
                     + error.getClass().getSimpleName());
             return false;
         }
@@ -310,7 +309,7 @@ public final class FusionConfig {
                     METHOD_PREVIEW_CATALOG, null, values);
             return result != null && result.getLong(KEY_PREVIEW_READY, 0L) == generation;
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "control center preview catalog refresh failed: "
+            ModuleLog.w("FusionStatusBar", "control center preview catalog refresh failed: "
                     + error.getClass().getSimpleName());
             return false;
         }
@@ -355,7 +354,7 @@ public final class FusionConfig {
                 return loaded;
             }
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "config provider read failed: "
+            ModuleLog.w("FusionStatusBar", "config provider read failed: "
                     + error.getClass().getSimpleName());
         }
         if (hostContext) return RuntimeConfigCache.read(context);

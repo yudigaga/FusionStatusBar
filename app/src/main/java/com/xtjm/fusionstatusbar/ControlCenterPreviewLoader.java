@@ -116,7 +116,7 @@ final class ControlCenterPreviewLoader {
 
     void clearRemote() { submitCommand(() -> {
         try { source.clear(); }
-        catch (RuntimeException error) { android.util.Log.w("FusionStatusBar", "Unable to clear preview", error); }
+        catch (RuntimeException error) { ModuleLog.w("FusionStatusBar", "Unable to clear preview", error); }
     }); }
 
     synchronized String nativeTileCatalog() { return cachedCatalog; }

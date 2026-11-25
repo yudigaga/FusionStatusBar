@@ -1,6 +1,5 @@
 package com.xtjm.fusionstatusbar;
 
-import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -45,7 +44,7 @@ final class LauncherBackDistanceGate {
                 // Do not allocate another exception on every MOVE after an incompatible rule.
                 nativeUsable = false;
                 if (failureReported.compareAndSet(false, true)) {
-                    Log.w("FusionStatusBar", "launcher native back distance rule unavailable; "
+                    ModuleLog.w("FusionStatusBar", "launcher native back distance rule unavailable; "
                             + "using provided-host fallback");
                 }
             }

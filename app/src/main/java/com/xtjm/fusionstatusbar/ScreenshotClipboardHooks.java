@@ -68,7 +68,7 @@ final class ScreenshotClipboardHooks {
                         MiscSystemConfigExchange.attach(system);
                         if (MiscSystemConfigExchange.current().screenshotClipboardEnabled) requestApply();
                     } catch (Exception error) {
-                        module.log(Log.WARN, FusionModule.TAG, "screenshot clipboard system context unavailable", error);
+                        FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "screenshot clipboard system context unavailable", error);
                     }
                     return result;
                 });
@@ -104,9 +104,9 @@ final class ScreenshotClipboardHooks {
                 }
             }
         } catch (Throwable error) {
-            module.log(Log.WARN, FusionModule.TAG, "screenshot clipboard provider hooks unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "screenshot clipboard provider hooks unavailable", error);
         }
-        module.log(count > 0 ? Log.INFO : Log.WARN, FusionModule.TAG,
+        FusionModule.logModule(module, count > 0 ? Log.INFO : Log.WARN, FusionModule.TAG,
                 "screenshot clipboard mutation hooks installed=" + count);
     }
 

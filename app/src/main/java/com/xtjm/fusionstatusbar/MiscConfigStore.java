@@ -2,7 +2,6 @@ package com.xtjm.fusionstatusbar;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -54,7 +53,7 @@ final class MiscConfigStore {
             file.write(next.toString().getBytes(StandardCharsets.UTF_8));
             return true;
         } catch (IOException | JSONException | RuntimeException error) {
-            Log.w(FusionModule.TAG, "misc config persistence failed", error);
+            ModuleLog.w(FusionModule.TAG, "misc config persistence failed", error);
             return false;
         }
     }

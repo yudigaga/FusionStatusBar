@@ -28,7 +28,7 @@ public class VisibleSecondTickerTest {
     private Activity activity;
     private TextView clock;
     private FrameLayout parent;
-    private VisibleSecondTicker ticker;
+    private VisibleClockTicker ticker;
     private int ticks;
 
     @Before public void setup() {
@@ -48,7 +48,7 @@ public class VisibleSecondTickerTest {
         assertTrue("Clock must be visible in this fixture", clock.isShown());
         assertEquals("Window must be visible in this fixture", View.VISIBLE, clock.getWindowVisibility());
         assertTrue("Screen must be interactive in this fixture", clock.getContext().getSystemService(PowerManager.class).isInteractive());
-        ticker = new VisibleSecondTicker(() -> ticks++, android.os.SystemClock::uptimeMillis);
+        ticker = new VisibleClockTicker(() -> ticks++, android.os.SystemClock::uptimeMillis);
     }
 
     @After public void cleanup() {

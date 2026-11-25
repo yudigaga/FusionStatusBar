@@ -34,6 +34,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     private android.widget.Switch floatingNavigationSwitch;
     private android.widget.Switch chainStartSwitch;
     private android.widget.Switch screenshotClipboardSwitch;
+    private android.widget.Switch moduleLoggingSwitch;
     private boolean updatingAuxiliarySwitches;
     private android.widget.TextView clockSettingsSummary;
     private com.xtjm.fusionstatusbar.FusionConfig config;
@@ -709,6 +710,9 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             }
         });
         addDivider(maintenanceCard);
+        moduleLoggingSwitch = addSwitch(maintenanceCard, getString(R.string.module_logging),
+                "", Boolean.TRUE.equals(ModuleLoggingConfig.read(this)), this::setModuleLogging);
+        addDivider(maintenanceCard);
         addPreference(maintenanceCard, getString(R.string.export_logs), getString(R.string.ui_main_16ffe4d1e6), new android.view.View.OnClickListener() { // from class: com.xtjm.fusionstatusbar.MainActivity.25
             @Override // android.view.View.OnClickListener
             public final void onClick(android.view.View view) {
@@ -796,6 +800,14 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             updatingAuxiliarySwitches = false;
             Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void setModuleLogging(boolean enabled) {
+        if (updatingAuxiliarySwitches || ModuleLoggingConfig.save(this, enabled)) return;
+        updatingAuxiliarySwitches = true;
+        moduleLoggingSwitch.setChecked(!enabled);
+        updatingAuxiliarySwitches = false;
+        Toast.makeText(this, R.string.editor_save_failed, Toast.LENGTH_LONG).show();
     }
 
     private final java.util.Map<SecurityCenterFeature, android.widget.Switch> securityFeatureSwitches =
@@ -1215,7 +1227,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             if (plan != null) {
                 plan = plan.forPublication(this.isCompactControlCenter());
                 draft = draft.withLayoutPlan(plan.encode());
-                android.util.Log.i("FusionStatusBar", "control-center publish canvas="
+                ModuleLog.i("FusionStatusBar", "control-center publish canvas="
                         + plan.runtimeLayout + " columns="
                         + plan.runtimeMode(false).columns + " items="
                         + plan.runtimeMode(false).items.size());
@@ -1446,7 +1458,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         }
         if (this.lastControlCenterPreviewFailure != generation) {
             this.lastControlCenterPreviewFailure = generation;
-            android.util.Log.w("FusionStatusBar", "control-center preview load failed request=" + generation + " reason=" + message, error);
+            ModuleLog.w("FusionStatusBar", "control-center preview load failed request=" + generation + " reason=" + message, error);
         }
     }
 
@@ -1641,7 +1653,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             java.util.List<ControlCenterAppTiles.Entry> tiles;
             try { tiles = ControlCenterAppTiles.query(app, true); }
             catch (RuntimeException error) {
-                android.util.Log.w("FusionStatusBar", "Application tile discovery failed", error);
+                ModuleLog.w("FusionStatusBar", "Application tile discovery failed", error);
                 tiles = java.util.Collections.emptyList();
             }
             java.util.List<ControlCenterAppTiles.Entry> result = tiles;
@@ -1848,10 +1860,10 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
                     controlCenterActualPreview.capturedLayout(), currentControlGridPlan().mode(isCompactControlCenter()).columns,
                     getResources().getDisplayMetrics().density);
             applyControlGridPlan(currentControlGridPlan().withMode(isCompactControlCenter(), imported.mode), imported.spacingDp);
-            android.util.Log.i("FusionStatusBar", "control-center imported geometry columns=" + imported.mode.columns
+            ModuleLog.i("FusionStatusBar", "control-center imported geometry columns=" + imported.mode.columns
                     + " spacingDp=" + imported.spacingDp + " items=" + imported.mode.items.size());
         } catch (IllegalArgumentException error) {
-            android.util.Log.w("FusionStatusBar", "Native layout import rejected", error);
+            ModuleLog.w("FusionStatusBar", "Native layout import rejected", error);
             Toast.makeText(this, getString(R.string.ui_main_be36c07ac8), Toast.LENGTH_SHORT).show();
             return;
         }
@@ -3357,7 +3369,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         try {
             startActivityForResult(intent, REQUEST_EXPORT_LOGS);
         } catch (java.lang.RuntimeException error) {
-            android.util.Log.e("FusionStatusBar", "Could not open log export picker", error);
+            ModuleLog.e("FusionStatusBar", "Could not open log export picker", error);
             android.widget.Toast.makeText(this, com.xtjm.fusionstatusbar.R.string.export_logs_save_failed, Toast.LENGTH_LONG).show();
         }
     }
@@ -3402,13 +3414,13 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
             result = com.xtjm.fusionstatusbar.R.string.export_logs_cancelled;
         } catch (com.xtjm.fusionstatusbar.DiagnosticLogExporter.NoLogsException error) {
             result = com.xtjm.fusionstatusbar.R.string.export_logs_empty;
-            android.util.Log.w("FusionStatusBar", "No matching logs to export", error);
+            ModuleLog.w("FusionStatusBar", "No matching logs to export", error);
         } catch (com.xtjm.fusionstatusbar.DiagnosticLogExporter.RootUnavailableException error2) {
             result = com.xtjm.fusionstatusbar.R.string.export_logs_root_failed;
-            android.util.Log.e("FusionStatusBar", "Root log export failed", error2);
+            ModuleLog.e("FusionStatusBar", "Root log export failed", error2);
         } catch (java.io.IOException | java.lang.SecurityException error3) {
             result = com.xtjm.fusionstatusbar.R.string.export_logs_save_failed;
-            android.util.Log.e("FusionStatusBar", "Could not save diagnostic logs", error3);
+            ModuleLog.e("FusionStatusBar", "Could not save diagnostic logs", error3);
         }
         if (result != com.xtjm.fusionstatusbar.R.string.export_logs_success) {
             try {
@@ -3600,7 +3612,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
         if (runtimeConfigExchange != null) {
             try { runtimeConfigExchange.close(); }
             catch (Exception error) {
-                android.util.Log.w("FusionStatusBar", "settings config exchange release failed", error);
+                ModuleLog.w("FusionStatusBar", "settings config exchange release failed", error);
             }
             runtimeConfigExchange = null;
         }

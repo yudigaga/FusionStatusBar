@@ -29,7 +29,7 @@ final class SecurityCenterHookSupport {
             return hook(module, method, method.toGenericString(), chain -> interceptValue(chain,
                     anyEnabled(SecurityCenterConfigRuntime.current(), features), value));
         } catch (Throwable error) {
-            module.log(Log.WARN, FusionModule.TAG, "phone manager gate unavailable: " + owner + "." + name, error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "phone manager gate unavailable: " + owner + "." + name, error);
             return 0;
         }
     }
@@ -41,7 +41,7 @@ final class SecurityCenterHookSupport {
                     .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(hooker);
             return 1;
         } catch (Throwable error) {
-            module.log(Log.WARN, FusionModule.TAG, "phone manager hook unavailable: " + id, error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "phone manager hook unavailable: " + id, error);
             return 0;
         }
     }

@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.UserManager;
 import android.util.AtomicFile;
-import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -101,7 +100,7 @@ public final class FusionConfigStore {
             try {
                 context.getContentResolver().notifyChange(FusionConfig.contentUri(), null);
             } catch (RuntimeException error) {
-                Log.w("FusionStatusBar", "config committed; notification failed", error);
+                ModuleLog.w("FusionStatusBar", "config committed; notification failed", error);
             }
         }
     }
@@ -144,7 +143,7 @@ public final class FusionConfigStore {
             file.write(bytes);
             return new WriteResult(true, committed, "");
         } catch (IOException | JSONException | RuntimeException error) {
-            Log.w("FusionStatusBar", "config persistence failed", error);
+            ModuleLog.w("FusionStatusBar", "config persistence failed", error);
             return new WriteResult(false, baseline, error.getClass().getSimpleName());
         }
     }
@@ -219,7 +218,7 @@ public final class FusionConfigStore {
                             ? context.createPackageContext(context.getPackageName(), 0) : context;
                     preferences = credential.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
                 } catch (android.content.pm.PackageManager.NameNotFoundException unavailable) {
-                    Log.w("FusionStatusBar", "legacy config context unavailable", unavailable);
+                    ModuleLog.w("FusionStatusBar", "legacy config context unavailable", unavailable);
                 }
             }
         }

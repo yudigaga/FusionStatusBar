@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Base64;
-import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -59,7 +58,7 @@ final class DesktopActionBridgeToken {
             return Base64.encodeToString(mac.doFinal(payload(action, target, toggle,
                     timestamp, nonce)), Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
         } catch (Exception error) {
-            Log.w("FusionStatusBar", "desktop action signing failed: "
+            ModuleLog.w("FusionStatusBar", "desktop action signing failed: "
                     + error.getClass().getSimpleName());
             return null;
         }

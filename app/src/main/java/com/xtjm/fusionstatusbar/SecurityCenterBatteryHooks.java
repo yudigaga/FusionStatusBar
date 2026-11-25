@@ -456,6 +456,6 @@ final class SecurityCenterBatteryHooks {
     }
 
     private static void unavailable(XposedModule module, String part, Exception error) {
-        module.log(android.util.Log.WARN, FusionModule.TAG, "security center battery " + part + " unavailable", error);
+        FusionModule.logModule(module, android.util.Log.WARN, FusionModule.TAG, "security center battery " + part + " unavailable", error);
     }
 }

@@ -372,7 +372,9 @@ public class NotificationGeometryDispatchTest {
         Object call(Object owner, String name, Object... arguments) throws Throwable {
             Method nativeMethod = hooks.keySet().stream().filter(method -> method.getName().equals(name)
                     && method.getDeclaringClass().isInstance(owner)
-                    && method.getParameterCount() == arguments.length).findFirst().orElseThrow();
+                    && method.getParameterCount() == arguments.length
+                    && (name.equals("setCustomBackground") && arguments[0] instanceof Drawable
+                    ? method.getParameterTypes()[0] == Drawable.class : true)).findFirst().orElseThrow();
             XposedInterface.Chain chain = (XposedInterface.Chain) Proxy.newProxyInstance(
                     getClass().getClassLoader(), new Class<?>[] {XposedInterface.Chain.class},
                     (proxy, called, args) -> switch (called.getName()) {

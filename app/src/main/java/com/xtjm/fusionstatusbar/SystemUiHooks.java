@@ -55,6 +55,7 @@ public final class SystemUiHooks {
     private static final String STATUS_BAR_ICON_OBSERVER_CLASS =
             "com.android.systemui.statusbar.policy.StatusBarIconObserver";
     private static final String CLOCK_CLASS = "com.android.systemui.statusbar.views.MiuiClock";
+    private static final String STATUS_BAR_CLOCK_CLASS = "com.android.systemui.baiyang.clock.StatusBarClock";
     private static final String NOTIFICATION_HEADER_CLASS = NotificationHookInstaller.HEADER_CLASS;
     private static final String NOTIFICATION_EXPAND_CLASS = NotificationHookInstaller.EXPAND_CLASS;
     private static final String NOTIFICATION_EXPAND_CALLBACK_CLASS =
@@ -255,6 +256,9 @@ public final class SystemUiHooks {
         } else {
             log(Log.WARN, "MiuiClock missing; custom time unavailable", null);
         }
+        // The OEM custom clock can write its text without calling MiuiClock.updateTime().
+        Class<?> statusBarClock = findClassQuiet(STATUS_BAR_CLOCK_CLASS, classLoader);
+        if (statusBarClock != null) hookDeclaredClockMethod(statusBarClock, "updateTime");
         NotificationHookInstaller.Result notification = notificationHookInstaller().install(classLoader);
         notificationBigTimeSizeField = notification.bigTimeSizeField;
         notificationExpandContextField = notification.expandContextField;
@@ -984,7 +988,7 @@ public final class SystemUiHooks {
         }
         List<?> visible = ControlCenterTileOrder.forDisplay(
                 new ArrayList<>(source), settings, SystemUiHooks::tileSpec);
-        if (!source.isEmpty() && CONTROL_CENTER_DISPLAY_LOGGED.compareAndSet(false, true)) {
+        if (!source.isEmpty() && ModuleLog.enabled() && CONTROL_CENTER_DISPLAY_LOGGED.compareAndSet(false, true)) {
             log(Log.INFO, "control-center current tiles overlay applied source=" + source.size()
                     + " visible=" + visible.size() + " specs=" + tileSpecs(visible), null);
         }
@@ -1015,7 +1019,7 @@ public final class SystemUiHooks {
         }
         List<?> reordered = ControlCenterTileOrder.forDisplay(
                 new ArrayList<>(source), settings, SystemUiHooks::tileSpec);
-        if (!source.isEmpty() && CONTROL_CENTER_HOST_LOGGED.compareAndSet(false, true)) {
+        if (!source.isEmpty() && ModuleLog.enabled() && CONTROL_CENTER_HOST_LOGGED.compareAndSet(false, true)) {
             log(Log.INFO, "control-center plugin source=" + sourceName + " source="
                     + source.size() + " visible=" + reordered.size()
                     + " specs=" + tileSpecs(reordered), null);
@@ -1064,12 +1068,12 @@ public final class SystemUiHooks {
                 source.clear();
                 ((List<Object>) source).addAll(reordered);
                 if (activePair != null && pairRemoved > 0
-                        && CONTROL_CENTER_COMPONENTS_LOGGED.add(
+                        && ModuleLog.enabled() && CONTROL_CENTER_COMPONENTS_LOGGED.add(
                                 "compact-pair-filter:" + activePair.id)) {
                     log(Log.INFO, "control-center compact pair duplicate tiles removed count="
                             + pairRemoved, null);
                 }
-                if (CONTROL_CENTER_HOST_LOGGED.compareAndSet(false, true)) {
+                if (ModuleLog.enabled() && CONTROL_CENTER_HOST_LOGGED.compareAndSet(false, true)) {
                     log(Log.INFO, "control-center compact source=sysui_flip_qs_tiles source="
                             + originalSize + " visible=" + reordered.size(), null);
                 }
@@ -1106,7 +1110,7 @@ public final class SystemUiHooks {
         }
         int width = settings.tileWidth(spec);
         String shapeKey = spec + "=" + width + "x" + settings.tileHeight(spec);
-        if (width != 1 && CONTROL_CENTER_SHAPES_LOGGED.add(shapeKey)) {
+        if (width != 1 && ModuleLog.enabled() && CONTROL_CENTER_SHAPES_LOGGED.add(shapeKey)) {
             log(Log.INFO, "control-center shape span applied spec=" + spec
                     + " width=" + width + " height=" + settings.tileHeight(spec), null);
         }
@@ -1135,7 +1139,7 @@ public final class SystemUiHooks {
                 || !ControlCenterTileLayout.hasShape(settings.layout, spec)) return result;
         int width = settings.tileWidth(spec);
         String key = spec + "=" + width + "x" + settings.tileHeight(spec);
-        if (CONTROL_CENTER_SHAPES_LOGGED.add(key)) {
+        if (ModuleLog.enabled() && CONTROL_CENTER_SHAPES_LOGGED.add(key)) {
             log(Log.INFO, "control-center component span applied spec=" + spec
                     + " width=" + width + " height=" + settings.tileHeight(spec), null);
         }
@@ -1275,7 +1279,7 @@ public final class SystemUiHooks {
             Integer nativeSpan = CONTROL_CENTER_NATIVE_SPANS.get(item);
             CONTROL_CENTER_CAPTURE_NATIVE_SPANS.put(view, nativeSpan == null
                     ? ControlCenterComponentSpec.defaultSpan(spec) : Math.max(1, nativeSpan));
-            if (CONTROL_CENTER_COMPONENTS_LOGGED.add("bind:" + spec)) {
+            if (ModuleLog.enabled() && CONTROL_CENTER_COMPONENTS_LOGGED.add("bind:" + spec)) {
                 log(Log.INFO, "control-center component bound spec=" + spec
                         + " view=" + view.getClass().getName(), null);
             }
@@ -1378,7 +1382,7 @@ public final class SystemUiHooks {
                 params.height = target;
                 itemView.setLayoutParams(params);
             }
-            if (rows > 1 && CONTROL_CENTER_HEIGHT_LOGGED.compareAndSet(false, true)) {
+            if (rows > 1 && ModuleLog.enabled() && CONTROL_CENTER_HEIGHT_LOGGED.compareAndSet(false, true)) {
                 log(Log.INFO, "control-center shape height applied spec=" + spec
                         + " rows=" + rows + " base=" + baseHeight + " target=" + target, null);
             }
@@ -1473,7 +1477,7 @@ public final class SystemUiHooks {
         }
         if (changed && shapeWidth > 1) {
             String key = spec + "=" + shapeWidth + "x" + settings.tileHeight(spec);
-            if (CONTROL_CENTER_VISUAL_SHAPES_LOGGED.add(key)) {
+            if (ModuleLog.enabled() && CONTROL_CENTER_VISUAL_SHAPES_LOGGED.add(key)) {
                 log(Log.INFO, "control-center visual shape applied spec=" + spec
                         + " width=" + shapeWidth + " visualWidth=" + targetWidth, null);
             }
@@ -1601,7 +1605,7 @@ public final class SystemUiHooks {
         }
         try {
             boolean refreshed = invalidateMainPanelAdapter(chain.getThisObject(), null, false);
-            if (refreshed && CONTROL_CENTER_LAYOUT_REBIND_LOGGED.compareAndSet(false, true)) {
+            if (refreshed && ModuleLog.enabled() && CONTROL_CENTER_LAYOUT_REBIND_LOGGED.compareAndSet(false, true)) {
                 log(Log.INFO,
                         "control-center adapter notifyChanged completed; layout caches invalidated",
                         null);
@@ -1620,7 +1624,7 @@ public final class SystemUiHooks {
                 || !(result instanceof List<?> source)) return result;
         List<?> reordered = ControlCenterTileOrder.forDisplay(
                 new ArrayList<>(source), settings, SystemUiHooks::tileSpec);
-        if (CONTROL_CENTER_DISPLAY_LOGGED.compareAndSet(false, true)) {
+        if (ModuleLog.enabled() && CONTROL_CENTER_DISPLAY_LOGGED.compareAndSet(false, true)) {
             log(Log.INFO, "control-center plugin compact specs source=" + source.size()
                     + " visible=" + reordered.size(), null);
         }
@@ -1640,7 +1644,7 @@ public final class SystemUiHooks {
                 settings, compactPairHostSpecs(chain.getThisObject()));
         controlCenterSelectedCompactPair = pair;
         if (pair == null) return result;
-        if (CONTROL_CENTER_COMPONENTS_LOGGED.add("compact-pair:" + pair.id)) {
+        if (ModuleLog.enabled() && CONTROL_CENTER_COMPONENTS_LOGGED.add("compact-pair:" + pair.id)) {
             log(Log.INFO, "control-center compact pair selected first=" + pair.firstSpec
                     + " second=" + pair.secondSpec, null);
         }
@@ -1789,7 +1793,7 @@ public final class SystemUiHooks {
                     new ArrayList<>(source), settings, SystemUiHooks::tileSpec);
             source.clear();
             ((List<Object>) source).addAll(reordered);
-            if (CONTROL_CENTER_TILES_LOGGED.compareAndSet(false, true)) {
+            if (ModuleLog.enabled() && CONTROL_CENTER_TILES_LOGGED.compareAndSet(false, true)) {
                 log(Log.INFO, "control-center plugin tile order applied source=" + sourceName
                         + " source=" + originalSize
                         + " visible=" + reordered.size(), null);
@@ -1882,7 +1886,7 @@ public final class SystemUiHooks {
                 ensureConfigForTarget(adapter);
                 boolean active = ControlCenterRuntimeGrid.apply(adapter,
                         currentConfig.controlCenter, adapter.getClass().getClassLoader());
-                if (active && CONTROL_CENTER_COMPONENTS_LOGGED.add("runtime-grid-active")) {
+                if (active && ModuleLog.enabled() && CONTROL_CENTER_COMPONENTS_LOGGED.add("runtime-grid-active")) {
                     log(Log.INFO, "control-center runtime grid active", null);
                 }
             } catch (Throwable error) {
@@ -2418,7 +2422,7 @@ public final class SystemUiHooks {
                     log(Log.WARN, "control-center native style unavailable spec=" + spec, error);
                 }
                 if (ControlCenterComponentSpec.isSpecial(spec)
-                        && CONTROL_CENTER_COMPONENTS_LOGGED.add("capture:" + spec)) {
+                        && ModuleLog.enabled() && CONTROL_CENTER_COMPONENTS_LOGGED.add("capture:" + spec)) {
                     log(Log.INFO, "control-center preview component captured spec=" + spec
                             + " bounds=" + left + "," + top + ","
                             + width + "x" + height, null);
@@ -3055,7 +3059,7 @@ public final class SystemUiHooks {
             NATIVE_ICON_ALIGNMENTS.put(statusIcons, new NativeIconAlignment(original, applied));
             statusIcons.setTranslationX(applied);
         }
-        if (!NATIVE_ICON_LAYOUT_LOGGED.containsKey(container)) {
+        if (ModuleLog.enabled() && !NATIVE_ICON_LAYOUT_LOGGED.containsKey(container)) {
             NATIVE_ICON_LAYOUT_LOGGED.put(container, Boolean.TRUE);
             log(Log.INFO, "native status icons aligned: iconLeft=" + iconLeft
                     + " iconRight=" + iconRight + " statusLeft=" + STATUS_LOCATION[0]
@@ -3091,6 +3095,7 @@ public final class SystemUiHooks {
 
     private static void ensureConfigObserver(Context context) {
         if (context == null) return;
+        ModuleLoggingConfig.attachInjected(context);
         DesktopSystemActionReceiver.register(context);
         synchronized (SystemUiHooks.class) {
             if (configLifecycle == null) {
@@ -3508,7 +3513,7 @@ public final class SystemUiHooks {
                         settings.sizeSp, context.getResources().getDisplayMetrics()));
                 if (notificationBigTimeSizeField.getInt(controller) != targetPixels) {
                     notificationBigTimeSizeField.setInt(controller, targetPixels);
-                    if (NOTIFICATION_SIZE_LOGGED.compareAndSet(false, true)) {
+                    if (ModuleLog.enabled() && NOTIFICATION_SIZE_LOGGED.compareAndSet(false, true)) {
                         log(Log.INFO, "notification expanded time size synced sp="
                                 + settings.sizeSp + " px=" + targetPixels, null);
                     }
@@ -3517,7 +3522,7 @@ public final class SystemUiHooks {
                         && notificationExpandProgressField.getFloat(controller) >= 0.5f;
             }
         } catch (Throwable error) {
-            if (NOTIFICATION_SIZE_LOGGED.compareAndSet(false, true)) {
+            if (ModuleLog.enabled() && NOTIFICATION_SIZE_LOGGED.compareAndSet(false, true)) {
                 log(Log.WARN, "notification expanded time size sync failed", error);
             }
         }
@@ -3572,7 +3577,7 @@ public final class SystemUiHooks {
                 args[0] = appliedNotificationTopPadding;
             }
         } catch (Throwable error) {
-            if (NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
+            if (ModuleLog.enabled() && NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
                 log(Log.WARN, "notification list padding adjustment failed", error);
             }
         }
@@ -3598,7 +3603,7 @@ public final class SystemUiHooks {
                 NOTIFICATION_PADDING_REFRESH.set(Boolean.TRUE);
                 appliedNotificationTopPadding = desired;
                 notificationTopPaddingMethod.invoke(stack, desired, false);
-                if (NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
+                if (ModuleLog.enabled() && NOTIFICATION_LIST_LOGGED.compareAndSet(false, true)) {
                     log(Log.INFO, "notification list layout offset applied dp="
                             + currentConfig.notificationClock.listOffsetYDp, null);
                 }
@@ -4349,7 +4354,7 @@ public final class SystemUiHooks {
             int heightSpec = (Integer) chain.getArg(1);
             icon.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), heightSpec);
             if (currentPlan.spanFusion
-                    && SPAN_MEASURE_LOGGED.compareAndSet(false, true)) {
+                    && ModuleLog.enabled() && SPAN_MEASURE_LOGGED.compareAndSet(false, true)) {
                 log(Log.INFO, "span measure icon=" + icon.getMeasuredHeight()
                         + " battery=" + battery.getMeasuredHeight()
                         + " parentSpec=" + View.MeasureSpec.getSize(heightSpec)
@@ -4652,6 +4657,7 @@ public final class SystemUiHooks {
     }
 
     private static void logVolumePriorityOnce(ViewGroup container, String result) {
+        if (!ModuleLog.enabled()) return;
         synchronized (VOLUME_PRIORITY_LOGGED) {
             if (result.equals(VOLUME_PRIORITY_LOGGED.put(container, result))) return;
         }
@@ -4886,7 +4892,7 @@ public final class SystemUiHooks {
         if (wanted.isEmpty()) {
             return;
         }
-        if (SLOTS_LOGGED.compareAndSet(false, true)) {
+        if (ModuleLog.enabled() && SLOTS_LOGGED.compareAndSet(false, true)) {
             log(Log.INFO, "hiding slots " + wanted, null);
         }
         List<?> current = ignoredSlots(container);
@@ -4967,7 +4973,7 @@ public final class SystemUiHooks {
                 log(Log.WARN, "ignored slot field failed", error);
             }
         }
-        if (FIELD_LOGGED.compareAndSet(false, true)) {
+        if (ModuleLog.enabled() && FIELD_LOGGED.compareAndSet(false, true)) {
             log(Log.ERROR, "ignoredSlots field missing; signal slots are only hidden visually", null);
         }
         return null;
@@ -5113,7 +5119,7 @@ public final class SystemUiHooks {
             int color = intensity > 0f ? dark : light;
             return Color.alpha(color) == 0 ? Color.WHITE : color;
         } catch (Throwable error) {
-            if (TINT_LOGGED.compareAndSet(false, true)) {
+            if (ModuleLog.enabled() && TINT_LOGGED.compareAndSet(false, true)) {
                 log(Log.WARN, "tint fields unavailable; using white", error);
             }
             return Color.WHITE;
@@ -5145,7 +5151,7 @@ public final class SystemUiHooks {
                 return Color.alpha(color) == 0 ? Color.WHITE : color;
             }
         } catch (Throwable error) {
-            if (TINT_LOGGED.compareAndSet(false, true)) {
+            if (ModuleLog.enabled() && TINT_LOGGED.compareAndSet(false, true)) {
                 log(Log.WARN, "DarkIconDispatcher.getTint failed", error);
             }
         }
@@ -5273,7 +5279,8 @@ public final class SystemUiHooks {
     }
 
     private static void log(int priority, String message, Throwable error) {
-        if (priority <= Log.INFO && error == null) {
+        if (!ModuleLog.acceptsDiagnostics()) return;
+        if (ModuleLog.enabled() && priority <= Log.INFO && error == null) {
             synchronized (RECENT_DIAGNOSTICS) {
                 long now = SystemClock.elapsedRealtime();
                 Long previous = RECENT_DIAGNOSTICS.get(message);
@@ -5284,20 +5291,20 @@ public final class SystemUiHooks {
             }
         }
         if (error == null) {
-            Log.println(priority, TAG, message);
+            ModuleLog.println(priority, TAG, message);
         } else if (priority >= Log.ERROR) {
-            Log.e(TAG, message, error);
+            ModuleLog.e(TAG, message, error);
         } else {
-            Log.w(TAG, message, error);
+            ModuleLog.w(TAG, message, error);
         }
         if (module == null) {
             return;
         }
         try {
             if (error == null) {
-                module.log(priority, TAG, message);
+                FusionModule.logModule(module, priority, TAG, message);
             } else {
-                module.log(priority, TAG, message, error);
+                FusionModule.logModule(module, priority, TAG, message, error);
             }
         } catch (Throwable ignored) {
             // The framework logger must not take down SystemUI.

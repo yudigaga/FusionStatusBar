@@ -6,7 +6,6 @@ import android.content.pm.ShortcutInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Process;
-import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.ArrayList;
@@ -56,7 +55,7 @@ final class DesktopShortcutCatalog {
             data.putString(KEY_CATALOG, catalog.toString());
             context.getContentResolver().call(contentUri(), METHOD_PUBLISH, null, data);
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "desktop shortcut catalog unavailable", error);
+            ModuleLog.w("FusionStatusBar", "desktop shortcut catalog unavailable", error);
         }
     }
 
@@ -80,7 +79,7 @@ final class DesktopShortcutCatalog {
                         item.getString("label")));
             }
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "desktop shortcut catalog read failed", error);
+            ModuleLog.w("FusionStatusBar", "desktop shortcut catalog read failed", error);
         }
         return result;
     }
@@ -94,7 +93,7 @@ final class DesktopShortcutCatalog {
                     null, null, Process.myUserHandle());
             return true;
         } catch (Throwable error) {
-            Log.w("FusionStatusBar", "desktop shortcut launch failed", error);
+            ModuleLog.w("FusionStatusBar", "desktop shortcut launch failed", error);
             return false;
         }
     }

@@ -27,7 +27,7 @@ final class SystemStartConfirmationHooks {
         try {
             service = Class.forName(LOCAL_SERVICE, false, loader);
         } catch (ClassNotFoundException error) {
-            module.log(Log.WARN, FusionModule.TAG, "system start confirmation class unavailable: " + LOCAL_SERVICE);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "system start confirmation class unavailable: " + LOCAL_SERVICE);
             return 0;
         }
         int installed = 0;
@@ -40,18 +40,18 @@ final class SystemStartConfirmationHooks {
                         .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
                             MiscConfig snapshot = MiscSystemConfigExchange.current();
                             boolean enabled = snapshot.removeChainStartDialog;
-                            if (enabled && ALLOW_REPORTED.compareAndSet(false, true))
-                                module.log(Log.INFO, FusionModule.TAG, "system start confirmation gate bypass active");
+                            if (enabled && ModuleLog.enabled() && ALLOW_REPORTED.compareAndSet(false, true))
+                                FusionModule.logModule(module, Log.INFO, FusionModule.TAG, "system start confirmation gate bypass active");
                             if (!enabled) ALLOW_REPORTED.set(false);
                             return interceptCheck(chain, snapshot);
                         });
                 installed++;
             } catch (Throwable error) {
-                module.log(Log.WARN, FusionModule.TAG, "system start confirmation method unavailable", error);
+                FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "system start confirmation method unavailable", error);
             }
         }
         if (installed == 0) {
-            module.log(Log.WARN, FusionModule.TAG, "system start confirmation boolean gate unavailable");
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "system start confirmation boolean gate unavailable");
             return 0;
         }
         installContextCapture(module, loader);
@@ -84,7 +84,7 @@ final class SystemStartConfirmationHooks {
                         return result;
                     });
         } catch (Throwable error) {
-            module.log(Log.WARN, FusionModule.TAG, "system start confirmation context hook unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "system start confirmation context hook unavailable", error);
         }
         // OEM service constructors expose the same system Context when server setup differs.
         try {
@@ -104,7 +104,7 @@ final class SystemStartConfirmationHooks {
                         });
             }
         } catch (Throwable error) {
-            module.log(Log.WARN, FusionModule.TAG, "system start confirmation OEM context hook unavailable", error);
+            FusionModule.logModule(module, Log.WARN, FusionModule.TAG, "system start confirmation OEM context hook unavailable", error);
         }
     }
 
